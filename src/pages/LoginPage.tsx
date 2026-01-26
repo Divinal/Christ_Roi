@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { GraduationCap, AlertCircle } from 'lucide-react';
+import { GraduationCap, AlertCircle, Info } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { User, UserRole } from '../types';
 
@@ -7,6 +7,40 @@ interface LoginPageProps {
   onLogin: (user: User) => void;
   setCurrentPage: (page: string) => void;
 }
+
+// Utilisateurs de démo (mode hors ligne)
+const DEMO_USERS: Record<string, { password: string; user: User }> = {
+  'admin@demo.com': {
+    password: 'admin123',
+    user: {
+      id: 'demo-admin',
+      email: 'admin@demo.com',
+      role: 'admin',
+      firstName: 'Admin',
+      lastName: 'Demo',
+    },
+  },
+  'enseignant@demo.com': {
+    password: 'demo123',
+    user: {
+      id: 'demo-teacher',
+      email: 'enseignant@demo.com',
+      role: 'teacher',
+      firstName: 'Prof.',
+      lastName: 'Martin',
+    },
+  },
+  'etudiant@demo.com': {
+    password: 'demo123',
+    user: {
+      id: 'demo-student',
+      email: 'etudiant@demo.com',
+      role: 'student',
+      firstName: 'Étudiant',
+      lastName: 'Test',
+    },
+  },
+};
 
 const LoginPage: React.FC<LoginPageProps> = ({ onLogin, setCurrentPage }) => {
   const [email, setEmail] = useState<string>('');
@@ -18,6 +52,14 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, setCurrentPage }) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+
+    // Vérifier d'abord les utilisateurs de démo
+    const demoUser = DEMO_USERS[email.toLowerCase()];
+    if (demoUser && demoUser.password === password) {
+      onLogin(demoUser.user);
+      setLoading(false);
+      return;
+    }
 
     try {
       // Connexion avec Supabase
@@ -34,25 +76,33 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, setCurrentPage }) => {
           .from('users')
           .select('*')
           .eq('id', authData.user.id)
-          .single();
+          .maybeSingle();
 
         if (userError) throw userError;
 
-        const user: User = {
-          id: userData.id,
-          email: userData.email,
-          role: userData.role,
-          firstName: userData.first_name,
-          lastName: userData.last_name,
-        };
-
-        onLogin(user);
+        if (userData) {
+          const user: User = {
+            id: userData.id,
+            email: userData.email,
+            role: userData.role,
+            firstName: userData.first_name,
+            lastName: userData.last_name,
+          };
+          onLogin(user);
+        } else {
+          throw new Error('Utilisateur non trouvé dans la base de données');
+        }
       }
     } catch (error: any) {
       setError(error.message || 'Erreur de connexion');
     } finally {
       setLoading(false);
     }
+  };
+
+  const fillDemoCredentials = (email: string, password: string) => {
+    setEmail(email);
+    setPassword(password);
   };
 
   return (
@@ -64,6 +114,40 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, setCurrentPage }) => {
           </div>
           <h1 className="text-3xl font-bold text-gray-800">Système E-Learning</h1>
           <p className="text-gray-600 mt-2">Connectez-vous à votre espace</p>
+        </div>
+
+        {/* Identifiants de démo */}
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center gap-2 text-blue-700 mb-3">
+            <Info className="w-5 h-5" />
+            <span className="font-medium">Identifiants de démo</span>
+          </div>
+          <div className="space-y-2 text-sm">
+            <button
+              type="button"
+              onClick={() => fillDemoCredentials('admin@demo.com', 'admin123')}
+              className="w-full text-left p-2 bg-purple-100 hover:bg-purple-200 rounded transition"
+            >
+              <span className="font-medium text-purple-700">Admin:</span>{' '}
+              <span className="text-gray-600">admin@demo.com / admin123</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => fillDemoCredentials('enseignant@demo.com', 'demo123')}
+              className="w-full text-left p-2 bg-blue-100 hover:bg-blue-200 rounded transition"
+            >
+              <span className="font-medium text-blue-700">Enseignant:</span>{' '}
+              <span className="text-gray-600">enseignant@demo.com / demo123</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => fillDemoCredentials('etudiant@demo.com', 'demo123')}
+              className="w-full text-left p-2 bg-green-100 hover:bg-green-200 rounded transition"
+            >
+              <span className="font-medium text-green-700">Étudiant:</span>{' '}
+              <span className="text-gray-600">etudiant@demo.com / demo123</span>
+            </button>
+          </div>
         </div>
 
         {error && (
