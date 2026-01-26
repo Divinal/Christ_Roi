@@ -3,6 +3,7 @@ import { supabase } from './lib/supabaseClient';
 import LoginPage from './pages/LoginPage';
 import StudentDashboard from './pages/StudentDashboard';
 import TeacherDashboard from './pages/TeacherDashboard';
+import AdminDashboard from './pages/AdminDashboard';
 import { User } from './types';
 
 type Page = 'login' | 'student-dashboard' | 'teacher-dashboard' | 'admin-dashboard';
@@ -21,8 +22,11 @@ const App: React.FC = () => {
       if (session?.user) {
         fetchUserData(session.user.id);
       } else {
-        setUser(null);
-        setCurrentPage('login');
+        // Ne pas déconnecter si c'est un utilisateur démo
+        if (!user?.id?.startsWith('demo-')) {
+          setUser(null);
+          setCurrentPage('login');
+        }
       }
     });
 
@@ -48,7 +52,7 @@ const App: React.FC = () => {
         .from('users')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
 
@@ -86,6 +90,12 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
+    // Pour les utilisateurs démo, juste réinitialiser l'état
+    if (user?.id?.startsWith('demo-')) {
+      setUser(null);
+      setCurrentPage('login');
+      return;
+    }
     await supabase.auth.signOut();
     setUser(null);
     setCurrentPage('login');
@@ -107,11 +117,14 @@ const App: React.FC = () => {
       {currentPage === 'login' && (
         <LoginPage onLogin={handleLogin} setCurrentPage={setCurrentPage} />
       )}
-      {currentPage === 'student-dashboard' && (
+      {currentPage === 'student-dashboard' && user && (
         <StudentDashboard user={user} onLogout={handleLogout} />
       )}
-      {currentPage === 'teacher-dashboard' && (
+      {currentPage === 'teacher-dashboard' && user && (
         <TeacherDashboard user={user} onLogout={handleLogout} />
+      )}
+      {currentPage === 'admin-dashboard' && user && (
+        <AdminDashboard user={user} onLogout={handleLogout} />
       )}
     </div>
   );
