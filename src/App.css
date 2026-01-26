@@ -40,3 +40,37 @@
 .read-the-docs {
   color: #888;
 }
+
+/* Reccueillir les avis */
+
+.avis-container {
+  text-align: center;
+  margin: 2rem auto;
+  padding: 1.5rem;
+  background-color: #f4f4f4;
+  border-radius: 10px;
+  max-width: 500px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.avis-texte {
+  font-size: 1.2rem;
+  margin-bottom: 1rem;
+  color: #333;
+}
+
+.btn-avis {
+  display: inline-block;
+  background-color: #ffa600;
+  color: white;
+  font-weight: bold;
+  padding: 12px 20px;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: background-color 0.3s ease;
+}
+
+.btn-avis:hover {
+  background-color: #ff8800;
+}
+
