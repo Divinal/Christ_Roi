@@ -3,8 +3,7 @@ import { supabase } from './lib/supabaseClient';
 import LoginPage from './pages/LoginPage';
 import StudentDashboard from './pages/StudentDashboard';
 import TeacherDashboard from './pages/TeacherDashboard';
-// import AdminDashboard from './pages/admin/AdminDashboard';
-import { User } from '././types';
+import { User } from './types';
 
 type Page = 'login' | 'student-dashboard' | 'teacher-dashboard' | 'admin-dashboard';
 
@@ -76,6 +75,16 @@ const App: React.FC = () => {
     }
   };
 
+  const handleLogin = (loggedInUser: User) => {
+    setUser(loggedInUser);
+    const pageMap: Record<string, Page> = {
+      student: 'student-dashboard',
+      teacher: 'teacher-dashboard',
+      admin: 'admin-dashboard',
+    };
+    setCurrentPage(pageMap[loggedInUser.role] || 'login');
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setUser(null);
@@ -95,10 +104,15 @@ const App: React.FC = () => {
 
   return (
     <div>
-      {/* {currentPage === 'login' && <LoginPage onLogin={setUser} setCurrentPage={setCurrentPage} />} */}
-      {currentPage === 'student-dashboard' && <StudentDashboard user={user} onLogout={handleLogout} />}
-      {currentPage === 'teacher-dashboard' && <TeacherDashboard user={user} onLogout={handleLogout} />}
-      {/* {currentPage === 'admin-dashboard' && <AdminDashboard user={user} onLogout={handleLogout} />} */}
+      {currentPage === 'login' && (
+        <LoginPage onLogin={handleLogin} setCurrentPage={setCurrentPage} />
+      )}
+      {currentPage === 'student-dashboard' && (
+        <StudentDashboard user={user} onLogout={handleLogout} />
+      )}
+      {currentPage === 'teacher-dashboard' && (
+        <TeacherDashboard user={user} onLogout={handleLogout} />
+      )}
     </div>
   );
 };
