@@ -1,7 +1,7 @@
 // src/pages/ImprovedTeacherDashboard.tsx
 import React, { useState, useEffect } from 'react';
 import { 
-  Home, BookOpen, FileText, Upload, Edit, Trash2, Save, Send,
+  Home, BookOpen, FileText, Upload, Trash2, Save,
   Calendar, MessageSquare, Users, Download, Plus, CheckCircle, X
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
@@ -555,17 +555,17 @@ const ImprovedTeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLog
                         </div>
                         <div className="flex gap-4 text-sm mt-3">
                           <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-semibold">
-                            📚 {course.subject}
+                            📚 Matière
                           </span>
                           <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full font-semibold">
-                            🎓 {course.class_level}
+                            🎓 Niveau
                           </span>
                           <span className={`px-3 py-1 rounded-full font-semibold ${
-                            course.is_approved 
+                            course.isPublished 
                               ? 'bg-green-100 text-green-700' 
                               : 'bg-orange-100 text-orange-700'
                           }`}>
-                            {course.is_approved ? '✓ Approuvé' : '⏳ En attente'}
+                            {course.isPublished ? '✓ Publié' : '⏳ En attente'}
                           </span>
                           <span className="text-gray-500">
                             📅 {new Date(course.uploadedAt).toLocaleDateString()}

@@ -5,7 +5,7 @@ import { User, UserRole } from '../types';
 
 interface LoginPageProps {
   onLogin: (user: User) => void;
-  setCurrentPage: (page: string) => void;
+  setCurrentPage?: (page: string) => void;
 }
 
 // Utilisateurs de démo (mode hors ligne)
