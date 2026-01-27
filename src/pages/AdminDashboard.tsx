@@ -1,4 +1,4 @@
-// src/pages/admin/AdminDashboard.tsx
+// src/pages/AdminDashboard.tsx
 import React, { useState, useEffect } from 'react';
 import { Home, Users, BookOpen, Plus, Edit, Trash2, Search, Bell, MessageSquare } from 'lucide-react';
 import Navbar from '../components/Navbar';

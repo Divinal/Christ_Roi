@@ -1,4 +1,4 @@
-// src/pages/student/StudentDashboard.tsx
+// src/pages/StudentDashboard.tsx
 import React, { useState, useEffect } from 'react';
 import { Home, BookOpen, FileText, Calendar, MessageSquare, Download, Eye } from 'lucide-react';
 import Navbar from '../components/Navbar';

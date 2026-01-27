@@ -1,4 +1,4 @@
-// src/pages/teacher/TeacherDashboard.tsx
+// src/pages/TeacherDashboard.tsx
 import React, { useState, useEffect } from 'react';
 import { Home, BookOpen, FileText, Upload, Edit, Trash2, Save } from 'lucide-react';
 import Navbar from '../components/Navbar';
