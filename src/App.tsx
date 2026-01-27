@@ -115,7 +115,7 @@ const App: React.FC = () => {
   return (
     <div>
       {currentPage === 'login' && (
-        <LoginPage onLogin={handleLogin} setCurrentPage={setCurrentPage} />
+        <LoginPage onLogin={handleLogin} />
       )}
       {currentPage === 'student-dashboard' && user && (
         <StudentDashboard user={user} onLogout={handleLogout} />

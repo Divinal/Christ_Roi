@@ -3,8 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Home, BookOpen, FileText, Upload, Edit, Trash2, Save } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import TabNavigation from '../components/TabNavigation';
-import StatCard from '../components/StatCard';
-import { User, Course, Grade, Student } from '../types';
+import { User, Course, Student } from '../types';
 import { supabase } from '../lib/supabaseClient';
 
 interface TeacherDashboardProps {

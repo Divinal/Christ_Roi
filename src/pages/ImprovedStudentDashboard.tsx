@@ -2,11 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Home, BookOpen, FileText, Calendar, MessageSquare, Download, 
-  Eye, Clock, Award, TrendingUp, Star, CheckCircle, AlertCircle
+  Award, TrendingUp, AlertCircle
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import TabNavigation from '../components/TabNavigation';
-import { User, Course, Grade, Message } from '../types';
+import { User, Course, Message } from '../types';
 import { supabase } from '../lib/supabaseClient';
 
 interface StudentDashboardProps {
@@ -29,8 +29,6 @@ const ImprovedStudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLog
   const [grades, setGrades] = useState<StudentGrade[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
-  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
 
   // Données de l'étudiant (à adapter selon votre BDD)
   const studentInfo = {
@@ -49,12 +47,11 @@ const ImprovedStudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLog
   const loadStudentData = async () => {
     setLoading(true);
     try {
-      // Charger les cours approuvés pour la classe de l'étudiant
+      // Charger les cours publiés pour la classe de l'étudiant
       const { data: coursesData } = await supabase
         .from('courses')
         .select('*')
-        .eq('is_approved', true)
-        .eq('class_level', studentInfo.level);
+        .eq('is_published', true);
       if (coursesData) setCourses(coursesData);
 
       // Charger les notes de l'étudiant
@@ -439,7 +436,7 @@ const ImprovedStudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLog
                     </h3>
                     <p className="text-sm text-gray-600 mb-3 line-clamp-2">{course.description}</p>
                     <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
-                      <span>📖 {course.subject}</span>
+                      <span>📖 Cours</span>
                       <span>{new Date(course.uploadedAt).toLocaleDateString()}</span>
                     </div>
                     {course.fileUrl && (
