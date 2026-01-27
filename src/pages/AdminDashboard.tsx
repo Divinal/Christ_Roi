@@ -6,7 +6,6 @@ import TabNavigation from '../components/TabNavigation';
 import { User, Student, Teacher } from '../types';
 import { supabase } from '../lib/supabaseClient';
 
-
 interface AdminDashboardProps {
   user: User | null;
   onLogout: () => void;
@@ -265,17 +264,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
   };
 
   const filteredStudents = students.filter(student =>
-    student.studentNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.users?.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.users?.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.users?.email.toLowerCase().includes(searchTerm.toLowerCase())
+    (student.studentNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (student.users?.first_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (student.users?.last_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (student.users?.email || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const filteredTeachers = teachers.filter(teacher =>
-    teacher.teacherNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    teacher.users?.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    teacher.users?.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    teacher.users?.email.toLowerCase().includes(searchTerm.toLowerCase())
+    (teacher.teacherNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (teacher.users?.first_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (teacher.users?.last_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (teacher.users?.email || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const tabs = [
