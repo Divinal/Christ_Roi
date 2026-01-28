@@ -1,8 +1,9 @@
-// src/pages/AdminDashboard.tsx - V2 avec Emplois du temps et Annonces
+// src/pages/AdminDashboard.tsx
 import React, { useState, useEffect } from 'react';
 import { 
   Home, Users, BookOpen, Plus, Edit, Trash2, Search, 
-  Calendar, FileText, MessageSquare, X, Save, Bell, Clock
+  Calendar, FileText, MessageSquare, X, Save, Bell, Clock,
+  ChevronLeft, ChevronRight, Filter
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 
@@ -116,6 +117,29 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
   const [modalType, setModalType] = useState<'student' | 'teacher' | 'class' | 'subject' | 'schedule' | 'announcement'>('student');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
+  const [studentClassAssignments, setStudentClassAssignments] = useState<any[]>([]);
+  const [teacherClassAssignments, setTeacherClassAssignments] = useState<any[]>([]);
+  const [showAssignModal, setShowAssignModal] = useState<boolean>(false);
+  const [assignModalType, setAssignModalType] = useState<'student' | 'teacher'>('student');
+  // ==================== ÉTATS PAGINATION ET FILTRES ====================
+  const [currentPageStudents, setCurrentPageStudents] = useState<number>(1);
+  const [currentPageTeachers, setCurrentPageTeachers] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [departmentFilter, setDepartmentFilter] = useState<string>('all');
+
+  const [studentAssignForm, setStudentAssignForm] = useState({
+    studentId: '',
+    classId: '',
+    academicYear: '2025-2026'
+  });
+
+  const [teacherAssignForm, setTeacherAssignForm] = useState({
+    teacherId: '',
+    subjectId: '',
+    classId: '',
+    academicYear: '2025-2026'
+  });
 
   // Formulaires
   const [studentForm, setStudentForm] = useState({
@@ -172,7 +196,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
         loadSubjects(),
         loadCourses(),
         loadSchedules(),
-        loadAnnouncements()
+        loadAnnouncements(),
+        loadStudentClassAssignments(),      // ← NOUVEAU
+        loadTeacherClassAssignments()  
       ]);
     } catch (error) {
       console.error('Erreur chargement:', error);
@@ -180,6 +206,38 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
       setLoading(false);
     }
   };
+
+  const loadStudentClassAssignments = async () => {
+  const { data, error } = await supabase
+    .from('student_classes')
+    .select(`*, students( id, student_number, users(first_name, last_name, email)),
+      classes(id, name, level)`)
+    .eq('academic_year', '2025-2026')
+    .order('created_at', { ascending: false });
+  
+  if (error) {
+    console.error('Erreur chargement affectations étudiants:', error);
+  } else {
+    setStudentClassAssignments(data || []);
+  }
+};
+
+const loadTeacherClassAssignments = async () => {
+  const { data, error } = await supabase
+    .from('teacher_subject_classes')
+    .select(`*, teachers(id, teacher_number, users(first_name, last_name, email)),
+      subjects(id, name, code),
+      classes(id, name, level)
+    `)
+    .eq('academic_year', '2025-2026')
+    .order('created_at', { ascending: false });
+  
+  if (error) {
+    console.error('Erreur chargement affectations enseignants:', error);
+  } else {
+    setTeacherClassAssignments(data || []);
+  }
+};
 
   const loadStudents = async () => {
     const { data, error } = await supabase
@@ -276,6 +334,121 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
       setAnnouncements(data || []);
     }
   };
+
+  // ==================== GESTION FORMULAIRES ====================
+  const handleAssignStudentToClass = async (e: React.FormEvent) => {
+  e.preventDefault();
+  
+  if (!studentAssignForm.studentId || !studentAssignForm.classId) {
+    alert('⚠️ Veuillez sélectionner un étudiant et une classe');
+    return;
+  }
+
+  setLoading(true);
+  try {
+    const { error } = await supabase
+      .from('student_classes')
+      .insert({
+        student_id: studentAssignForm.studentId,
+        class_id: studentAssignForm.classId,
+        academic_year: studentAssignForm.academicYear
+      });
+
+    if (error) {
+      if (error.code === '23505') {
+        alert('⚠️ Cet étudiant est déjà affecté à cette classe');
+      } else {
+        throw error;
+      }
+    } else {
+      alert('✅ Étudiant affecté à la classe avec succès !');
+      setShowAssignModal(false);
+      setStudentAssignForm({ studentId: '', classId: '', academicYear: '2025-2026' });
+      loadStudentClassAssignments();
+    }
+  } catch (error: any) {
+    alert(`❌ Erreur: ${error.message}`);
+  } finally {
+    setLoading(false);
+  }
+};
+
+const handleAssignTeacherToClass = async (e: React.FormEvent) => {
+  e.preventDefault();
+  
+  if (!teacherAssignForm.teacherId || !teacherAssignForm.subjectId || !teacherAssignForm.classId) {
+    alert('⚠️ Veuillez remplir tous les champs');
+    return;
+  }
+
+  setLoading(true);
+  try {
+    const { error } = await supabase
+      .from('teacher_subject_classes')
+      .insert({
+        teacher_id: teacherAssignForm.teacherId,
+        subject_id: teacherAssignForm.subjectId,
+        class_id: teacherAssignForm.classId,
+        academic_year: teacherAssignForm.academicYear
+      });
+
+    if (error) {
+      if (error.code === '23505') {
+        alert('⚠️ Cet enseignant est déjà affecté à cette matière pour cette classe');
+      } else {
+        throw error;
+      }
+    } else {
+      alert('✅ Enseignant affecté avec succès !');
+      setShowAssignModal(false);
+      setTeacherAssignForm({ 
+        teacherId: '', 
+        subjectId: '', 
+        classId: '', 
+        academicYear: '2025-2026' 
+      });
+      loadTeacherClassAssignments();
+    }
+  } catch (error: any) {
+    alert(`❌ Erreur: ${error.message}`);
+  } finally {
+    setLoading(false);
+  }
+};
+
+const handleRemoveStudentFromClass = async (assignmentId: string) => {
+  if (!window.confirm('⚠️ Retirer cet étudiant de cette classe ?')) return;
+
+  try {
+    const { error } = await supabase
+      .from('student_classes')
+      .delete()
+      .eq('id', assignmentId);
+
+    if (error) throw error;
+    alert('✅ Étudiant retiré de la classe');
+    loadStudentClassAssignments();
+  } catch (error: any) {
+    alert(`❌ Erreur: ${error.message}`);
+  }
+};
+
+const handleRemoveTeacherFromClass = async (assignmentId: string) => {
+  if (!window.confirm('⚠️ Retirer cet enseignant de cette affectation ?')) return;
+
+  try {
+    const { error } = await supabase
+      .from('teacher_subject_classes')
+      .delete()
+      .eq('id', assignmentId);
+
+    if (error) throw error;
+    alert('✅ Enseignant retiré de l\'affectation');
+    loadTeacherClassAssignments();
+  } catch (error: any) {
+    alert(`❌ Erreur: ${error.message}`);
+  }
+};
 
   // ==================== AJOUT ÉTUDIANT ====================
   const handleAddStudent = async (e: React.FormEvent) => {
@@ -688,17 +861,41 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
   };
 
   // ==================== FILTRES ====================
-  const filteredStudents = students.filter(s =>
-    (s.student_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (s.users?.first_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (s.users?.last_name || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+// ==================== FILTRES ====================
+    const filteredStudents = students.filter(s => {
+      const matchesSearch = (s.student_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (s.users?.first_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (s.users?.last_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (s.users?.email || '').toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesStatus = statusFilter === 'all' || s.status === statusFilter;
+      
+      return matchesSearch && matchesStatus;
+    });
 
-  const filteredTeachers = teachers.filter(t =>
-    (t.teacher_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (t.users?.first_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (t.users?.last_name || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+      // Pagination étudiants
+      const totalPagesStudents = Math.ceil(filteredStudents.length / itemsPerPage);
+      const startIndexStudents = (currentPageStudents - 1) * itemsPerPage;
+      const paginatedStudents = filteredStudents.slice(startIndexStudents, startIndexStudents + itemsPerPage);
+
+    const filteredTeachers = teachers.filter(t => {
+      const matchesSearch = (t.teacher_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (t.users?.first_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (t.users?.last_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (t.users?.email || '').toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesDepartment = departmentFilter === 'all' || t.department === departmentFilter;
+      
+      return matchesSearch && matchesDepartment;
+    });
+
+        // Pagination enseignants
+        const totalPagesTeachers = Math.ceil(filteredTeachers.length / itemsPerPage);
+        const startIndexTeachers = (currentPageTeachers - 1) * itemsPerPage;
+        const paginatedTeachers = filteredTeachers.slice(startIndexTeachers, startIndexTeachers + itemsPerPage);
+
+// Départements uniques
+        const uniqueDepartments = Array.from(new Set(teachers.map(t => t.department).filter(Boolean)));
 
   // Filtrer les emplois du temps par classe sélectionnée
   const filteredSchedules = selectedClassForSchedule
@@ -753,6 +950,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
             { id: 'courses', label: 'Cours', icon: FileText },
             { id: 'schedules', label: 'Emplois du temps', icon: Clock },
             { id: 'announcements', label: 'Annonces', icon: Bell },
+            { id: 'assign-students', label: 'Affecter Étudiants', icon: Users },
+            { id: 'assign-teachers', label: 'Affecter Enseignants', icon: BookOpen },
           ].map(tab => {
             const Icon = tab.icon;
             return (
@@ -844,37 +1043,78 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
           </div>
         )}
 
-        {/* STUDENTS TAB */}
-        {activeTab === 'students' && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">Étudiants ({filteredStudents.length})</h2>
-              <div className="flex gap-3">
-                <div className="relative">
-                  <Search className="w-5 h-5 absolute left-3 top-2.5 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Rechercher..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="border rounded-lg px-3 py-2 pl-10"
-                  />
-                </div>
-                <button
-                  onClick={() => { setModalType('student'); setShowModal(true); }}
-                  className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2"
-                >
-                  <Plus className="w-5 h-5" />
-                  Ajouter
-                </button>
+       {/* STUDENTS TAB */}
+      {activeTab === 'students' && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold">Étudiants ({filteredStudents.length})</h2>
+            <button
+              onClick={() => { setModalType('student'); setShowModal(true); }}
+              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2"
+            >
+              <Plus className="w-5 h-5" />
+              Ajouter
+            </button>
+          </div>
+
+          {/* FILTRES ET RECHERCHE */}
+          <div className="grid md:grid-cols-4 gap-4 mb-6">
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium mb-2">Rechercher</label>
+              <div className="relative">
+                <Search className="w-5 h-5 absolute left-3 top-2.5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Nom, matricule, email..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 pl-10"
+                />
               </div>
             </div>
 
-            {loading ? (
-              <p className="text-center py-8">Chargement...</p>
-            ) : filteredStudents.length === 0 ? (
-              <p className="text-center py-8 text-gray-500">Aucun étudiant trouvé</p>
-            ) : (
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                <Filter className="w-4 h-4 inline mr-1" />
+                Statut
+              </label>
+              <select 
+                value={statusFilter} 
+                onChange={(e) => setStatusFilter(e.target.value)} 
+                className="w-full border rounded-lg px-3 py-2"
+              >
+                <option value="all">Tous</option>
+                <option value="active">Actifs</option>
+                <option value="inactive">Inactifs</option>
+                <option value="suspended">Suspendus</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Par page</label>
+              <select 
+                value={itemsPerPage} 
+                onChange={(e) => { 
+                  setItemsPerPage(Number(e.target.value)); 
+                  setCurrentPageStudents(1); 
+                }} 
+                className="w-full border rounded-lg px-3 py-2"
+              >
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+              </select>
+            </div>
+          </div>
+
+          {/* TABLE */}
+          {loading ? (
+            <p className="text-center py-8">Chargement...</p>
+          ) : paginatedStudents.length === 0 ? (
+            <p className="text-center py-8 text-gray-500">Aucun étudiant trouvé</p>
+          ) : (
+            <>
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-100">
@@ -887,16 +1127,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredStudents.map((student) => (
+                    {paginatedStudents.map((student) => (
                       <tr key={student.id} className="border-b hover:bg-gray-50">
                         <td className="px-4 py-3 font-medium">{student.student_number}</td>
                         <td className="px-4 py-3">{student.users?.first_name} {student.users?.last_name}</td>
                         <td className="px-4 py-3">{student.users?.email}</td>
                         <td className="px-4 py-3">
                           <span className={`px-2 py-1 rounded text-xs ${
-                            student.status === 'active' 
-                              ? 'bg-green-100 text-green-700' 
-                              : 'bg-gray-100 text-gray-700'
+                            student.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
                           }`}>
                             {student.status}
                           </span>
@@ -914,9 +1152,39 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
                   </tbody>
                 </table>
               </div>
-            )}
-          </div>
-        )}
+
+              {/* PAGINATION */}
+              <div className="flex items-center justify-between mt-6">
+                <p className="text-sm text-gray-600">
+                  Affichage {startIndexStudents + 1} à {Math.min(startIndexStudents + itemsPerPage, filteredStudents.length)} sur {filteredStudents.length}
+                </p>
+                
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setCurrentPageStudents(prev => Math.max(1, prev - 1))}
+                    disabled={currentPageStudents === 1}
+                    className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  
+                  <span className="px-4 py-1 border rounded bg-gray-50">
+                    Page {currentPageStudents} / {totalPagesStudents}
+                  </span>
+                  
+                  <button
+                    onClick={() => setCurrentPageStudents(prev => Math.min(totalPagesStudents, prev + 1))}
+                    disabled={currentPageStudents === totalPagesStudents}
+                    className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
         {/* TEACHERS TAB */}
         {activeTab === 'teachers' && (
@@ -932,40 +1200,127 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
               </button>
             </div>
 
+            {/* FILTRES ET RECHERCHE */}
+            <div className="grid md:grid-cols-4 gap-4 mb-6">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-2">Rechercher</label>
+                <div className="relative">
+                  <Search className="w-5 h-5 absolute left-3 top-2.5 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Nom, matricule, email..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full border rounded-lg px-3 py-2 pl-10"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  <Filter className="w-4 h-4 inline mr-1" />
+                  Département
+                </label>
+                <select 
+                  value={departmentFilter} 
+                  onChange={(e) => setDepartmentFilter(e.target.value)} 
+                  className="w-full border rounded-lg px-3 py-2"
+                >
+                  <option value="all">Tous</option>
+                  {uniqueDepartments.map(dept => (
+                    <option key={dept} value={dept}>{dept}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Par page</label>
+                <select 
+                  value={itemsPerPage} 
+                  onChange={(e) => { 
+                    setItemsPerPage(Number(e.target.value)); 
+                    setCurrentPageTeachers(1); 
+                  }} 
+                  className="w-full border rounded-lg px-3 py-2"
+                >
+                  <option value="5">5</option>
+                  <option value="10">10</option>
+                  <option value="20">20</option>
+                  <option value="50">50</option>
+                </select>
+              </div>
+            </div>
+
+            {/* TABLE */}
             {loading ? (
               <p className="text-center py-8">Chargement...</p>
+            ) : paginatedTeachers.length === 0 ? (
+              <p className="text-center py-8 text-gray-500">Aucun enseignant trouvé</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-100">
-                    <tr>
-                      <th className="px-4 py-3 text-left">Matricule</th>
-                      <th className="px-4 py-3 text-left">Nom</th>
-                      <th className="px-4 py-3 text-left">Email</th>
-                      <th className="px-4 py-3 text-left">Spécialité</th>
-                      <th className="px-4 py-3 text-left">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredTeachers.map((teacher) => (
-                      <tr key={teacher.id} className="border-b hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium">{teacher.teacher_number}</td>
-                        <td className="px-4 py-3">{teacher.users?.first_name} {teacher.users?.last_name}</td>
-                        <td className="px-4 py-3">{teacher.users?.email}</td>
-                        <td className="px-4 py-3">{teacher.specialization || '-'}</td>
-                        <td className="px-4 py-3">
-                          <button
-                            onClick={() => handleDeleteTeacher(teacher.id)}
-                            className="text-red-600 hover:bg-red-50 p-2 rounded"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        <th className="px-4 py-3 text-left">Matricule</th>
+                        <th className="px-4 py-3 text-left">Nom</th>
+                        <th className="px-4 py-3 text-left">Email</th>
+                        <th className="px-4 py-3 text-left">Spécialité</th>
+                        <th className="px-4 py-3 text-left">Département</th>
+                        <th className="px-4 py-3 text-left">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {paginatedTeachers.map((teacher) => (
+                        <tr key={teacher.id} className="border-b hover:bg-gray-50">
+                          <td className="px-4 py-3 font-medium">{teacher.teacher_number}</td>
+                          <td className="px-4 py-3">{teacher.users?.first_name} {teacher.users?.last_name}</td>
+                          <td className="px-4 py-3">{teacher.users?.email}</td>
+                          <td className="px-4 py-3">{teacher.specialization || '-'}</td>
+                          <td className="px-4 py-3">{teacher.department || '-'}</td>
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={() => handleDeleteTeacher(teacher.id)}
+                              className="text-red-600 hover:bg-red-50 p-2 rounded"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* PAGINATION */}
+                <div className="flex items-center justify-between mt-6">
+                  <p className="text-sm text-gray-600">
+                    Affichage {startIndexTeachers + 1} à {Math.min(startIndexTeachers + itemsPerPage, filteredTeachers.length)} sur {filteredTeachers.length}
+                  </p>
+                  
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setCurrentPageTeachers(prev => Math.max(1, prev - 1))}
+                      disabled={currentPageTeachers === 1}
+                      className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    
+                    <span className="px-4 py-1 border rounded bg-gray-50">
+                      Page {currentPageTeachers} / {totalPagesTeachers}
+                    </span>
+                    
+                    <button
+                      onClick={() => setCurrentPageTeachers(prev => Math.min(totalPagesTeachers, prev + 1))}
+                      disabled={currentPageTeachers === totalPagesTeachers}
+                      className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </>
             )}
           </div>
         )}
@@ -1229,7 +1584,344 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
             </div>
           </div>
         )}
+
+        {/* MODAL D'AFFECTATION */}
+        {showAssignModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold">
+                  {assignModalType === 'student' 
+                    ? 'Affecter un étudiant à une classe' 
+                    : 'Affecter un enseignant à une matière/classe'}
+                </h3>
+                <button 
+                  onClick={() => setShowAssignModal(false)} 
+                  className="text-3xl hover:text-red-600"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* FORMULAIRE ÉTUDIANT */}
+              {assignModalType === 'student' && (
+                <form onSubmit={handleAssignStudentToClass} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Étudiant *</label>
+                    <select
+                      value={studentAssignForm.studentId}
+                      onChange={(e) => setStudentAssignForm({
+                        ...studentAssignForm, 
+                        studentId: e.target.value
+                      })}
+                      className="w-full border rounded px-3 py-2"
+                      required
+                    >
+                      <option value="">Sélectionner un étudiant...</option>
+                      {students.map((student) => (
+                        <option key={student.id} value={student.id}>
+                          {student.student_number} - {student.users?.first_name} {student.users?.last_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Classe *</label>
+                    <select
+                      value={studentAssignForm.classId}
+                      onChange={(e) => setStudentAssignForm({
+                        ...studentAssignForm, 
+                        classId: e.target.value
+                      })}
+                      className="w-full border rounded px-3 py-2"
+                      required
+                    >
+                      <option value="">Sélectionner une classe...</option>
+                      {classes.map((cls) => (
+                        <option key={cls.id} value={cls.id}>
+                          {cls.name} ({cls.level})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Année académique</label>
+                    <input
+                      type="text"
+                      value={studentAssignForm.academicYear}
+                      onChange={(e) => setStudentAssignForm({
+                        ...studentAssignForm, 
+                        academicYear: e.target.value
+                      })}
+                      className="w-full border rounded px-3 py-2"
+                    />
+                  </div>
+
+                  <div className="flex gap-3 justify-end pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setShowAssignModal(false)}
+                      className="px-6 py-2 border rounded hover:bg-gray-100"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {loading ? 'Affectation...' : 'Affecter'}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* FORMULAIRE ENSEIGNANT */}
+              {assignModalType === 'teacher' && (
+                <form onSubmit={handleAssignTeacherToClass} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Enseignant *</label>
+                    <select
+                      value={teacherAssignForm.teacherId}
+                      onChange={(e) => setTeacherAssignForm({
+                        ...teacherAssignForm, 
+                        teacherId: e.target.value
+                      })}
+                      className="w-full border rounded px-3 py-2"
+                      required
+                    >
+                      <option value="">Sélectionner un enseignant...</option>
+                      {teachers.map((teacher) => (
+                        <option key={teacher.id} value={teacher.id}>
+                          {teacher.teacher_number} - {teacher.users?.first_name} {teacher.users?.last_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Matière *</label>
+                    <select
+                      value={teacherAssignForm.subjectId}
+                      onChange={(e) => setTeacherAssignForm({
+                        ...teacherAssignForm, 
+                        subjectId: e.target.value
+                      })}
+                      className="w-full border rounded px-3 py-2"
+                      required
+                    >
+                      <option value="">Sélectionner une matière...</option>
+                      {subjects.map((subject) => (
+                        <option key={subject.id} value={subject.id}>
+                          {subject.code} - {subject.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Classe *</label>
+                    <select
+                      value={teacherAssignForm.classId}
+                      onChange={(e) => setTeacherAssignForm({
+                        ...teacherAssignForm, 
+                        classId: e.target.value
+                      })}
+                      className="w-full border rounded px-3 py-2"
+                      required
+                    >
+                      <option value="">Sélectionner une classe...</option>
+                      {classes.map((cls) => (
+                        <option key={cls.id} value={cls.id}>
+                          {cls.name} ({cls.level})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Année académique</label>
+                    <input
+                      type="text"
+                      value={teacherAssignForm.academicYear}
+                      onChange={(e) => setTeacherAssignForm({
+                        ...teacherAssignForm, 
+                        academicYear: e.target.value
+                      })}
+                      className="w-full border rounded px-3 py-2"
+                    />
+                  </div>
+
+                  <div className="flex gap-3 justify-end pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setShowAssignModal(false)}
+                      className="px-6 py-2 border rounded hover:bg-gray-100"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                    >
+                      {loading ? 'Affectation...' : 'Affecter'}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* TAB AFFECTATION ÉTUDIANTS → CLASSES */}
+      {activeTab === 'assign-students' && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold">Affectation Étudiants → Classes</h2>
+            <button
+              onClick={() => {
+                setAssignModalType('student');
+                setShowAssignModal(true);
+              }}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+            >
+              <Plus className="w-5 h-5" />
+              Affecter un étudiant
+            </button>
+          </div>
+
+          {loading ? (
+            <p className="text-center py-8">Chargement...</p>
+          ) : studentClassAssignments.length === 0 ? (
+            <div className="text-center py-12">
+              <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <p className="text-xl text-gray-500">Aucune affectation</p>
+              <p className="text-sm text-gray-400 mt-2">
+                Cliquez sur "Affecter un étudiant" pour commencer
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Matricule</th>
+                    <th className="px-4 py-3 text-left">Étudiant</th>
+                    <th className="px-4 py-3 text-left">Classe</th>
+                    <th className="px-4 py-3 text-left">Niveau</th>
+                    <th className="px-4 py-3 text-left">Année</th>
+                    <th className="px-4 py-3 text-left">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {studentClassAssignments.map((assignment: any) => (
+                    <tr key={assignment.id} className="border-b hover:bg-gray-50">
+                      <td className="px-4 py-3 font-medium">
+                        {assignment.students?.student_number}
+                      </td>
+                      <td className="px-4 py-3">
+                        {assignment.students?.users?.first_name} {assignment.students?.users?.last_name}
+                      </td>
+                      <td className="px-4 py-3 font-semibold text-blue-600">
+                        {assignment.classes?.name}
+                      </td>
+                      <td className="px-4 py-3">{assignment.classes?.level}</td>
+                      <td className="px-4 py-3">{assignment.academic_year}</td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => handleRemoveStudentFromClass(assignment.id)}
+                          className="text-red-600 hover:bg-red-50 p-2 rounded"
+                          title="Retirer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+        {/* TAB AFFECTATION ENSEIGNANTS → MATIÈRES → CLASSES */}
+        {activeTab === 'assign-teachers' && (
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold">Affectation Enseignants → Matières → Classes</h2>
+              <button
+                onClick={() => {
+                  setAssignModalType('teacher');
+                  setShowAssignModal(true);
+                }}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+              >
+                <Plus className="w-5 h-5" />
+                Affecter un enseignant
+              </button>
+            </div>
+
+            {loading ? (
+              <p className="text-center py-8">Chargement...</p>
+            ) : teacherClassAssignments.length === 0 ? (
+              <div className="text-center py-12">
+                <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <p className="text-xl text-gray-500">Aucune affectation</p>
+                <p className="text-sm text-gray-400 mt-2">
+                  Cliquez sur "Affecter un enseignant" pour commencer
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="px-4 py-3 text-left">Matricule</th>
+                      <th className="px-4 py-3 text-left">Enseignant</th>
+                      <th className="px-4 py-3 text-left">Matière</th>
+                      <th className="px-4 py-3 text-left">Classe</th>
+                      <th className="px-4 py-3 text-left">Année</th>
+                      <th className="px-4 py-3 text-left">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {teacherClassAssignments.map((assignment: any) => (
+                      <tr key={assignment.id} className="border-b hover:bg-gray-50">
+                        <td className="px-4 py-3 font-medium">
+                          {assignment.teachers?.teacher_number}
+                        </td>
+                        <td className="px-4 py-3">
+                          {assignment.teachers?.users?.first_name} {assignment.teachers?.users?.last_name}
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-purple-600">
+                          {assignment.subjects?.name}
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-blue-600">
+                          {assignment.classes?.name}
+                        </td>
+                        <td className="px-4 py-3">{assignment.academic_year}</td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => handleRemoveTeacherFromClass(assignment.id)}
+                            className="text-red-600 hover:bg-red-50 p-2 rounded"
+                            title="Retirer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
 
       {/* MODAL */}
       {showModal && (

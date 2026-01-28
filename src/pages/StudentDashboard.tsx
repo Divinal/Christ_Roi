@@ -1,11 +1,79 @@
 // src/pages/StudentDashboard.tsx
 import React, { useState, useEffect } from 'react';
-import { Home, BookOpen, FileText, Calendar, MessageSquare, Download, Eye } from 'lucide-react';
-import Navbar from '../components/Navbar';
-import TabNavigation from '../components/TabNavigation';
-import StatCard from '../components/StatCard';
-import { User, Course, Grade, Message } from '../types';
+import { 
+  Home, BookOpen, FileText, Calendar, MessageSquare, Download,
+  Bell, Award, TrendingUp, Eye, LogOut
+} from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+
+interface User {
+  id: string;
+  email: string;
+  role: string;
+  first_name: string;
+  last_name: string;
+}
+
+interface Student {
+  id: string;
+  user_id: string;
+  student_number: string;
+  date_of_birth?: string;
+  status: string;
+}
+
+interface Grade {
+  id: string;
+  student_id: string;
+  subject_id: string;
+  grade_value: number;
+  grade_type: string;
+  coefficient: number;
+  exam_date?: string;
+  comment?: string;
+  subjects?: {
+    name: string;
+    code: string;
+  };
+}
+
+interface Course {
+  id: string;
+  title: string;
+  description?: string;
+  file_url: string;
+  uploaded_at: string;
+  subject_id: string;
+  subjects?: {
+    name: string;
+  };
+}
+
+interface Schedule {
+  id: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  room?: string;
+  subjects?: {
+    name: string;
+  };
+  teachers?: {
+    users?: {
+      first_name: string;
+      last_name: string;
+    };
+  };
+}
+
+interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  priority: string;
+  published_at: string;
+  expires_at?: string;
+}
 
 interface StudentDashboardProps {
   user: User | null;
@@ -14,9 +82,12 @@ interface StudentDashboardProps {
 
 const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) => {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
-  const [courses, setCourses] = useState<Course[]>([]);
+  const [studentData, setStudentData] = useState<Student | null>(null);
+  const [studentClassId, setStudentClassId] = useState<string | null>(null);
   const [grades, setGrades] = useState<Grade[]>([]);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
 
   useEffect(() => {
@@ -28,295 +99,598 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
   const loadStudentData = async () => {
     setLoading(true);
     try {
-      // Charger les cours
-      const { data: coursesData } = await supabase
-        .from('courses')
-        .select('*')
-        .eq('is_published', true);
-      
-      if (coursesData) setCourses(coursesData);
-
-      // Charger les notes
-      const { data: studentData } = await supabase
+      // 1. Charger les infos de l'étudiant
+      const { data: studentInfo, error: studentError } = await supabase
         .from('students')
-        .select('id')
+        .select('*')
         .eq('user_id', user?.id)
         .single();
 
-      if (studentData) {
-        const { data: gradesData } = await supabase
-          .from('grades')
-          .select('*')
-          .eq('student_id', studentData.id);
-        
-        if (gradesData) setGrades(gradesData);
-      }
+      if (studentError) {
+        console.error('Erreur chargement étudiant:', studentError);
+      } else {
+        setStudentData(studentInfo);
 
-      // Charger les messages
-      const { data: messagesData } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('recipient_id', user?.id)
-        .order('sent_at', { ascending: false });
-      
-      if (messagesData) setMessages(messagesData);
+        // 2. Charger la classe de l'étudiant
+        const { data: classData } = await supabase
+          .from('student_classes')
+          .select('class_id')
+          .eq('student_id', studentInfo.id)
+          .eq('academic_year', '2025-2026')
+          .single();
+
+        if (classData) {
+          setStudentClassId(classData.class_id);
+
+          // 3. Charger l'emploi du temps de la classe
+          loadSchedules(classData.class_id);
+        }
+
+        // 4. Charger les notes
+        loadGrades(studentInfo.id);
+
+        // 5. Charger les cours
+        loadCourses();
+
+        // 6. Charger les annonces
+        loadAnnouncements();
+      }
     } catch (error) {
-      console.error('Error loading student data:', error);
+      console.error('Erreur:', error);
     } finally {
       setLoading(false);
     }
   };
 
+  const loadGrades = async (studentId: string) => {
+    const { data, error } = await supabase
+      .from('grades')
+      .select('*, subjects(name, code)')
+      .eq('student_id', studentId)
+      .order('exam_date', { ascending: false });
+
+    if (error) {
+      console.error('Erreur chargement notes:', error);
+    } else {
+      setGrades(data || []);
+    }
+  };
+
+  const loadCourses = async () => {
+    const { data, error } = await supabase
+      .from('courses')
+      .select('*, subjects(name)')
+      .eq('is_approved', true)
+      .order('uploaded_at', { ascending: false });
+
+    if (error) {
+      console.error('Erreur chargement cours:', error);
+    } else {
+      setCourses(data || []);
+    }
+  };
+
+  const loadSchedules = async (classId: string) => {
+    const { data, error } = await supabase
+      .from('schedules')
+      .select(`
+        *,
+        subjects(name),
+        teachers(users(first_name, last_name))
+      `)
+      .eq('class_id', classId)
+      .eq('academic_year', '2025-2026')
+      .order('day_of_week', { ascending: true });
+
+    if (error) {
+      console.error('Erreur chargement emploi du temps:', error);
+    } else {
+      setSchedules(data || []);
+    }
+  };
+
+  const loadAnnouncements = async () => {
+    const { data, error } = await supabase
+      .from('announcements')
+      .select('*')
+      .in('target_audience', ['students', 'all'])
+      .order('published_at', { ascending: false })
+      .limit(10);
+
+    if (error) {
+      console.error('Erreur chargement annonces:', error);
+    } else {
+      setAnnouncements(data || []);
+    }
+  };
+
+  // Calculer la moyenne générale
   const calculateAverage = (): number => {
     if (grades.length === 0) return 0;
-    const total = grades.reduce((sum, grade) => sum + (grade.gradeValue * grade.coefficient), 0);
+    const total = grades.reduce((sum, grade) => sum + (grade.grade_value * grade.coefficient), 0);
     const totalCoef = grades.reduce((sum, grade) => sum + grade.coefficient, 0);
     return totalCoef > 0 ? total / totalCoef : 0;
   };
 
-  const renderDashboard = () => (
-    <>
-      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard
-          icon={MessageSquare}
-          title="Messages"
-          value={`${messages.filter(m => !m.isRead).length} nouveaux`}
-          color="text-blue-600"
-          onClick={() => setActiveTab('messages')}
-        />
-        <StatCard
-          icon={FileText}
-          title="Notes"
-          value={`Moyenne: ${calculateAverage().toFixed(2)}/20`}
-          color="text-green-600"
-          onClick={() => setActiveTab('grades')}
-        />
-        <StatCard
-          icon={BookOpen}
-          title="Cours"
-          value={`${courses.length} cours disponibles`}
-          color="text-purple-600"
-          onClick={() => setActiveTab('courses')}
-        />
-        <StatCard
-          icon={Calendar}
-          title="Emploi du temps"
-          value="Voir mon planning"
-          color="text-orange-600"
-          onClick={() => setActiveTab('schedule')}
-        />
-      </div>
-
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-2xl font-bold mb-4">Dernières annonces</h2>
-        <div className="space-y-4">
-          <div className="border-l-4 border-blue-600 pl-4 py-2">
-            <p className="font-semibold">Examen de mathématiques</p>
-            <p className="text-sm text-gray-600">Prévu le 15 février 2026</p>
-          </div>
-          <div className="border-l-4 border-green-600 pl-4 py-2">
-            <p className="font-semibold">Nouveau cours disponible</p>
-            <p className="text-sm text-gray-600">Introduction à la programmation Python</p>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-
-  const renderCourses = () => (
-    <div className="bg-white rounded-lg shadow p-6">
-      <h2 className="text-2xl font-bold mb-6">Mes Cours</h2>
-      {loading ? (
-        <p className="text-center text-gray-500">Chargement...</p>
-      ) : courses.length === 0 ? (
-        <p className="text-center text-gray-500">Aucun cours disponible</p>
-      ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {courses.map((course) => (
-            <div key={course.id} className="border rounded-lg p-4 hover:shadow-lg transition">
-              <div className="flex items-start justify-between mb-3">
-                <FileText className="w-8 h-8 text-indigo-600" />
-                <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded">PDF</span>
-              </div>
-              <h3 className="font-bold mb-2">{course.title}</h3>
-              <p className="text-sm text-gray-600 mb-3">{course.description}</p>
-              <div className="flex items-center justify-between text-xs text-gray-500">
-                <span>{new Date(course.uploadedAt).toLocaleDateString()}</span>
-                {course.fileUrl && (
-                  <a 
-                    href={course.fileUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-indigo-600 hover:underline flex items-center gap-1"
-                  >
-                    <Download className="w-4 h-4" />
-                    Télécharger
-                  </a>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-
-  const renderGrades = () => (
-    <div className="bg-white rounded-lg shadow p-6">
-      <h2 className="text-2xl font-bold mb-6">Mes Notes</h2>
-      {loading ? (
-        <p className="text-center text-gray-500">Chargement...</p>
-      ) : grades.length === 0 ? (
-        <p className="text-center text-gray-500">Aucune note disponible</p>
-      ) : (
-        <>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="px-4 py-3 text-left">Type</th>
-                  <th className="px-4 py-3 text-left">Note</th>
-                  <th className="px-4 py-3 text-left">Coefficient</th>
-                  <th className="px-4 py-3 text-left">Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {grades.map((grade) => (
-                  <tr key={grade.id} className="border-b hover:bg-gray-50">
-                    <td className="px-4 py-3">{grade.gradeType}</td>
-                    <td className="px-4 py-3">
-                      <span className={`font-bold ${
-                        grade.gradeValue >= 15 ? 'text-green-600' : 
-                        grade.gradeValue >= 10 ? 'text-blue-600' : 'text-red-600'
-                      }`}>
-                        {grade.gradeValue.toFixed(2)}/20
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">{grade.coefficient}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">
-                      {grade.examDate ? new Date(grade.examDate).toLocaleDateString() : '-'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-            <p className="text-lg font-bold">
-              Moyenne générale: <span className="text-blue-600">{calculateAverage().toFixed(2)}/20</span>
-            </p>
-          </div>
-        </>
-      )}
-    </div>
-  );
-
-  const renderMessages = () => (
-    <div className="bg-white rounded-lg shadow p-6">
-      <h2 className="text-2xl font-bold mb-6">Messages</h2>
-      {loading ? (
-        <p className="text-center text-gray-500">Chargement...</p>
-      ) : messages.length === 0 ? (
-        <p className="text-center text-gray-500">Aucun message</p>
-      ) : (
-        <div className="space-y-4">
-          {messages.map((msg) => (
-            <div 
-              key={msg.id} 
-              className={`p-4 border rounded-lg hover:shadow-md transition cursor-pointer ${
-                !msg.isRead ? 'bg-blue-50 border-blue-200' : 'bg-white'
-              }`}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="font-bold">{msg.subject}</p>
-                    {!msg.isRead && (
-                      <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded">Nouveau</span>
-                    )}
-                  </div>
-                  <p className="text-gray-800">{msg.content}</p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    {new Date(msg.sentAt).toLocaleString()}
-                  </p>
-                </div>
-                <Eye className="w-5 h-5 text-gray-400" />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-
-  const renderSchedule = () => (
-    <div className="bg-white rounded-lg shadow p-6">
-      <h2 className="text-2xl font-bold mb-6">Emploi du temps</h2>
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="bg-gray-100">
-              <th className="border px-4 py-2">Heure</th>
-              <th className="border px-4 py-2">Lundi</th>
-              <th className="border px-4 py-2">Mardi</th>
-              <th className="border px-4 py-2">Mercredi</th>
-              <th className="border px-4 py-2">Jeudi</th>
-              <th className="border px-4 py-2">Vendredi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[
-              { time: '08:00-10:00', mon: 'Mathématiques', tue: 'Physique', wed: '', thu: 'Informatique', fri: 'Mathématiques' },
-              { time: '10:00-12:00', mon: 'Physique', tue: 'Informatique', wed: '', thu: 'Mathématiques', fri: 'TP Info' },
-              { time: '14:00-16:00', mon: 'Algorithmique', tue: '', wed: 'Projet', thu: '', fri: 'Physique' },
-            ].map((row, idx) => (
-              <tr key={idx}>
-                <td className="border px-4 py-2 font-medium bg-gray-50">{row.time}</td>
-                <td className="border px-4 py-2">{row.mon && <div className="bg-blue-100 p-2 rounded text-sm">{row.mon}</div>}</td>
-                <td className="border px-4 py-2">{row.tue && <div className="bg-green-100 p-2 rounded text-sm">{row.tue}</div>}</td>
-                <td className="border px-4 py-2">{row.wed && <div className="bg-purple-100 p-2 rounded text-sm">{row.wed}</div>}</td>
-                <td className="border px-4 py-2">{row.thu && <div className="bg-orange-100 p-2 rounded text-sm">{row.thu}</div>}</td>
-                <td className="border px-4 py-2">{row.fri && <div className="bg-pink-100 p-2 rounded text-sm">{row.fri}</div>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'dashboard': return renderDashboard();
-      case 'courses': return renderCourses();
-      case 'grades': return renderGrades();
-      case 'messages': return renderMessages();
-      case 'schedule': return renderSchedule();
-      default: return renderDashboard();
-    }
+  // Grouper les notes par matière
+  const getGradesBySubject = () => {
+    const grouped: { [key: string]: Grade[] } = {};
+    grades.forEach(grade => {
+      const subjectName = grade.subjects?.name || 'Inconnu';
+      if (!grouped[subjectName]) {
+        grouped[subjectName] = [];
+      }
+      grouped[subjectName].push(grade);
+    });
+    return grouped;
   };
 
-  const tabs = [
-    { id: 'dashboard', label: 'Tableau de bord', icon: Home },
-    { id: 'courses', label: 'Cours', icon: BookOpen },
-    { id: 'grades', label: 'Notes', icon: FileText },
-    { id: 'schedule', label: 'Emploi du temps', icon: Calendar },
-    { id: 'messages', label: 'Messages', icon: MessageSquare },
-  ];
+  // Calculer la moyenne par matière
+  const calculateSubjectAverage = (subjectGrades: Grade[]): number => {
+    if (subjectGrades.length === 0) return 0;
+    const total = subjectGrades.reduce((sum, g) => sum + (g.grade_value * g.coefficient), 0);
+    const totalCoef = subjectGrades.reduce((sum, g) => sum + g.coefficient, 0);
+    return totalCoef > 0 ? total / totalCoef : 0;
+  };
+
+  // Grouper les emplois du temps par jour
+  const getSchedulesByDay = () => {
+    const byDay: { [key: number]: Schedule[] } = {
+      1: [], 2: [], 3: [], 4: [], 5: []
+    };
+    schedules.forEach(schedule => {
+      if (schedule.day_of_week >= 1 && schedule.day_of_week <= 5) {
+        byDay[schedule.day_of_week].push(schedule);
+      }
+    });
+    return byDay;
+  };
+
+  const dayNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar title="Espace Étudiant" user={user} onLogout={onLogout} bgColor="bg-blue-600" />
-      
-      <div className="container mx-auto px-4 py-8">
-        <TabNavigation 
-          tabs={tabs} 
-          activeTab={activeTab} 
-          onTabChange={setActiveTab}
-          activeColor="bg-blue-600"
-        />
-        
-        {renderContent()}
+      {/* NAVBAR */}
+      <nav className="bg-blue-600 text-white p-4 shadow-lg">
+        <div className="container mx-auto flex justify-between items-center">
+          <h1 className="text-2xl font-bold">Espace Étudiant</h1>
+          <div className="flex items-center gap-4">
+            <span className="text-sm">Bienvenue, {user?.first_name}</span>
+            <button
+              onClick={onLogout}
+              className="bg-blue-700 px-4 py-2 rounded hover:bg-blue-800 flex items-center gap-2"
+            >
+              <LogOut className="w-4 h-4" />
+              Déconnexion
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      {/* TABS */}
+      <div className="container mx-auto px-4 py-6">
+        <div className="flex gap-2 mb-6 overflow-x-auto">
+          {[
+            { id: 'dashboard', label: 'Tableau de bord', icon: Home },
+            { id: 'grades', label: 'Mes Notes', icon: FileText },
+            { id: 'courses', label: 'Mes Cours', icon: BookOpen },
+            { id: 'schedule', label: 'Emploi du temps', icon: Calendar },
+            { id: 'announcements', label: 'Annonces', icon: Bell },
+          ].map(tab => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <Icon className="w-5 h-5" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* DASHBOARD TAB */}
+        {activeTab === 'dashboard' && (
+          <div>
+            {/* Carte de bienvenue */}
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg shadow-lg p-6 mb-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className="text-2xl font-bold mb-2">
+                    Bienvenue, {user?.first_name} {user?.last_name} 👋
+                  </h2>
+                  <p className="text-blue-100">
+                    Matricule: {studentData?.student_number}
+                  </p>
+                </div>
+                <div className="bg-white bg-opacity-20 rounded-lg p-4 backdrop-blur">
+                  <p className="text-sm text-blue-100">Moyenne générale</p>
+                  <p className="text-3xl font-bold">{calculateAverage().toFixed(2)}/20</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Statistiques */}
+            <div className="grid md:grid-cols-4 gap-6 mb-6">
+              <div className="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500">
+                <Award className="w-10 h-10 text-blue-600 mb-3" />
+                <p className="text-3xl font-bold text-blue-600">
+                  {calculateAverage().toFixed(2)}
+                </p>
+                <p className="text-gray-600">Moyenne générale</p>
+              </div>
+
+              <div className="bg-white rounded-lg shadow p-6 border-l-4 border-purple-500">
+                <BookOpen className="w-10 h-10 text-purple-600 mb-3" />
+                <p className="text-3xl font-bold text-purple-600">{courses.length}</p>
+                <p className="text-gray-600">Cours disponibles</p>
+              </div>
+
+              <div className="bg-white rounded-lg shadow p-6 border-l-4 border-orange-500">
+                <Bell className="w-10 h-10 text-orange-600 mb-3" />
+                <p className="text-3xl font-bold text-orange-600">{announcements.length}</p>
+                <p className="text-gray-600">Annonces</p>
+              </div>
+
+              <div className="bg-white rounded-lg shadow p-6 border-l-4 border-green-500">
+                <TrendingUp className="w-10 h-10 text-green-600 mb-3" />
+                <p className="text-3xl font-bold text-green-600">
+                  {calculateAverage() >= 10 ? '+' : '-'}
+                  {Math.abs(calculateAverage() - 10).toFixed(1)}
+                </p>
+                <p className="text-gray-600">Par rapport à 10/20</p>
+              </div>
+            </div>
+
+            {/* Dernières notes et annonces */}
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  <FileText className="text-blue-600" />
+                  Dernières notes
+                </h3>
+                <div className="space-y-3">
+                  {grades.slice(0, 5).map((grade) => (
+                    <div key={grade.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="font-semibold">{grade.subjects?.name}</p>
+                        <p className="text-sm text-gray-500">{grade.grade_type}</p>
+                      </div>
+                      <span className={`text-2xl font-bold ${
+                        grade.grade_value >= 15 ? 'text-green-600' : 
+                        grade.grade_value >= 10 ? 'text-blue-600' : 'text-red-600'
+                      }`}>
+                        {grade.grade_value.toFixed(2)}
+                      </span>
+                    </div>
+                  ))}
+                  {grades.length === 0 && (
+                    <p className="text-center text-gray-500 py-8">Aucune note disponible</p>
+                  )}
+                </div>
+                <button 
+                  onClick={() => setActiveTab('grades')}
+                  className="w-full mt-4 text-blue-600 font-semibold hover:bg-blue-50 py-2 rounded-lg"
+                >
+                  Voir toutes mes notes →
+                </button>
+              </div>
+
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  <Bell className="text-orange-600" />
+                  Dernières annonces
+                </h3>
+                <div className="space-y-3">
+                  {announcements.slice(0, 4).map((announcement) => (
+                    <div key={announcement.id} className="p-3 border-l-4 border-orange-500 bg-orange-50 rounded">
+                      <div className="flex justify-between items-start mb-1">
+                        <p className="font-semibold text-sm">{announcement.title}</p>
+                        <span className={`text-xs px-2 py-0.5 rounded ${
+                          announcement.priority === 'urgent' ? 'bg-red-100 text-red-700' :
+                          announcement.priority === 'high' ? 'bg-orange-100 text-orange-700' :
+                          'bg-blue-100 text-blue-700'
+                        }`}>
+                          {announcement.priority}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-600 line-clamp-2">{announcement.content}</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {new Date(announcement.published_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <button 
+                  onClick={() => setActiveTab('announcements')}
+                  className="w-full mt-4 text-orange-600 font-semibold hover:bg-orange-50 py-2 rounded-lg"
+                >
+                  Voir toutes les annonces →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* GRADES TAB - MES NOTES */}
+        {activeTab === 'grades' && (
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold">Mon Relevé de Notes</h2>
+              <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
+                <Download className="w-4 h-4" />
+                Télécharger PDF
+              </button>
+            </div>
+
+            {/* Moyenne générale */}
+            <div className="bg-gradient-to-r from-blue-100 to-indigo-100 p-6 rounded-lg mb-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-sm text-blue-800 mb-1">Moyenne Générale</p>
+                  <p className={`text-5xl font-bold ${
+                    calculateAverage() >= 15 ? 'text-green-600' : 
+                    calculateAverage() >= 10 ? 'text-blue-600' : 'text-red-600'
+                  }`}>
+                    {calculateAverage().toFixed(2)}/20
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-blue-800 mb-1">Statut</p>
+                  <span className={`text-lg font-bold ${
+                    calculateAverage() >= 10 ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {calculateAverage() >= 10 ? '✓ Admis' : '✗ À rattraper'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Notes par matière */}
+            {loading ? (
+              <p className="text-center py-8">Chargement...</p>
+            ) : grades.length === 0 ? (
+              <div className="text-center py-12">
+                <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <p className="text-xl text-gray-500">Aucune note disponible</p>
+                <p className="text-sm text-gray-400 mt-2">
+                  Les notes seront affichées dès qu'elles seront saisies par vos enseignants
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {Object.entries(getGradesBySubject()).map(([subject, subjectGrades]) => {
+                  const avg = calculateSubjectAverage(subjectGrades);
+                  return (
+                    <div key={subject} className="border-2 rounded-lg overflow-hidden">
+                      <div className={`p-4 font-bold text-lg flex justify-between items-center ${
+                        avg >= 10 ? 'bg-green-50' : 'bg-red-50'
+                      }`}>
+                        <span>📚 {subject}</span>
+                        <span className={`text-2xl ${avg >= 10 ? 'text-green-600' : 'text-red-600'}`}>
+                          {avg.toFixed(2)}/20
+                        </span>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead className="bg-gray-100">
+                            <tr>
+                              <th className="px-4 py-3 text-left">Type</th>
+                              <th className="px-4 py-3 text-center">Note</th>
+                              <th className="px-4 py-3 text-center">Coefficient</th>
+                              <th className="px-4 py-3 text-left">Date</th>
+                              <th className="px-4 py-3 text-left">Commentaire</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {subjectGrades.map((grade) => (
+                              <tr key={grade.id} className="border-b hover:bg-gray-50">
+                                <td className="px-4 py-3 font-medium">{grade.grade_type}</td>
+                                <td className="px-4 py-3 text-center">
+                                  <span className={`text-xl font-bold ${
+                                    grade.grade_value >= 15 ? 'text-green-600' : 
+                                    grade.grade_value >= 10 ? 'text-blue-600' : 'text-red-600'
+                                  }`}>
+                                    {grade.grade_value.toFixed(2)}/20
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-semibold">
+                                    {grade.coefficient}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-gray-600">
+                                  {grade.exam_date ? new Date(grade.exam_date).toLocaleDateString() : '-'}
+                                </td>
+                                <td className="px-4 py-3 text-sm text-gray-600">
+                                  {grade.comment || '-'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* COURSES TAB - MES COURS */}
+        {activeTab === 'courses' && (
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-2xl font-bold mb-6">Mes Cours</h2>
+            
+            {loading ? (
+              <p className="text-center py-8">Chargement...</p>
+            ) : courses.length === 0 ? (
+              <div className="text-center py-12">
+                <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <p className="text-xl text-gray-500">Aucun cours disponible</p>
+              </div>
+            ) : (
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {courses.map((course) => (
+                  <div key={course.id} className="border-2 rounded-lg p-5 hover:shadow-xl transition">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="bg-purple-100 p-3 rounded-lg">
+                        <FileText className="w-8 h-8 text-purple-600" />
+                      </div>
+                      <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-semibold">
+                        PDF
+                      </span>
+                    </div>
+                    <h3 className="font-bold text-lg mb-2">{course.title}</h3>
+                    <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                      {course.description}
+                    </p>
+                    <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
+                      <span>📖 {course.subjects?.name}</span>
+                      <span>{new Date(course.uploaded_at).toLocaleDateString()}</span>
+                    </div>
+                    {course.file_url && (
+                      <a 
+                        href={course.file_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-2 rounded-lg hover:shadow-lg transition flex items-center justify-center gap-2 font-semibold"
+                      >
+                        <Download className="w-4 h-4" />
+                        Télécharger
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* SCHEDULE TAB - EMPLOI DU TEMPS */}
+        {activeTab === 'schedule' && (
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-2xl font-bold mb-6">Mon Emploi du Temps</h2>
+            
+            {schedules.length === 0 ? (
+              <div className="text-center py-12">
+                <Calendar className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <p className="text-xl text-gray-500">Aucun emploi du temps disponible</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-gradient-to-r from-blue-100 to-indigo-100">
+                      <th className="border-2 px-4 py-3 font-bold">Heure</th>
+                      {dayNames.map((day, idx) => (
+                        <th key={idx} className="border-2 px-4 py-3 font-bold">{day}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {['08:00-10:00', '10:00-12:00', '14:00-16:00', '16:00-18:00'].map((timeSlot) => (
+                      <tr key={timeSlot}>
+                        <td className="border-2 px-4 py-3 font-bold bg-gray-50">{timeSlot}</td>
+                        {[1, 2, 3, 4, 5].map((day) => {
+                          const daySchedules = schedules.filter(s => 
+                            s.day_of_week === day && 
+                            `${s.start_time.substring(0, 5)}-${s.end_time.substring(0, 5)}` === timeSlot
+                          );
+                          
+                          return (
+                            <td key={day} className="border-2 px-2 py-2">
+                              {daySchedules.map(schedule => (
+                                <div key={schedule.id} className="bg-blue-100 p-3 rounded-lg hover:bg-blue-200 transition">
+                                  <p className="font-semibold text-blue-800">{schedule.subjects?.name}</p>
+                                  <p className="text-xs text-blue-600">
+                                    {schedule.teachers?.users?.first_name} {schedule.teachers?.users?.last_name}
+                                  </p>
+                                  <p className="text-xs text-gray-600">{schedule.room}</p>
+                                </div>
+                              ))}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="mt-6 bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
+              <p className="font-semibold text-blue-800 mb-1">📌 Note importante</p>
+              <p className="text-sm text-blue-700">
+                Cet emploi du temps est valable pour le semestre en cours. Consultez régulièrement pour les mises à jour.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ANNOUNCEMENTS TAB - ANNONCES */}
+        {activeTab === 'announcements' && (
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-2xl font-bold mb-6">Annonces ({announcements.length})</h2>
+            
+            {loading ? (
+              <p className="text-center py-8">Chargement...</p>
+            ) : announcements.length === 0 ? (
+              <div className="text-center py-12">
+                <Bell className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <p className="text-xl text-gray-500">Aucune annonce</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {announcements.map((announcement) => (
+                  <div 
+                    key={announcement.id} 
+                    className="p-5 border-2 rounded-lg hover:shadow-lg transition"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                          announcement.priority === 'urgent' ? 'bg-red-600' :
+                          announcement.priority === 'high' ? 'bg-orange-600' :
+                          'bg-blue-600'
+                        }`}>
+                          <Bell className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-lg">{announcement.title}</p>
+                          <p className="text-xs text-gray-500">
+                            {new Date(announcement.published_at).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                      <span className={`text-xs px-3 py-1 rounded-full font-semibold ${
+                        announcement.priority === 'urgent' ? 'bg-red-100 text-red-700' :
+                        announcement.priority === 'high' ? 'bg-orange-100 text-orange-700' :
+                        announcement.priority === 'normal' ? 'bg-blue-100 text-blue-700' :
+                        'bg-gray-100 text-gray-700'
+                      }`}>
+                        {announcement.priority}
+                      </span>
+                    </div>
+                    <p className="text-gray-700 mb-2">{announcement.content}</p>
+                    {announcement.expires_at && (
+                      <p className="text-xs text-gray-500">
+                        Expire le {new Date(announcement.expires_at).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
