@@ -125,8 +125,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
   const [currentPageStudents, setCurrentPageStudents] = useState<number>(1);
   const [currentPageTeachers, setCurrentPageTeachers] = useState<number>(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(10);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [classFilter, setClassFilter] = useState<string>('all');
   const [departmentFilter, setDepartmentFilter] = useState<string>('all');
+  // États pour la gestion des notes
+    const [selectedStudentForGrades, setSelectedStudentForGrades] = useState<string>('');
+    const [studentGrades, setStudentGrades] = useState<any[]>([]);
+    const [editingGrade, setEditingGrade] = useState<any | null>(null);
+    const [showGradeModal, setShowGradeModal] = useState<boolean>(false);
+    const [gradeForm, setGradeForm] = useState({
+      gradeValue: 0,
+      gradeType: 'Examen',
+      coefficient: 1,
+      examDate: '',
+      comment: ''
+    });
 
   const [studentAssignForm, setStudentAssignForm] = useState({
     studentId: '',
@@ -335,43 +347,133 @@ const loadTeacherClassAssignments = async () => {
     }
   };
 
-  // ==================== GESTION FORMULAIRES ====================
-  const handleAssignStudentToClass = async (e: React.FormEvent) => {
-  e.preventDefault();
-  
-  if (!studentAssignForm.studentId || !studentAssignForm.classId) {
-    alert('⚠️ Veuillez sélectionner un étudiant et une classe');
-    return;
-  }
-
-  setLoading(true);
-  try {
-    const { error } = await supabase
-      .from('student_classes')
-      .insert({
-        student_id: studentAssignForm.studentId,
-        class_id: studentAssignForm.classId,
-        academic_year: studentAssignForm.academicYear
-      });
-
-    if (error) {
-      if (error.code === '23505') {
-        alert('⚠️ Cet étudiant est déjà affecté à cette classe');
-      } else {
-        throw error;
+          // ==================== CHARGEMENT DES NOTES ====================
+    const loadStudentGrades = async (studentId: string) => {
+      if (!studentId) {
+        setStudentGrades([]);
+        return;
       }
-    } else {
-      alert('✅ Étudiant affecté à la classe avec succès !');
-      setShowAssignModal(false);
-      setStudentAssignForm({ studentId: '', classId: '', academicYear: '2025-2026' });
-      loadStudentClassAssignments();
-    }
-  } catch (error: any) {
-    alert(`❌ Erreur: ${error.message}`);
-  } finally {
-    setLoading(false);
-  }
-};
+
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('grades')
+          .select(`
+            *,
+            subjects (name, code),
+            teachers (users(first_name, last_name)),
+            classes (name)
+          `)
+          .eq('student_id', studentId)
+          .order('exam_date', { ascending: false });
+
+        if (error) throw error;
+        setStudentGrades(data || []);
+      } catch (error: any) {
+        console.error('Erreur chargement notes:', error);
+        alert(`❌ Erreur: ${error.message}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // ==================== MODIFICATION NOTE ====================
+    const handleEditGrade = (grade: any) => {
+      setEditingGrade(grade);
+      setGradeForm({
+        gradeValue: grade.grade_value,
+        gradeType: grade.grade_type,
+        coefficient: grade.coefficient,
+        examDate: grade.exam_date || '',
+        comment: grade.comment || ''
+      });
+      setShowGradeModal(true);
+    };
+
+    const handleUpdateGrade = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!editingGrade) return;
+
+      setLoading(true);
+      try {
+        const { error } = await supabase
+          .from('grades')
+          .update({
+            grade_value: gradeForm.gradeValue,
+            grade_type: gradeForm.gradeType,
+            coefficient: gradeForm.coefficient,
+            exam_date: gradeForm.examDate || null,
+            comment: gradeForm.comment || null
+          })
+          .eq('id', editingGrade.id);
+
+        if (error) throw error;
+
+        alert('✅ Note modifiée avec succès !');
+        setShowGradeModal(false);
+        setEditingGrade(null);
+        loadStudentGrades(selectedStudentForGrades);
+      } catch (error: any) {
+        alert(`❌ Erreur: ${error.message}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // ==================== SUPPRESSION NOTE ====================
+    const handleDeleteGrade = async (gradeId: string) => {
+      if (!window.confirm('⚠️ Êtes-vous sûr de vouloir supprimer cette note ?')) return;
+
+      try {
+        const { error } = await supabase
+          .from('grades')
+          .delete()
+          .eq('id', gradeId);
+
+        if (error) throw error;
+        alert('✅ Note supprimée');
+        loadStudentGrades(selectedStudentForGrades);
+      } catch (error: any) {
+        alert(`❌ Erreur: ${error.message}`);
+      }
+    };
+      // ==================== GESTION FORMULAIRES ====================
+      const handleAssignStudentToClass = async (e: React.FormEvent) => {
+      e.preventDefault();
+      
+      if (!studentAssignForm.studentId || !studentAssignForm.classId) {
+        alert('⚠️ Veuillez sélectionner un étudiant et une classe');
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const { error } = await supabase
+          .from('student_classes')
+          .insert({
+            student_id: studentAssignForm.studentId,
+            class_id: studentAssignForm.classId,
+            academic_year: studentAssignForm.academicYear
+          });
+
+        if (error) {
+          if (error.code === '23505') {
+            alert('⚠️ Cet étudiant est déjà affecté à cette classe');
+          } else {
+            throw error;
+          }
+        } else {
+          alert('✅ Étudiant affecté à la classe avec succès !');
+          setShowAssignModal(false);
+          setStudentAssignForm({ studentId: '', classId: '', academicYear: '2025-2026' });
+          loadStudentClassAssignments();
+        }
+      } catch (error: any) {
+        alert(`❌ Erreur: ${error.message}`);
+      } finally {
+        setLoading(false);
+      }
+    };
 
 const handleAssignTeacherToClass = async (e: React.FormEvent) => {
   e.preventDefault();
@@ -860,7 +962,6 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
     });
   };
 
-  // ==================== FILTRES ====================
 // ==================== FILTRES ====================
     const filteredStudents = students.filter(s => {
       const matchesSearch = (s.student_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -868,9 +969,11 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
                           (s.users?.last_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                           (s.users?.email || '').toLowerCase().includes(searchTerm.toLowerCase());
       
-      const matchesStatus = statusFilter === 'all' || s.status === statusFilter;
+      // Filtrer par classe
+      const studentClass = studentClassAssignments.find(sc => sc.student_id === s.id);
+      const matchesClass = classFilter === 'all' || studentClass?.class_id === classFilter;
       
-      return matchesSearch && matchesStatus;
+      return matchesSearch && matchesClass;
     });
 
       // Pagination étudiants
@@ -923,14 +1026,14 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* NAVBAR */}
-      <nav className="bg-purple-600 text-white p-4 shadow-lg">
-        <div className="container mx-auto flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Administration</h1>
+      <nav className="bg-purple-600 text-white p-4 shadow-lg fixed top-0 left-0 right-0 z-40">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold">📚 Administration - Système de Gestion</h1>
           <div className="flex items-center gap-4">
-            <span className="text-sm">Admin: {user?.first_name}</span>
+            <span className="text-sm">👤 Admin: {user?.first_name} {user?.last_name}</span>
             <button
               onClick={onLogout}
-              className="bg-purple-700 px-4 py-2 rounded hover:bg-purple-800"
+              className="bg-purple-700 px-4 py-2 rounded hover:bg-purple-800 transition"
             >
               Déconnexion
             </button>
@@ -938,38 +1041,97 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
         </div>
       </nav>
 
-      {/* TABS */}
-      <div className="container mx-auto px-4 py-6">
-        <div className="flex gap-2 mb-6 overflow-x-auto">
+     {/* LAYOUT AVEC SIDEBAR */}
+<div className="flex pt-16">
+  {/* SIDEBAR VERTICAL */}
+  <aside className="w-64 bg-white shadow-lg fixed left-0 top-16 bottom-0 overflow-y-auto">
+    <div className="p-4">
+      <h2 className="text-xs font-semibold text-gray-500 uppercase mb-3">Menu Principal</h2>
+      <nav className="space-y-1">
+        {[
+          { id: 'dashboard', label: 'Dashboard', icon: Home },
+          { id: 'students', label: 'Étudiants', icon: Users },
+          { id: 'teachers', label: 'Enseignants', icon: BookOpen },
+          { id: 'classes', label: 'Classes', icon: Calendar },
+          { id: 'subjects', label: 'Matières', icon: FileText },
+          { id: 'courses', label: 'Cours', icon: FileText },
+          { id: 'schedules', label: 'Emplois du temps', icon: Clock },
+          { id: 'announcements', label: 'Annonces', icon: Bell },
+        ].map(tab => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition text-left ${
+                activeTab === tab.id
+                  ? 'bg-purple-100 text-purple-700 font-semibold shadow-sm'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              <Icon className="w-5 h-5" />
+              <span>{tab.label}</span>
+              {activeTab === tab.id && (
+                <span className="ml-auto w-1.5 h-8 bg-purple-600 rounded-l"></span>
+              )}
+            </button>
+          );
+        })}
+      </nav>
+
+      <div className="border-t mt-4 pt-4">
+        <h2 className="text-xs font-semibold text-gray-500 uppercase mb-3">Gestion Avancée</h2>
+        <nav className="space-y-1">
           {[
-            { id: 'dashboard', label: 'Dashboard', icon: Home },
-            { id: 'students', label: 'Étudiants', icon: Users },
-            { id: 'teachers', label: 'Enseignants', icon: BookOpen },
-            { id: 'classes', label: 'Classes', icon: Calendar },
-            { id: 'subjects', label: 'Matières', icon: FileText },
-            { id: 'courses', label: 'Cours', icon: FileText },
-            { id: 'schedules', label: 'Emplois du temps', icon: Clock },
-            { id: 'announcements', label: 'Annonces', icon: Bell },
             { id: 'assign-students', label: 'Affecter Étudiants', icon: Users },
             { id: 'assign-teachers', label: 'Affecter Enseignants', icon: BookOpen },
+            { id: 'grades', label: 'Gestion des notes', icon: FileText },
           ].map(tab => {
             const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition whitespace-nowrap ${
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition text-left ${
                   activeTab === tab.id
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-100'
+                    ? 'bg-purple-100 text-purple-700 font-semibold shadow-sm'
+                    : 'text-gray-700 hover:bg-gray-100'
                 }`}
               >
                 <Icon className="w-5 h-5" />
-                {tab.label}
+                <span className="text-sm">{tab.label}</span>
+                {activeTab === tab.id && (
+                  <span className="ml-auto w-1.5 h-8 bg-purple-600 rounded-l"></span>
+                )}
               </button>
             );
           })}
+        </nav>
+      </div>
+
+      {/* STATISTIQUES RAPIDES */}
+      <div className="border-t mt-4 pt-4">
+        <h2 className="text-xs font-semibold text-gray-500 uppercase mb-3">Statistiques</h2>
+        <div className="space-y-2">
+          <div className="bg-blue-50 p-3 rounded-lg">
+            <p className="text-xs text-blue-600">Étudiants</p>
+            <p className="text-2xl font-bold text-blue-700">{students.length}</p>
+          </div>
+          <div className="bg-green-50 p-3 rounded-lg">
+            <p className="text-xs text-green-600">Enseignants</p>
+            <p className="text-2xl font-bold text-green-700">{teachers.length}</p>
+          </div>
+          <div className="bg-purple-50 p-3 rounded-lg">
+            <p className="text-xs text-purple-600">Classes</p>
+            <p className="text-2xl font-bold text-purple-700">{classes.length}</p>
+          </div>
         </div>
+      </div>
+    </div>
+  </aside>
+
+  {/* CONTENU PRINCIPAL */}
+  <div className="flex-1 ml-64 p-6">
 
         {/* DASHBOARD TAB */}
         {activeTab === 'dashboard' && (
@@ -1043,6 +1205,138 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
           </div>
         )}
 
+        {/* TAB GESTION DES NOTES */}
+      {activeTab === 'grades' && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-2xl font-bold mb-6">Gestion des Notes</h2>
+
+          {/* Sélection étudiant */}
+          <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+            <label className="block text-sm font-medium mb-2">
+              Sélectionner un étudiant pour voir ses notes *
+            </label>
+            <select
+              value={selectedStudentForGrades}
+              onChange={(e) => {
+                setSelectedStudentForGrades(e.target.value);
+                loadStudentGrades(e.target.value);
+              }}
+              className="w-full border rounded-lg px-3 py-2"
+            >
+              <option value="">-- Choisir un étudiant --</option>
+              {students.map((student) => (
+                <option key={student.id} value={student.id}>
+                  {student.student_number} - {student.users?.first_name} {student.users?.last_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Affichage des notes */}
+          {selectedStudentForGrades ? (
+            loading ? (
+              <p className="text-center py-8">Chargement des notes...</p>
+            ) : studentGrades.length === 0 ? (
+              <div className="text-center py-12">
+                <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <p className="text-xl text-gray-500">Aucune note pour cet étudiant</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="px-4 py-3 text-left">Matière</th>
+                      <th className="px-4 py-3 text-left">Type</th>
+                      <th className="px-4 py-3 text-center">Note /20</th>
+                      <th className="px-4 py-3 text-center">Coef.</th>
+                      <th className="px-4 py-3 text-left">Date</th>
+                      <th className="px-4 py-3 text-left">Enseignant</th>
+                      <th className="px-4 py-3 text-left">Commentaire</th>
+                      <th className="px-4 py-3 text-left">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {studentGrades.map((grade) => (
+                      <tr key={grade.id} className="border-b hover:bg-gray-50">
+                        <td className="px-4 py-3 font-semibold">{grade.subjects?.name}</td>
+                        <td className="px-4 py-3">{grade.grade_type}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`text-xl font-bold ${
+                            grade.grade_value >= 15 ? 'text-green-600' :
+                            grade.grade_value >= 10 ? 'text-blue-600' : 'text-red-600'
+                          }`}>
+                            {grade.grade_value.toFixed(2)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                            {grade.coefficient}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          {grade.exam_date ? new Date(grade.exam_date).toLocaleDateString() : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          {grade.teachers?.users?.first_name} {grade.teachers?.users?.last_name}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {grade.comment || '-'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleEditGrade(grade)}
+                              className="text-blue-600 hover:bg-blue-50 p-2 rounded"
+                              title="Modifier"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteGrade(grade.id)}
+                              className="text-red-600 hover:bg-red-50 p-2 rounded"
+                              title="Supprimer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                {/* Statistiques */}
+                <div className="mt-6 grid md:grid-cols-3 gap-4">
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <p className="text-sm text-blue-800">Nombre de notes</p>
+                    <p className="text-3xl font-bold text-blue-600">{studentGrades.length}</p>
+                  </div>
+                  <div className="bg-green-50 p-4 rounded-lg">
+                    <p className="text-sm text-green-800">Moyenne générale</p>
+                    <p className="text-3xl font-bold text-green-600">
+                      {(studentGrades.reduce((sum, g) => sum + (g.grade_value * g.coefficient), 0) / 
+                        studentGrades.reduce((sum, g) => sum + g.coefficient, 0)).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="bg-purple-50 p-4 rounded-lg">
+                    <p className="text-sm text-purple-800">Meilleure note</p>
+                    <p className="text-3xl font-bold text-purple-600">
+                      {Math.max(...studentGrades.map(g => g.grade_value)).toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )
+          ) : (
+            <div className="text-center py-12">
+              <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <p className="text-xl text-gray-500">Sélectionnez un étudiant pour voir ses notes</p>
+            </div>
+          )}
+        </div>
+      )}
+
        {/* STUDENTS TAB */}
       {activeTab === 'students' && (
         <div className="bg-white rounded-lg shadow p-6">
@@ -1073,20 +1367,20 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
               </div>
             </div>
 
-            <div>
+           <div>
               <label className="block text-sm font-medium mb-2">
                 <Filter className="w-4 h-4 inline mr-1" />
-                Statut
+                Classe
               </label>
               <select 
-                value={statusFilter} 
-                onChange={(e) => setStatusFilter(e.target.value)} 
+                value={classFilter} 
+                onChange={(e) => setClassFilter(e.target.value)} 
                 className="w-full border rounded-lg px-3 py-2"
               >
-                <option value="all">Tous</option>
-                <option value="active">Actifs</option>
-                <option value="inactive">Inactifs</option>
-                <option value="suspended">Suspendus</option>
+                <option value="all">Toutes les classes</option>
+                {classes.map(cls => (
+                  <option key={cls.id} value={cls.id}>{cls.name}</option>
+                ))}
               </select>
             </div>
 
@@ -2465,7 +2759,127 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
           </div>
         </div>
       )}
+
+
+      {/* MODAL MODIFICATION NOTE - DÉPLACÉE ICI */}
+      {showGradeModal && editingGrade && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-lg">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold">Modifier la note</h3>
+              <button 
+                onClick={() => {
+                  setShowGradeModal(false);
+                  setEditingGrade(null);
+                }} 
+                className="text-3xl hover:text-red-600"
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateGrade} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Matière</label>
+                <input
+                  type="text"
+                  value={editingGrade.subjects?.name}
+                  disabled
+                  className="w-full border rounded px-3 py-2 bg-gray-100"
+                />
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Note /20 *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="20"
+                    step="0.25"
+                    value={gradeForm.gradeValue}
+                    onChange={(e) => setGradeForm({...gradeForm, gradeValue: parseFloat(e.target.value)})}
+                    className="w-full border rounded px-3 py-2"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Coefficient *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={gradeForm.coefficient}
+                    onChange={(e) => setGradeForm({...gradeForm, coefficient: parseInt(e.target.value)})}
+                    className="w-full border rounded px-3 py-2"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Type *</label>
+                  <select
+                    value={gradeForm.gradeType}
+                    onChange={(e) => setGradeForm({...gradeForm, gradeType: e.target.value})}
+                    className="w-full border rounded px-3 py-2"
+                    required
+                  >
+                    <option>Examen</option>
+                    <option>Devoir</option>
+                    <option>TP</option>
+                    <option>Contrôle</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Date</label>
+                  <input
+                    type="date"
+                    value={gradeForm.examDate}
+                    onChange={(e) => setGradeForm({...gradeForm, examDate: e.target.value})}
+                    className="w-full border rounded px-3 py-2"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Commentaire</label>
+                <textarea
+                  value={gradeForm.comment}
+                  onChange={(e) => setGradeForm({...gradeForm, comment: e.target.value})}
+                  className="w-full border rounded px-3 py-2"
+                  rows={3}
+                />
+              </div>
+
+              <div className="flex gap-3 justify-end pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowGradeModal(false);
+                    setEditingGrade(null);
+                  }}
+                  className="px-6 py-2 border rounded hover:bg-gray-100"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
+                >
+                  {loading ? 'Modification...' : 'Modifier'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
+    </div>
+    
   );
 };
 

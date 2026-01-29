@@ -90,6 +90,9 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
   const [courseSubject, setCourseSubject] = useState<string>('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState<boolean>(false);
+    // États pour visualiser les notes saisies
+  const [selectedStudentForView, setSelectedStudentForView] = useState<string>('');
+  const [viewStudentGrades, setViewStudentGrades] = useState<any[]>([]);
 
   useEffect(() => {
     if (user) {
@@ -346,6 +349,36 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
     }
   };
 
+    // ==================== VISUALISATION DES NOTES SAISIES ====================
+    const loadGradesForStudent = async (studentId: string) => {
+      if (!studentId) {
+        setViewStudentGrades([]);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('grades')
+          .select(`
+            *,
+            subjects (name, code),
+            classes (name)
+          `)
+          .eq('student_id', studentId)
+          .eq('teacher_id', teacherId)
+          .order('exam_date', { ascending: false });
+
+        if (error) throw error;
+        setViewStudentGrades(data || []);
+      } catch (error: any) {
+        console.error('Erreur chargement notes:', error);
+        alert(`❌ Erreur: ${error.message}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+
   // ==================== UPLOAD DE COURS ====================
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -554,168 +587,259 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
           </>
         )}
 
-        {/* SAISIE DES NOTES */}
+       {/* SAISIE DES NOTES */}
         {activeTab === 'grades' && (
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-2xl font-bold mb-6">Saisie des notes</h2>
 
-            <div className="grid md:grid-cols-4 gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
-              <div>
-                <label className="block text-sm font-medium mb-2">Classe *</label>
-                <select
-                  value={selectedClass}
-                  onChange={(e) => setSelectedClass(e.target.value)}
-                  className="w-full border rounded px-3 py-2"
-                >
-                  <option value="">Sélectionner...</option>
-                  {myClasses.map((cls) => (
-                    <option key={cls.id} value={cls.id}>
-                      {cls.name} - {cls.subject_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Matière *</label>
-                <select
-                  value={selectedSubject}
-                  onChange={(e) => setSelectedSubject(e.target.value)}
-                  className="w-full border rounded px-3 py-2"
-                >
-                  <option value="">Sélectionner...</option>
-                  {myClasses
-                    .filter(c => c.id === selectedClass)
-                    .map((cls) => (
-                      <option key={cls.subject_id} value={cls.subject_id}>
-                        {cls.subject_name}
+            {/* SAISIE */}
+            <div className="mb-8">
+              <h3 className="text-lg font-bold mb-4 text-green-700">➕ Saisir de nouvelles notes</h3>
+              
+              <div className="grid md:grid-cols-4 gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Classe *</label>
+                  <select
+                    value={selectedClass}
+                    onChange={(e) => setSelectedClass(e.target.value)}
+                    className="w-full border rounded px-3 py-2"
+                  >
+                    <option value="">Sélectionner...</option>
+                    {myClasses.map((cls) => (
+                      <option key={cls.id} value={cls.id}>
+                        {cls.name} - {cls.subject_name}
                       </option>
                     ))}
-                </select>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Matière *</label>
+                  <select
+                    value={selectedSubject}
+                    onChange={(e) => setSelectedSubject(e.target.value)}
+                    className="w-full border rounded px-3 py-2"
+                  >
+                    <option value="">Sélectionner...</option>
+                    {myClasses
+                      .filter(c => c.id === selectedClass)
+                      .map((cls) => (
+                        <option key={cls.subject_id} value={cls.subject_id}>
+                          {cls.subject_name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Type d'évaluation *</label>
+                  <select
+                    value={gradeType}
+                    onChange={(e) => setGradeType(e.target.value)}
+                    className="w-full border rounded px-3 py-2"
+                  >
+                    <option>Examen</option>
+                    <option>Devoir</option>
+                    <option>TP</option>
+                    <option>Contrôle</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Coefficient *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={coefficient}
+                    onChange={(e) => setCoefficient(parseInt(e.target.value))}
+                    className="w-full border rounded px-3 py-2"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium mb-2">Date de l'examen</label>
+                  <input
+                    type="date"
+                    value={examDate}
+                    onChange={(e) => setExamDate(e.target.value)}
+                    className="w-full border rounded px-3 py-2"
+                  />
+                </div>
+
+                <div className="md:col-span-2 flex items-end">
+                  <button
+                    onClick={loadStudentsForGrading}
+                    disabled={!selectedClass || !selectedSubject}
+                    className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Charger les étudiants
+                  </button>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-2">Type d'évaluation *</label>
-                <select
-                  value={gradeType}
-                  onChange={(e) => setGradeType(e.target.value)}
-                  className="w-full border rounded px-3 py-2"
-                >
-                  <option>Examen</option>
-                  <option>Devoir</option>
-                  <option>TP</option>
-                  <option>Contrôle</option>
-                </select>
-              </div>
+              {studentsGrades.length > 0 && (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="px-4 py-3 text-left">Matricule</th>
+                          <th className="px-4 py-3 text-left">Nom complet</th>
+                          <th className="px-4 py-3 text-left">Note /20</th>
+                          <th className="px-4 py-3 text-left">Commentaire</th>
+                          <th className="px-4 py-3 text-left">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {studentsGrades.map((student) => (
+                          <tr key={student.student_id} className="border-b hover:bg-gray-50">
+                            <td className="px-4 py-3 font-medium">{student.student_number}</td>
+                            <td className="px-4 py-3">{student.first_name} {student.last_name}</td>
+                            <td className="px-4 py-3">
+                              <input
+                                type="number"
+                                min="0"
+                                max="20"
+                                step="0.25"
+                                value={student.grade_value || ''}
+                                onChange={(e) => updateGrade(student.student_id, 'grade_value', parseFloat(e.target.value))}
+                                className="w-24 border rounded px-2 py-1"
+                                placeholder="0-20"
+                              />
+                            </td>
+                            <td className="px-4 py-3">
+                              <input
+                                type="text"
+                                value={student.comment || ''}
+                                onChange={(e) => updateGrade(student.student_id, 'comment', e.target.value)}
+                                className="w-full border rounded px-2 py-1"
+                                placeholder="Optionnel"
+                              />
+                            </td>
+                            <td className="px-4 py-3">
+                              <button
+                                onClick={() => saveGrade(student.student_id)}
+                                disabled={student.grade_value === undefined}
+                                className="text-green-600 hover:underline flex items-center gap-1 disabled:opacity-50"
+                              >
+                                <Save className="w-4 h-4" />
+                                Enregistrer
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-2">Coefficient *</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="10"
-                  value={coefficient}
-                  onChange={(e) => setCoefficient(parseInt(e.target.value))}
-                  className="w-full border rounded px-3 py-2"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-2">Date de l'examen</label>
-                <input
-                  type="date"
-                  value={examDate}
-                  onChange={(e) => setExamDate(e.target.value)}
-                  className="w-full border rounded px-3 py-2"
-                />
-              </div>
-
-              <div className="md:col-span-2 flex items-end">
-                <button
-                  onClick={loadStudentsForGrading}
-                  disabled={!selectedClass || !selectedSubject}
-                  className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Charger les étudiants
-                </button>
-              </div>
+                  <div className="mt-6 flex justify-end gap-3">
+                    <button
+                      onClick={() => setStudentsGrades([])}
+                      className="px-6 py-2 border rounded hover:bg-gray-100"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      onClick={saveAllGrades}
+                      disabled={loading}
+                      className="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 disabled:opacity-50"
+                    >
+                      {loading ? 'Enregistrement...' : 'Enregistrer toutes les notes'}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
 
-            {studentsGrades.length > 0 && (
-              <>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-100">
-                      <tr>
-                        <th className="px-4 py-3 text-left">Matricule</th>
-                        <th className="px-4 py-3 text-left">Nom complet</th>
-                        <th className="px-4 py-3 text-left">Note /20</th>
-                        <th className="px-4 py-3 text-left">Commentaire</th>
-                        <th className="px-4 py-3 text-left">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {studentsGrades.map((student) => (
-                        <tr key={student.student_id} className="border-b hover:bg-gray-50">
-                          <td className="px-4 py-3 font-medium">{student.student_number}</td>
-                          <td className="px-4 py-3">{student.first_name} {student.last_name}</td>
-                          <td className="px-4 py-3">
-                            <input
-                              type="number"
-                              min="0"
-                              max="20"
-                              step="0.25"
-                              value={student.grade_value || ''}
-                              onChange={(e) => updateGrade(student.student_id, 'grade_value', parseFloat(e.target.value))}
-                              className="w-24 border rounded px-2 py-1"
-                              placeholder="0-20"
-                            />
-                          </td>
-                          <td className="px-4 py-3">
-                            <input
-                              type="text"
-                              value={student.comment || ''}
-                              onChange={(e) => updateGrade(student.student_id, 'comment', e.target.value)}
-                              className="w-full border rounded px-2 py-1"
-                              placeholder="Optionnel"
-                            />
-                          </td>
-                          <td className="px-4 py-3">
-                            <button
-                              onClick={() => saveGrade(student.student_id)}
-                              disabled={student.grade_value === undefined}
-                              className="text-green-600 hover:underline flex items-center gap-1 disabled:opacity-50"
-                            >
-                              <Save className="w-4 h-4" />
-                              Enregistrer
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+            {/* SÉPARATEUR */}
+            <div className="border-t-2 border-gray-300 my-8"></div>
 
-                <div className="mt-6 flex justify-end gap-3">
-                  <button
-                    onClick={() => setStudentsGrades([])}
-                    className="px-6 py-2 border rounded hover:bg-gray-100"
-                  >
-                    Annuler
-                  </button>
-                  <button
-                    onClick={saveAllGrades}
-                    disabled={loading}
-                    className="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 disabled:opacity-50"
-                  >
-                    {loading ? 'Enregistrement...' : 'Enregistrer toutes les notes'}
-                  </button>
-                </div>
-              </>
-            )}
+            {/* VISUALISATION */}
+            <div>
+              <h3 className="text-lg font-bold mb-4 text-blue-700">👁️ Consulter les notes saisies</h3>
+              
+              <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+                <label className="block text-sm font-medium mb-2">
+                  Sélectionner un étudiant pour voir ses notes
+                </label>
+                <select
+                  value={selectedStudentForView}
+                  onChange={(e) => {
+                    setSelectedStudentForView(e.target.value);
+                    loadGradesForStudent(e.target.value);
+                  }}
+                  className="w-full border rounded-lg px-3 py-2"
+                >
+                  <option value="">-- Choisir un étudiant --</option>
+                  {myClasses.flatMap(cls => 
+                    studentsGrades
+                      .filter(s => s.student_id)
+                      .map(s => (
+                        <option key={s.student_id} value={s.student_id}>
+                          {s.student_number} - {s.first_name} {s.last_name}
+                        </option>
+                      ))
+                  )}
+                </select>
+              </div>
+
+              {selectedStudentForView ? (
+                loading ? (
+                  <p className="text-center py-8">Chargement...</p>
+                ) : viewStudentGrades.length === 0 ? (
+                  <p className="text-center py-8 text-gray-500">Aucune note saisie pour cet étudiant</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="px-4 py-3 text-left">Matière</th>
+                          <th className="px-4 py-3 text-left">Type</th>
+                          <th className="px-4 py-3 text-center">Note /20</th>
+                          <th className="px-4 py-3 text-center">Coef.</th>
+                          <th className="px-4 py-3 text-left">Date</th>
+                          <th className="px-4 py-3 text-left">Commentaire</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {viewStudentGrades.map((grade) => (
+                          <tr key={grade.id} className="border-b hover:bg-gray-50">
+                            <td className="px-4 py-3 font-semibold">{grade.subjects?.name}</td>
+                            <td className="px-4 py-3">{grade.grade_type}</td>
+                            <td className="px-4 py-3 text-center">
+                              <span className={`text-xl font-bold ${
+                                grade.grade_value >= 15 ? 'text-green-600' :
+                                grade.grade_value >= 10 ? 'text-blue-600' : 'text-red-600'
+                              }`}>
+                                {grade.grade_value.toFixed(2)}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                                {grade.coefficient}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              {grade.exam_date ? new Date(grade.exam_date).toLocaleDateString() : '-'}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-600">
+                              {grade.comment || '-'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              ) : (
+                <p className="text-center py-8 text-gray-500">
+                  Sélectionnez un étudiant pour voir ses notes
+                </p>
+              )}
+            </div>
           </div>
         )}
-
         {/* MES COURS */}
         {activeTab === 'courses' && (
           <div className="bg-white rounded-lg shadow p-6">

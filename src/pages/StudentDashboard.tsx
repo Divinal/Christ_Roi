@@ -306,7 +306,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
                     Bienvenue, {user?.first_name} {user?.last_name} 👋
                   </h2>
                   <p className="text-blue-100">
-                    Matricule: {studentData?.student_number}
+                    Matricule: {studentData?.student_number} 
                   </p>
                 </div>
                 <div className="bg-white bg-opacity-20 rounded-lg p-4 backdrop-blur">

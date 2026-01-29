@@ -358,3 +358,30 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 CREATE TRIGGER on_auth_user_created
 AFTER INSERT ON auth.users
 FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Politique 1 : Lecture publique des PDF
+CREATE POLICY "Public can read PDFs"
+ON storage.objects 
+FOR SELECT
+TO public
+USING (bucket_id = 'courses');
+
+-- Politique 2 : Upload pour enseignants
+CREATE POLICY "Teachers can upload PDFs"
+ON storage.objects 
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  bucket_id = 'courses'
+  AND auth.uid() IN (SELECT user_id FROM teachers)
+);
+
+-- Politique 3 : Suppression pour enseignants
+CREATE POLICY "Teachers can delete PDFs"
+ON storage.objects 
+FOR DELETE
+TO authenticated
+USING (
+  bucket_id = 'courses'
+  AND auth.uid() IN (SELECT user_id FROM teachers)
+);
