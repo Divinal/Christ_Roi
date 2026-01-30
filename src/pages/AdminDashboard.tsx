@@ -1030,8 +1030,9 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold">📚 Administration - Système de Gestion</h1>
           <div className="flex items-center gap-4">
-            <span className="text-sm">👤 Admin: {user?.first_name} {user?.last_name}</span>
-            <button
+          <span className="text-sm">👤 Admin: {user?.first_name} {user?.last_name}</span>
+          
+          <button
               onClick={onLogout}
               className="bg-purple-700 px-4 py-2 rounded hover:bg-purple-800 transition"
             >
@@ -2444,10 +2445,11 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
                     required
                   >
                     <option value="">Sélectionner...</option>
-                    <option value="Licence 1">Licence 1</option>
-                    <option value="Licence 2">Licence 2</option>
-                    <option value="Licence 3">Licence 3</option>
-                    <option value="Master 1">Master 1</option>
+                    <option value="Licence 1">Technicien</option>
+                    <option value="Licence 2">TS1</option>
+                    <option value="Licence 3">TS2</option>
+                    <option value="Master 1">Bachelor</option>
+                    <option value="Master 2">Master 1</option>
                     <option value="Master 2">Master 2</option>
                   </select>
                 </div>

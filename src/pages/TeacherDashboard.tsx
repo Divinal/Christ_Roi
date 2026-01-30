@@ -488,7 +488,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
         <div className="container mx-auto flex justify-between items-center">
           <h1 className="text-2xl font-bold">Espace Enseignant</h1>
           <div className="flex items-center gap-4">
-            <span className="text-sm">Prof. {user?.last_name}</span>
+            <span className="text-sm">Prof. {user?.first_name} {user?.last_name}</span>
             <button
               onClick={onLogout}
               className="bg-green-700 px-4 py-2 rounded hover:bg-green-800 flex items-center gap-2"

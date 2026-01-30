@@ -4,9 +4,11 @@ export interface User {
   id: string;
   email: string;
   role: UserRole;
-  firstName: string;
-  lastName: string;
-  photoUrl?: string;
+  firstName?: string;     
+  lastName?: string;      
+  first_name?: string;    
+  last_name?: string;    
+  phone?: string;
 }
 
 export interface Student {
