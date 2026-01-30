@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Home, Users, BookOpen, Plus, Edit, Trash2, Search, 
   Calendar, FileText, MessageSquare, X, Save, Bell, Clock,
-  ChevronLeft, ChevronRight, Filter
+  ChevronLeft, ChevronRight, Filter, Menu
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 
@@ -192,6 +192,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
   });
 
   const [selectedClassForSchedule, setSelectedClassForSchedule] = useState<string>('');
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
 
   // ==================== CHARGEMENT DONNÉES ====================
   useEffect(() => {
@@ -1026,26 +1027,48 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* NAVBAR */}
-      <nav className="bg-purple-600 text-white p-4 shadow-lg fixed top-0 left-0 right-0 z-40">
+      <nav className="bg-purple-600 text-white p-3 md:p-4 shadow-lg fixed top-0 left-0 right-0 z-40">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold">📚 Administration - Système de Gestion</h1>
-          <div className="flex items-center gap-4">
-          <span className="text-sm">👤 Admin: {user?.first_name} {user?.last_name}</span>
-          
-          <button
-              onClick={onLogout}
-              className="bg-purple-700 px-4 py-2 rounded hover:bg-purple-800 transition"
+          <div className="flex items-center gap-2 md:gap-4">
+            {/* Bouton menu mobile */}
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="lg:hidden p-2 hover:bg-purple-700 rounded"
             >
-              Déconnexion
+              <Menu className="w-6 h-6" />
+            </button>
+            <h1 className="text-lg md:text-2xl font-bold truncate">📚 Administration</h1>
+          </div>
+          <div className="flex items-center gap-2 md:gap-4">
+            <span className="text-xs md:text-sm hidden sm:inline">👤 {user?.first_name} {user?.last_name}</span>
+            <button
+              onClick={onLogout}
+              className="bg-purple-700 px-3 py-1.5 md:px-4 md:py-2 rounded hover:bg-purple-800 transition text-sm"
+            >
+              <span className="hidden sm:inline">Déconnexion</span>
+              <span className="sm:hidden">×</span>
             </button>
           </div>
         </div>
       </nav>
 
+     {/* OVERLAY MOBILE */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
      {/* LAYOUT AVEC SIDEBAR */}
-<div className="flex pt-16">
+<div className="flex pt-14 md:pt-16">
   {/* SIDEBAR VERTICAL */}
-  <aside className="w-64 bg-white shadow-lg fixed left-0 top-16 bottom-0 overflow-y-auto">
+  <aside className={`
+    w-64 bg-white shadow-lg fixed left-0 top-14 md:top-16 bottom-0 overflow-y-auto z-30
+    transform transition-transform duration-300 ease-in-out
+    ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+    lg:translate-x-0
+  `}>
     <div className="p-4">
       <h2 className="text-xs font-semibold text-gray-500 uppercase mb-3">Menu Principal</h2>
       <nav className="space-y-1">
@@ -1063,7 +1086,10 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => {
+                setActiveTab(tab.id);
+                setSidebarOpen(false);
+              }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition text-left ${
                 activeTab === tab.id
                   ? 'bg-purple-100 text-purple-700 font-semibold shadow-sm'
@@ -1092,7 +1118,10 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  setSidebarOpen(false);
+                }}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition text-left ${
                   activeTab === tab.id
                     ? 'bg-purple-100 text-purple-700 font-semibold shadow-sm'
@@ -1132,74 +1161,74 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
   </aside>
 
   {/* CONTENU PRINCIPAL */}
-  <div className="flex-1 ml-64 p-6">
+  <div className="flex-1 lg:ml-64 p-3 md:p-6">
 
         {/* DASHBOARD TAB */}
         {activeTab === 'dashboard' && (
           <div>
-            <div className="grid md:grid-cols-4 gap-6 mb-6">
-              <div className="bg-blue-50 p-6 rounded-lg">
-                <p className="text-4xl font-bold text-blue-600">{students.length}</p>
-                <p className="text-gray-600">Étudiants</p>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 mb-6">
+              <div className="bg-blue-50 p-4 md:p-6 rounded-lg">
+                <p className="text-2xl md:text-4xl font-bold text-blue-600">{students.length}</p>
+                <p className="text-xs md:text-base text-gray-600">Étudiants</p>
               </div>
-              <div className="bg-green-50 p-6 rounded-lg">
-                <p className="text-4xl font-bold text-green-600">{teachers.length}</p>
-                <p className="text-gray-600">Enseignants</p>
+              <div className="bg-green-50 p-4 md:p-6 rounded-lg">
+                <p className="text-2xl md:text-4xl font-bold text-green-600">{teachers.length}</p>
+                <p className="text-xs md:text-base text-gray-600">Enseignants</p>
               </div>
-              <div className="bg-purple-50 p-6 rounded-lg">
-                <p className="text-4xl font-bold text-purple-600">{classes.length}</p>
-                <p className="text-gray-600">Classes</p>
+              <div className="bg-purple-50 p-4 md:p-6 rounded-lg">
+                <p className="text-2xl md:text-4xl font-bold text-purple-600">{classes.length}</p>
+                <p className="text-xs md:text-base text-gray-600">Classes</p>
               </div>
-              <div className="bg-orange-50 p-6 rounded-lg">
-                <p className="text-4xl font-bold text-orange-600">{subjects.length}</p>
-                <p className="text-gray-600">Matières</p>
+              <div className="bg-orange-50 p-4 md:p-6 rounded-lg">
+                <p className="text-2xl md:text-4xl font-bold text-orange-600">{subjects.length}</p>
+                <p className="text-xs md:text-base text-gray-600">Matières</p>
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-bold mb-4">Actions rapides</h2>
-              <div className="grid md:grid-cols-3 gap-4">
+            <div className="bg-white rounded-lg shadow p-4 md:p-6">
+              <h2 className="text-lg md:text-xl font-bold mb-4">Actions rapides</h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
                 <button
                   onClick={() => { setModalType('student'); setShowModal(true); }}
-                  className="flex items-center gap-2 p-4 border rounded-lg hover:bg-blue-50"
+                  className="flex items-center gap-2 p-3 md:p-4 border rounded-lg hover:bg-blue-50"
                 >
-                  <Plus className="w-5 h-5 text-blue-600" />
-                  <span>Ajouter un étudiant</span>
+                  <Plus className="w-4 h-4 md:w-5 md:h-5 text-blue-600" />
+                  <span className="text-xs md:text-base">Ajouter étudiant</span>
                 </button>
                 <button
                   onClick={() => { setModalType('teacher'); setShowModal(true); }}
-                  className="flex items-center gap-2 p-4 border rounded-lg hover:bg-green-50"
+                  className="flex items-center gap-2 p-3 md:p-4 border rounded-lg hover:bg-green-50"
                 >
-                  <Plus className="w-5 h-5 text-green-600" />
-                  <span>Ajouter un enseignant</span>
+                  <Plus className="w-4 h-4 md:w-5 md:h-5 text-green-600" />
+                  <span className="text-xs md:text-base">Ajouter enseignant</span>
                 </button>
                 <button
                   onClick={() => { setModalType('class'); setShowModal(true); }}
-                  className="flex items-center gap-2 p-4 border rounded-lg hover:bg-purple-50"
+                  className="flex items-center gap-2 p-3 md:p-4 border rounded-lg hover:bg-purple-50"
                 >
-                  <Plus className="w-5 h-5 text-purple-600" />
-                  <span>Créer une classe</span>
+                  <Plus className="w-4 h-4 md:w-5 md:h-5 text-purple-600" />
+                  <span className="text-xs md:text-base">Créer classe</span>
                 </button>
                 <button
                   onClick={() => { setModalType('subject'); setShowModal(true); }}
-                  className="flex items-center gap-2 p-4 border rounded-lg hover:bg-orange-50"
+                  className="flex items-center gap-2 p-3 md:p-4 border rounded-lg hover:bg-orange-50"
                 >
-                  <Plus className="w-5 h-5 text-orange-600" />
-                  <span>Créer une matière</span>
+                  <Plus className="w-4 h-4 md:w-5 md:h-5 text-orange-600" />
+                  <span className="text-xs md:text-base">Créer matière</span>
                 </button>
                 <button
                   onClick={() => { setModalType('schedule'); setShowModal(true); }}
-                  className="flex items-center gap-2 p-4 border rounded-lg hover:bg-indigo-50"
+                  className="flex items-center gap-2 p-3 md:p-4 border rounded-lg hover:bg-indigo-50"
                 >
-                  <Plus className="w-5 h-5 text-indigo-600" />
-                  <span>Ajouter un créneau</span>
+                  <Plus className="w-4 h-4 md:w-5 md:h-5 text-indigo-600" />
+                  <span className="text-xs md:text-base">Ajouter créneau</span>
                 </button>
                 <button
                   onClick={() => { setModalType('announcement'); setShowModal(true); }}
-                  className="flex items-center gap-2 p-4 border rounded-lg hover:bg-pink-50"
+                  className="flex items-center gap-2 p-3 md:p-4 border rounded-lg hover:bg-pink-50"
                 >
-                  <Plus className="w-5 h-5 text-pink-600" />
-                  <span>Publier une annonce</span>
+                  <Plus className="w-4 h-4 md:w-5 md:h-5 text-pink-600" />
+                  <span className="text-xs md:text-base">Publier annonce</span>
                 </button>
               </div>
             </div>
@@ -1340,21 +1369,21 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
 
        {/* STUDENTS TAB */}
       {activeTab === 'students' && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold">Étudiants ({filteredStudents.length})</h2>
+        <div className="bg-white rounded-lg shadow p-4 md:p-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+            <h2 className="text-xl md:text-2xl font-bold">Étudiants ({filteredStudents.length})</h2>
             <button
               onClick={() => { setModalType('student'); setShowModal(true); }}
-              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2"
+              className="bg-purple-600 text-white px-3 py-2 md:px-4 rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm md:text-base w-full sm:w-auto justify-center"
             >
-              <Plus className="w-5 h-5" />
+              <Plus className="w-4 h-4 md:w-5 md:h-5" />
               Ajouter
             </button>
           </div>
 
           {/* FILTRES ET RECHERCHE */}
-          <div className="grid md:grid-cols-4 gap-4 mb-6">
-            <div className="md:col-span-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
+            <div className="sm:col-span-2">
               <label className="block text-sm font-medium mb-2">Rechercher</label>
               <div className="relative">
                 <Search className="w-5 h-5 absolute left-3 top-2.5 text-gray-400" />
@@ -1363,7 +1392,7 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
                   placeholder="Nom, matricule, email..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 pl-10"
+                  className="w-full border rounded-lg px-3 py-2 pl-10 text-sm md:text-base"
                 />
               </div>
             </div>
@@ -1376,7 +1405,7 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
               <select 
                 value={classFilter} 
                 onChange={(e) => setClassFilter(e.target.value)} 
-                className="w-full border rounded-lg px-3 py-2"
+                className="w-full border rounded-lg px-3 py-2 text-sm md:text-base"
               >
                 <option value="all">Toutes les classes</option>
                 {classes.map(cls => (
@@ -1393,7 +1422,7 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
                   setItemsPerPage(Number(e.target.value)); 
                   setCurrentPageStudents(1); 
                 }} 
-                className="w-full border rounded-lg px-3 py-2"
+                className="w-full border rounded-lg px-3 py-2 text-sm md:text-base"
               >
                 <option value="5">5</option>
                 <option value="10">10</option>
@@ -1410,31 +1439,31 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
             <p className="text-center py-8 text-gray-500">Aucun étudiant trouvé</p>
           ) : (
             <>
-              <div className="overflow-x-auto">
-                <table className="w-full">
+              <div className="overflow-x-auto -mx-4 md:mx-0">
+                <table className="w-full min-w-[600px]">
                   <thead className="bg-gray-100">
                     <tr>
-                      <th className="px-4 py-3 text-left">Matricule</th>
-                      <th className="px-4 py-3 text-left">Nom complet</th>
-                      <th className="px-4 py-3 text-left">Email</th>
-                      <th className="px-4 py-3 text-left">Statut</th>
-                      <th className="px-4 py-3 text-left">Actions</th>
+                      <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm">Matricule</th>
+                      <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm">Nom</th>
+                      <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm hidden md:table-cell">Email</th>
+                      <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm">Statut</th>
+                      <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {paginatedStudents.map((student) => (
                       <tr key={student.id} className="border-b hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium">{student.student_number}</td>
-                        <td className="px-4 py-3">{student.users?.first_name} {student.users?.last_name}</td>
-                        <td className="px-4 py-3">{student.users?.email}</td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 md:px-4 py-3 font-medium text-xs md:text-sm">{student.student_number}</td>
+                        <td className="px-3 md:px-4 py-3 text-xs md:text-sm">{student.users?.first_name} {student.users?.last_name}</td>
+                        <td className="px-3 md:px-4 py-3 text-xs md:text-sm hidden md:table-cell">{student.users?.email}</td>
+                        <td className="px-3 md:px-4 py-3">
                           <span className={`px-2 py-1 rounded text-xs ${
                             student.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
                           }`}>
                             {student.status}
                           </span>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 md:px-4 py-3">
                           <button
                             onClick={() => handleDeleteStudent(student.id)}
                             className="text-red-600 hover:bg-red-50 p-2 rounded"
@@ -1449,8 +1478,8 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
               </div>
 
               {/* PAGINATION */}
-              <div className="flex items-center justify-between mt-6">
-                <p className="text-sm text-gray-600">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-6">
+                <p className="text-xs md:text-sm text-gray-600">
                   Affichage {startIndexStudents + 1} à {Math.min(startIndexStudents + itemsPerPage, filteredStudents.length)} sur {filteredStudents.length}
                 </p>
                 
@@ -1458,19 +1487,19 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
                   <button
                     onClick={() => setCurrentPageStudents(prev => Math.max(1, prev - 1))}
                     disabled={currentPageStudents === 1}
-                    className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-2 md:px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
                   
-                  <span className="px-4 py-1 border rounded bg-gray-50">
-                    Page {currentPageStudents} / {totalPagesStudents}
+                  <span className="px-3 md:px-4 py-1 border rounded bg-gray-50 text-xs md:text-sm">
+                    {currentPageStudents} / {totalPagesStudents}
                   </span>
                   
                   <button
                     onClick={() => setCurrentPageStudents(prev => Math.min(totalPagesStudents, prev + 1))}
                     disabled={currentPageStudents === totalPagesStudents}
-                    className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-2 md:px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
@@ -1483,21 +1512,21 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
 
         {/* TEACHERS TAB */}
         {activeTab === 'teachers' && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">Enseignants ({filteredTeachers.length})</h2>
+          <div className="bg-white rounded-lg shadow p-4 md:p-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+              <h2 className="text-xl md:text-2xl font-bold">Enseignants ({filteredTeachers.length})</h2>
               <button
                 onClick={() => { setModalType('teacher'); setShowModal(true); }}
-                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2"
+                className="bg-purple-600 text-white px-3 py-2 md:px-4 rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm md:text-base w-full sm:w-auto justify-center"
               >
-                <Plus className="w-5 h-5" />
+                <Plus className="w-4 h-4 md:w-5 md:h-5" />
                 Ajouter
               </button>
             </div>
 
             {/* FILTRES ET RECHERCHE */}
-            <div className="grid md:grid-cols-4 gap-4 mb-6">
-              <div className="md:col-span-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
+              <div className="sm:col-span-2">
                 <label className="block text-sm font-medium mb-2">Rechercher</label>
                 <div className="relative">
                   <Search className="w-5 h-5 absolute left-3 top-2.5 text-gray-400" />
@@ -1506,7 +1535,7 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
                     placeholder="Nom, matricule, email..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2 pl-10"
+                    className="w-full border rounded-lg px-3 py-2 pl-10 text-sm md:text-base"
                   />
                 </div>
               </div>
@@ -1519,7 +1548,7 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
                 <select 
                   value={departmentFilter} 
                   onChange={(e) => setDepartmentFilter(e.target.value)} 
-                  className="w-full border rounded-lg px-3 py-2"
+                  className="w-full border rounded-lg px-3 py-2 text-sm md:text-base"
                 >
                   <option value="all">Tous</option>
                   {uniqueDepartments.map(dept => (
@@ -1536,7 +1565,7 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
                     setItemsPerPage(Number(e.target.value)); 
                     setCurrentPageTeachers(1); 
                   }} 
-                  className="w-full border rounded-lg px-3 py-2"
+                  className="w-full border rounded-lg px-3 py-2 text-sm md:text-base"
                 >
                   <option value="5">5</option>
                   <option value="10">10</option>
@@ -1553,27 +1582,27 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
               <p className="text-center py-8 text-gray-500">Aucun enseignant trouvé</p>
             ) : (
               <>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
+                <div className="overflow-x-auto -mx-4 md:mx-0">
+                  <table className="w-full min-w-[600px]">
                     <thead className="bg-gray-100">
                       <tr>
-                        <th className="px-4 py-3 text-left">Matricule</th>
-                        <th className="px-4 py-3 text-left">Nom</th>
-                        <th className="px-4 py-3 text-left">Email</th>
-                        <th className="px-4 py-3 text-left">Spécialité</th>
-                        <th className="px-4 py-3 text-left">Département</th>
-                        <th className="px-4 py-3 text-left">Actions</th>
+                        <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm">Matricule</th>
+                        <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm">Nom</th>
+                        <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm hidden md:table-cell">Email</th>
+                        <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm hidden lg:table-cell">Spécialité</th>
+                        <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm hidden lg:table-cell">Département</th>
+                        <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {paginatedTeachers.map((teacher) => (
                         <tr key={teacher.id} className="border-b hover:bg-gray-50">
-                          <td className="px-4 py-3 font-medium">{teacher.teacher_number}</td>
-                          <td className="px-4 py-3">{teacher.users?.first_name} {teacher.users?.last_name}</td>
-                          <td className="px-4 py-3">{teacher.users?.email}</td>
-                          <td className="px-4 py-3">{teacher.specialization || '-'}</td>
-                          <td className="px-4 py-3">{teacher.department || '-'}</td>
-                          <td className="px-4 py-3">
+                          <td className="px-3 md:px-4 py-3 font-medium text-xs md:text-sm">{teacher.teacher_number}</td>
+                          <td className="px-3 md:px-4 py-3 text-xs md:text-sm">{teacher.users?.first_name} {teacher.users?.last_name}</td>
+                          <td className="px-3 md:px-4 py-3 text-xs md:text-sm hidden md:table-cell">{teacher.users?.email}</td>
+                          <td className="px-3 md:px-4 py-3 text-xs md:text-sm hidden lg:table-cell">{teacher.specialization || '-'}</td>
+                          <td className="px-3 md:px-4 py-3 text-xs md:text-sm hidden lg:table-cell">{teacher.department || '-'}</td>
+                          <td className="px-3 md:px-4 py-3">
                             <button
                               onClick={() => handleDeleteTeacher(teacher.id)}
                               className="text-red-600 hover:bg-red-50 p-2 rounded"
@@ -1588,8 +1617,8 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
                 </div>
 
                 {/* PAGINATION */}
-                <div className="flex items-center justify-between mt-6">
-                  <p className="text-sm text-gray-600">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-6">
+                  <p className="text-xs md:text-sm text-gray-600">
                     Affichage {startIndexTeachers + 1} à {Math.min(startIndexTeachers + itemsPerPage, filteredTeachers.length)} sur {filteredTeachers.length}
                   </p>
                   
@@ -1597,19 +1626,19 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
                     <button
                       onClick={() => setCurrentPageTeachers(prev => Math.max(1, prev - 1))}
                       disabled={currentPageTeachers === 1}
-                      className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-2 md:px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <ChevronLeft className="w-4 h-4" />
                     </button>
                     
-                    <span className="px-4 py-1 border rounded bg-gray-50">
-                      Page {currentPageTeachers} / {totalPagesTeachers}
+                    <span className="px-3 md:px-4 py-1 border rounded bg-gray-50 text-xs md:text-sm">
+                      {currentPageTeachers} / {totalPagesTeachers}
                     </span>
                     
                     <button
                       onClick={() => setCurrentPageTeachers(prev => Math.min(totalPagesTeachers, prev + 1))}
                       disabled={currentPageTeachers === totalPagesTeachers}
-                      className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-2 md:px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <ChevronRight className="w-4 h-4" />
                     </button>
@@ -1622,25 +1651,25 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
 
         {/* CLASSES TAB */}
         {activeTab === 'classes' && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">Classes ({classes.length})</h2>
+          <div className="bg-white rounded-lg shadow p-4 md:p-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+              <h2 className="text-xl md:text-2xl font-bold">Classes ({classes.length})</h2>
               <button
                 onClick={() => { setModalType('class'); setShowModal(true); }}
-                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2"
+                className="bg-purple-600 text-white px-3 py-2 md:px-4 rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm md:text-base w-full sm:w-auto justify-center"
               >
-                <Plus className="w-5 h-5" />
+                <Plus className="w-4 h-4 md:w-5 md:h-5" />
                 Créer
               </button>
             </div>
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
               {classes.map((cls) => (
-                <div key={cls.id} className="border rounded-lg p-4">
+                <div key={cls.id} className="border rounded-lg p-3 md:p-4">
                   <div className="flex justify-between items-start mb-2">
                     <div>
-                      <h3 className="font-bold text-lg">{cls.name}</h3>
-                      <p className="text-sm text-gray-600">{cls.level}</p>
+                      <h3 className="font-bold text-base md:text-lg">{cls.name}</h3>
+                      <p className="text-xs md:text-sm text-gray-600">{cls.level}</p>
                       <p className="text-xs text-gray-500">{cls.academic_year}</p>
                     </div>
                     <button
@@ -1650,7 +1679,7 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
-                  <p className="text-sm text-gray-600">Max: {cls.max_students} étudiants</p>
+                  <p className="text-xs md:text-sm text-gray-600">Max: {cls.max_students} étudiants</p>
                 </div>
               ))}
             </div>
@@ -1659,25 +1688,25 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
 
         {/* SUBJECTS TAB */}
         {activeTab === 'subjects' && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">Matières ({subjects.length})</h2>
+          <div className="bg-white rounded-lg shadow p-4 md:p-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+              <h2 className="text-xl md:text-2xl font-bold">Matières ({subjects.length})</h2>
               <button
                 onClick={() => { setModalType('subject'); setShowModal(true); }}
-                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2"
+                className="bg-purple-600 text-white px-3 py-2 md:px-4 rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm md:text-base w-full sm:w-auto justify-center"
               >
-                <Plus className="w-5 h-5" />
+                <Plus className="w-4 h-4 md:w-5 md:h-5" />
                 Créer
               </button>
             </div>
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
               {subjects.map((subject) => (
-                <div key={subject.id} className="border rounded-lg p-4">
+                <div key={subject.id} className="border rounded-lg p-3 md:p-4">
                   <div className="flex justify-between items-start mb-2">
                     <div>
-                      <h3 className="font-bold text-lg">{subject.name}</h3>
-                      <p className="text-sm text-gray-600">Code: {subject.code}</p>
+                      <h3 className="font-bold text-base md:text-lg">{subject.name}</h3>
+                      <p className="text-xs md:text-sm text-gray-600">Code: {subject.code}</p>
                     </div>
                     <button
                       onClick={() => handleDeleteSubject(subject.id)}
@@ -1686,7 +1715,7 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
-                  <p className="text-sm text-gray-600">Coefficient: {subject.coefficient}</p>
+                  <p className="text-xs md:text-sm text-gray-600">Coefficient: {subject.coefficient}</p>
                 </div>
               ))}
             </div>
