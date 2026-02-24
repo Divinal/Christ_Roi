@@ -233,6 +233,13 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
     }
   };
 
+      const handleLogout = () => {
+      const confirmed = window.confirm("Voulez-vous vous déconnecter ?");
+      if (confirmed) {
+        onLogout();
+      }
+    };
+
   // ==================== CHARGEMENT ÉTUDIANTS POUR SAISIE NOTES ====================
   const loadStudentsForGrading = async () => {
     if (!selectedClass || !selectedSubject) {
@@ -488,14 +495,15 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
         <div className="container mx-auto flex justify-between items-center">
           <h1 className="text-2xl font-bold">Espace Enseignant</h1>
           <div className="flex items-center gap-4">
-            <span className="text-sm">Prof. {user?.first_name} {user?.last_name}</span>
-            <button
-              onClick={onLogout}
-              className="bg-green-700 px-4 py-2 rounded hover:bg-green-800 flex items-center gap-2"
-            >
-              <LogOut className="w-4 h-4" />
-              Déconnexion
-            </button>
+            <span className="text-xs md:text-sm hidden sm:inline">Prof : 👤 {user?.first_name} {user?.last_name}</span>
+          <button
+            onClick={handleLogout}
+            className="bg-green-700 px-4 py-2 rounded hover:bg-green-800 flex items-center gap-2"
+          >
+            <LogOut className="w-4 h-4" />
+            Déconnexion
+          </button>
+
           </div>
         </div>
       </nav>
@@ -991,8 +999,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
                     </tr>
                   </thead>
                   <tbody>
-                    {['08:00-10:00', '10:00-12:00', '14:00-16:00', '16:00-18:00'].map((timeSlot) => (
-                      <tr key={timeSlot}>
+                  {['09:00-10:30', '10:30-12:00', '14:30-16:00', '16:00-17:30'].map((timeSlot) => (                      <tr key={timeSlot}>
                         <td className="border-2 px-4 py-3 font-bold bg-gray-50">{timeSlot}</td>
                         {[1, 2, 3, 4, 5].map((day) => {
                           const daySchedules = mySchedule.filter(s => 

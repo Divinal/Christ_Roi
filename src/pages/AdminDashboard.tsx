@@ -127,6 +127,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
   const [itemsPerPage, setItemsPerPage] = useState<number>(10);
   const [classFilter, setClassFilter] = useState<string>('all');
   const [departmentFilter, setDepartmentFilter] = useState<string>('all');
+  const [selectedClassForSubjects, setSelectedClassForSubjects] = useState<string>('all');
+  const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
   // États pour la gestion des notes
     const [selectedStudentForGrades, setSelectedStudentForGrades] = useState<string>('');
     const [studentGrades, setStudentGrades] = useState<any[]>([]);
@@ -169,16 +171,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
   });
 
   const [subjectForm, setSubjectForm] = useState({
-    name: '', code: '', coefficient: 1
+    name: '', code: '', coefficient: 1,
+     selectedClasses: [] as string[] 
   });
+
+      const handleLogout = () => {
+      const confirmed = window.confirm("Voulez-vous vous déconnecter ?");
+      if (confirmed) {
+        onLogout();
+      }
+    };
+
 
   const [scheduleForm, setScheduleForm] = useState({
     classId: '',
     subjectId: '',
     teacherId: '',
     dayOfWeek: 1,
-    startTime: '08:00',
-    endTime: '10:00',
+    startTime: '09:00',
+    endTime: '10:30',
     room: '',
     academicYear: '2025-2026'
   });
@@ -210,8 +221,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
         loadCourses(),
         loadSchedules(),
         loadAnnouncements(),
-        loadStudentClassAssignments(),      // ← NOUVEAU
-        loadTeacherClassAssignments()  
+        loadStudentClassAssignments(),      
+        loadTeacherClassAssignments(),
+        loadSubjectClassLinks()    
       ]);
     } catch (error) {
       console.error('Erreur chargement:', error);
@@ -303,6 +315,19 @@ const loadTeacherClassAssignments = async () => {
       setSubjects(data || []);
     }
   };
+
+  const [subjectClassLinks, setSubjectClassLinks] = useState<any[]>([]);
+    const loadSubjectClassLinks = async () => {
+      const { data, error } = await supabase
+        .from('subject_classes')
+        .select('class_id, subject_id');
+      
+      if (error) {
+        console.error('Erreur chargement liens matières-classes:', error);
+      } else {
+        setSubjectClassLinks(data || []);
+      }
+    };
 
   const loadCourses = async () => {
     const { data, error } = await supabase
@@ -671,25 +696,44 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
   };
 
   // ==================== AJOUT MATIÈRE ====================
+    // Ligne ~588 - Dans handleAddSubject
   const handleAddSubject = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const { error } = await supabase
+      // 1. Créer la matière
+      const { data: newSubject, error: subjectError } = await supabase
         .from('subjects')
         .insert({
           name: subjectForm.name,
           code: subjectForm.code,
           coefficient: subjectForm.coefficient
-        });
+        })
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (subjectError) throw subjectError;
+
+      // 2. Associer les classes sélectionnées (si il y en a)
+      if (subjectForm.selectedClasses.length > 0) {
+        const subjectClassLinks = subjectForm.selectedClasses.map(classId => ({
+          subject_id: newSubject.id,
+          class_id: classId
+        }));
+
+        const { error: linkError } = await supabase
+          .from('subject_classes')
+          .insert(subjectClassLinks);
+
+        if (linkError) throw linkError;
+      }
 
       alert('✅ Matière créée avec succès !');
       setShowModal(false);
       resetSubjectForm();
       loadSubjects();
+      loadSubjectClassLinks();  // ← Recharger les liens
     } catch (error: any) {
       alert(`❌ Erreur: ${error.message}`);
     } finally {
@@ -859,22 +903,67 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
     }
   };
 
-  const handleDeleteClass = async (classId: string) => {
-    if (!window.confirm('⚠️ Êtes-vous sûr de vouloir supprimer cette classe ?')) return;
+    const handleDeleteClass = async (classId: string) => {
+      if (!window.confirm('⚠️ Êtes-vous sûr de vouloir supprimer cette classe ?')) return;
 
-    try {
-      const { error } = await supabase
-        .from('classes')
-        .delete()
-        .eq('id', classId);
+      try {
+        const { error } = await supabase
+          .from('classes')
+          .delete()
+          .eq('id', classId);
 
-      if (error) throw error;
-      alert('✅ Classe supprimée');
-      loadClasses();
-    } catch (error: any) {
-      alert(`❌ Erreur: ${error.message}`);
-    }
-  };
+        if (error) throw error;
+        alert('✅ Classe supprimée');
+        loadClasses();
+      } catch (error: any) {
+        alert(`❌ Erreur: ${error.message}`);
+      }
+    };
+
+        // ==================== MODIFICATION CLASSE ====================
+      const [editingClass, setEditingClass] = useState<Class | null>(null);
+
+      const handleEditClass = (cls: Class) => {
+        setEditingClass(cls);
+        setClassForm({
+          name: cls.name,
+          level: cls.level,
+          academicYear: cls.academic_year,
+          maxStudents: cls.max_students
+        });
+        setModalType('class');
+        setShowModal(true);
+      };
+
+    const handleUpdateClass = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!editingClass) return;
+
+      setLoading(true);
+      try {
+        const { error } = await supabase
+          .from('classes')
+          .update({
+            name: classForm.name,
+            level: classForm.level,
+            academic_year: classForm.academicYear,
+            max_students: classForm.maxStudents
+          })
+          .eq('id', editingClass.id);
+
+        if (error) throw error;
+
+        alert('✅ Classe modifiée avec succès !');
+        setShowModal(false);
+        setEditingClass(null);
+        resetClassForm();
+        loadClasses();
+      } catch (error: any) {
+        alert(`❌ Erreur: ${error.message}`);
+      } finally {
+        setLoading(false);
+      }
+    };
 
   const handleDeleteSubject = async (subjectId: string) => {
     if (!window.confirm('⚠️ Êtes-vous sûr de vouloir supprimer cette matière ?')) return;
@@ -892,6 +981,80 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
       alert(`❌ Erreur: ${error.message}`);
     }
   };
+
+  // ==================== MODIFICATION MATIÈRE ====================
+      const handleEditSubject = async (subject: Subject) => {
+      setEditingSubject(subject);
+      
+      // Charger les classes déjà associées
+      const { data: linkedClasses } = await supabase
+        .from('subject_classes')
+        .select('class_id')
+        .eq('subject_id', subject.id);
+
+      const classIds = linkedClasses?.map(l => l.class_id) || [];
+      setSubjectForm({
+        name: subject.name, 
+        code: subject.code, 
+        coefficient: subject.coefficient,
+        selectedClasses: classIds  
+      });
+      
+      setModalType('subject');
+      setShowModal(true);
+    };
+
+    const handleUpdateSubject = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!editingSubject) return;
+
+      setLoading(true);
+      try {
+        // 1. Mettre à jour la matière
+        const { error: updateError } = await supabase
+          .from('subjects')
+          .update({
+            name: subjectForm.name,
+            code: subjectForm.code,
+            coefficient: subjectForm.coefficient
+          })
+          .eq('id', editingSubject.id);
+
+        if (updateError) throw updateError;
+
+        // 2. Mettre à jour les associations (supprimer puis recréer)
+        if (subjectForm.selectedClasses.length > 0) {
+          // Supprimer les anciennes associations
+          await supabase
+            .from('subject_classes')
+            .delete()
+            .eq('subject_id', editingSubject.id);
+
+          // Créer les nouvelles associations
+          const subjectClassLinks = subjectForm.selectedClasses.map(classId => ({
+            subject_id: editingSubject.id,
+            class_id: classId
+          }));
+
+          const { error: linkError } = await supabase
+            .from('subject_classes')
+            .insert(subjectClassLinks);
+
+          if (linkError) throw linkError;
+        }
+
+        alert('✅ Matière modifiée avec succès !');
+        setShowModal(false);
+        setEditingSubject(null);
+        resetSubjectForm();
+        loadSubjects();
+        loadSubjectClassLinks();  // ← Recharger les liens
+      } catch (error: any) {
+        alert(`❌ Erreur: ${error.message}`);
+      } finally {
+        setLoading(false);
+      }
+    };
 
   // ==================== APPROBATION COURS ====================
   const handleApproveCourse = async (courseId: string) => {
@@ -936,7 +1099,8 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
 
   const resetSubjectForm = () => {
     setSubjectForm({
-      name: '', code: '', coefficient: 1
+      name: '', code: '', coefficient: 1,
+       selectedClasses: [] 
     });
   };
 
@@ -946,8 +1110,8 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
       subjectId: '',
       teacherId: '',
       dayOfWeek: 1,
-      startTime: '08:00',
-      endTime: '10:00',
+      startTime: '09:00',
+      endTime: '10:30',
       room: '',
       academicYear: '2025-2026'
     });
@@ -964,6 +1128,21 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
   };
 
 // ==================== FILTRES ====================
+const filteredSubjects = subjects.filter(subject => {
+  const matchesSearch = subject.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                       subject.code.toLowerCase().includes(searchTerm.toLowerCase());
+        
+        if (selectedClassForSubjects === 'all') {
+          return matchesSearch;
+        }
+        
+        // Matière visible si assignée à la classe via teacher_classes
+        const isInSelectedClass = subjectClassLinks.some(
+          link => link.subject_id === subject.id && link.class_id === selectedClassForSubjects
+        );
+        
+        return matchesSearch && isInSelectedClass;
+      });
     const filteredStudents = students.filter(s => {
       const matchesSearch = (s.student_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                           (s.users?.first_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -998,30 +1177,36 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
         const startIndexTeachers = (currentPageTeachers - 1) * itemsPerPage;
         const paginatedTeachers = filteredTeachers.slice(startIndexTeachers, startIndexTeachers + itemsPerPage);
 
-// Départements uniques
-        const uniqueDepartments = Array.from(new Set(teachers.map(t => t.department).filter(Boolean)));
+        // Départements uniques
+                const uniqueDepartments = Array.from(new Set(teachers.map(t => t.department).filter(Boolean)));
 
-  // Filtrer les emplois du temps par classe sélectionnée
-  const filteredSchedules = selectedClassForSchedule
-    ? schedules.filter(s => s.class_id === selectedClassForSchedule)
-    : schedules;
+        // Filtrer les classes par recherche
+            const filteredClasses = classes.filter(cls => 
+              cls.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              cls.level.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+            
+          // Filtrer les emplois du temps par classe sélectionnée
+          const filteredSchedules = selectedClassForSchedule
+            ? schedules.filter(s => s.class_id === selectedClassForSchedule)
+            : schedules;
 
-  // Grouper les emplois du temps par jour et créer une grille
-  const getScheduleGrid = () => {
-    const grid: { [key: string]: ScheduleDetailed[] } = {
-      '1': [], '2': [], '3': [], '4': [], '5': []
-    };
+          // Grouper les emplois du temps par jour et créer une grille
+          const getScheduleGrid = () => {
+            const grid: { [key: string]: ScheduleDetailed[] } = {
+              '1': [], '2': [], '3': [], '4': [], '5': [], '6': []
+            };
 
-    filteredSchedules.forEach(schedule => {
-      if (schedule.day_of_week >= 1 && schedule.day_of_week <= 5) {
-        grid[schedule.day_of_week.toString()].push(schedule);
-      }
-    });
+            filteredSchedules.forEach(schedule => {
+              if (schedule.day_of_week >= 1 && schedule.day_of_week <= 6) {
+                grid[schedule.day_of_week.toString()].push(schedule);
+              }
+            });
 
-    return grid;
-  };
+            return grid;
+          };
 
-  const dayNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
+          const dayNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 
   // ==================== RENDER ====================
   return (
@@ -1040,14 +1225,14 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
             <h1 className="text-lg md:text-2xl font-bold truncate">📚 Administration</h1>
           </div>
           <div className="flex items-center gap-2 md:gap-4">
-            <span className="text-xs md:text-sm hidden sm:inline">👤 {user?.first_name} {user?.last_name}</span>
-            <button
-              onClick={onLogout}
-              className="bg-purple-700 px-3 py-1.5 md:px-4 md:py-2 rounded hover:bg-purple-800 transition text-sm"
-            >
-              <span className="hidden sm:inline">Déconnexion</span>
-              <span className="sm:hidden">×</span>
-            </button>
+            <span className="text-xs md:text-sm hidden sm:inline">Admin : 👤 {user?.first_name} {user?.last_name}</span>
+          <button
+            onClick={handleLogout}
+            className="bg-purple-700 px-3 py-1.5 md:px-4 md:py-2 rounded hover:bg-purple-800 transition text-sm"
+          >
+            <span className="hidden sm:inline">Déconnexion</span>
+            <span className="sm:hidden">×</span>
+          </button>
           </div>
         </div>
       </nav>
@@ -1662,9 +1847,22 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
                 Créer
               </button>
             </div>
+            {/* BARRE DE RECHERCHE */}
+                <div className="mb-6">
+                  <div className="relative">
+                    <Search className="w-5 h-5 absolute left-3 top-2.5 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Rechercher une classe..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full border rounded-lg px-3 py-2 pl-10"
+                    />
+                  </div>
+                </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-              {classes.map((cls) => (
+              {filteredClasses.map((cls) => (
                 <div key={cls.id} className="border rounded-lg p-3 md:p-4">
                   <div className="flex justify-between items-start mb-2">
                     <div>
@@ -1672,13 +1870,23 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
                       <p className="text-xs md:text-sm text-gray-600">{cls.level}</p>
                       <p className="text-xs text-gray-500">{cls.academic_year}</p>
                     </div>
-                    <button
-                      onClick={() => handleDeleteClass(cls.id)}
-                      className="text-red-600 hover:bg-red-50 p-2 rounded"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleEditClass(cls)}
+                        className="text-blue-600 hover:bg-blue-50 p-2 rounded"
+                        title="Modifier"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteClass(cls.id)}
+                        className="text-red-600 hover:bg-red-50 p-2 rounded"
+                        title="Supprimer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                 </div>
                   <p className="text-xs md:text-sm text-gray-600">Max: {cls.max_students} étudiants</p>
                 </div>
               ))}
@@ -1687,40 +1895,96 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
         )}
 
         {/* SUBJECTS TAB */}
-        {activeTab === 'subjects' && (
-          <div className="bg-white rounded-lg shadow p-4 md:p-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
-              <h2 className="text-xl md:text-2xl font-bold">Matières ({subjects.length})</h2>
-              <button
-                onClick={() => { setModalType('subject'); setShowModal(true); }}
-                className="bg-purple-600 text-white px-3 py-2 md:px-4 rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm md:text-base w-full sm:w-auto justify-center"
-              >
-                <Plus className="w-4 h-4 md:w-5 md:h-5" />
-                Créer
-              </button>
-            </div>
+          {activeTab === 'subjects' && (
+            <div className="bg-white rounded-lg shadow p-4 md:p-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+                <h2 className="text-xl md:text-2xl font-bold">Matières ({subjects.length})</h2>
+                <button
+                  onClick={() => { 
+                    setModalType('subject'); 
+                    setEditingSubject(null);
+                    resetSubjectForm();
+                    setShowModal(true); 
+                  }}
+                  className="bg-purple-600 text-white px-3 py-2 md:px-4 rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm md:text-base w-full sm:w-auto justify-center"
+                >
+                  <Plus className="w-4 h-4 md:w-5 md:h-5" />
+                  Créer
+                </button>
+              </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-              {subjects.map((subject) => (
-                <div key={subject.id} className="border rounded-lg p-3 md:p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h3 className="font-bold text-base md:text-lg">{subject.name}</h3>
-                      <p className="text-xs md:text-sm text-gray-600">Code: {subject.code}</p>
-                    </div>
-                    <button
-                      onClick={() => handleDeleteSubject(subject.id)}
-                      className="text-red-600 hover:bg-red-50 p-2 rounded"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <p className="text-xs md:text-sm text-gray-600">Coefficient: {subject.coefficient}</p>
+              {/* FILTRES */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                {/* Filtre par classe */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    <Filter className="w-4 h-4 inline mr-1" />
+                    Filtrer par classe
+                  </label>
+                  <select 
+                    value={selectedClassForSubjects}
+                    onChange={(e) => setSelectedClassForSubjects(e.target.value)}
+                    className="w-full border rounded-lg px-3 py-2"
+                  >
+                    <option value="all">Toutes les classes</option>
+                    {classes.map(cls => (
+                      <option key={cls.id} value={cls.id}>{cls.name}</option>
+                    ))}
+                  </select>
                 </div>
-              ))}
+
+                {/* Barre de recherche */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">Rechercher</label>
+                  <div className="relative">
+                    <Search className="w-5 h-5 absolute left-3 top-2.5 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Nom ou code de matière..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full border rounded-lg px-3 py-2 pl-10"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Grille des matières */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+                {filteredSubjects.map((subject) => (
+                  <div key={subject.id} className="border rounded-lg p-3 md:p-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <h3 className="font-bold text-base md:text-lg">{subject.name}</h3>
+                        <p className="text-xs md:text-sm text-gray-600">Code: {subject.code}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleEditSubject(subject)}
+                          className="text-blue-600 hover:bg-blue-50 p-2 rounded"
+                          title="Modifier"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteSubject(subject.id)}
+                          className="text-red-600 hover:bg-red-50 p-2 rounded"
+                          title="Supprimer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-xs md:text-sm text-gray-600">Coefficient: {subject.coefficient}</p>
+                  </div>
+                ))}
+              </div>
+
+              {filteredSubjects.length === 0 && (
+                <p className="text-center py-8 text-gray-500">Aucune matière trouvée</p>
+              )}
             </div>
-          </div>
-        )}
+          )}
 
         {/* COURSES TAB */}
         {activeTab === 'courses' && (
@@ -1806,10 +2070,9 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
                 </thead>
                 <tbody>
                   {/* Lignes de temps (simplifié) */}
-                  {['08:00-10:00', '10:00-12:00', '14:00-16:00', '16:00-18:00'].map((timeSlot) => (
-                    <tr key={timeSlot}>
+                    {['09:00-10:30', '10:30-12:00', '14:30-16:00', '16:00-17:30'].map((timeSlot) => (                    <tr key={timeSlot}>
                       <td className="border px-4 py-2 font-medium bg-gray-50">{timeSlot}</td>
-                      {[1, 2, 3, 4, 5].map((day) => {
+                      {[1, 2, 3, 4, 5, 6].map((day) => {
                         const daySchedules = filteredSchedules.filter(s => 
                           s.day_of_week === day && 
                           `${s.start_time.substring(0, 5)}-${s.end_time.substring(0, 5)}` === timeSlot
@@ -2453,15 +2716,15 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
 
             {/* CLASS FORM */}
             {modalType === 'class' && (
-              <form onSubmit={handleAddClass} className="space-y-4">
-                <div>
+              <form onSubmit={editingClass ? handleUpdateClass : handleAddClass} className="space-y-4">
+                  <div>
                   <label className="block text-sm font-medium mb-2">Nom de la classe *</label>
                   <input
                     type="text"
                     value={classForm.name}
                     onChange={(e) => setClassForm({...classForm, name: e.target.value})}
                     className="w-full border rounded px-3 py-2"
-                    placeholder="Ex: L1 - Groupe A"
+                    placeholder="Ex: Technicien Specialisé"
                     required
                   />
                 </div>
@@ -2474,11 +2737,11 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
                     required
                   >
                     <option value="">Sélectionner...</option>
-                    <option value="Licence 1">Technicien</option>
-                    <option value="Licence 2">TS1</option>
-                    <option value="Licence 3">TS2</option>
-                    <option value="Master 1">Bachelor</option>
-                    <option value="Master 2">Master 1</option>
+                    <option value="Technicien">Technicien</option>
+                    <option value="TS1">TS1</option>
+                    <option value="TS2">TS2</option>
+                    <option value="Bachelor">Bachelor</option>
+                    <option value="Master 1">Master 1</option>
                     <option value="Master 2">Master 2</option>
                   </select>
                 </div>
@@ -2512,12 +2775,12 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
                   >
                     Annuler
                   </button>
-                  <button
+                 <button
                     type="submit"
                     disabled={loading}
                     className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
                   >
-                    {loading ? 'Création...' : 'Créer'}
+                    {loading ? (editingClass ? 'Modification...' : 'Création...') : (editingClass ? 'Modifier' : 'Créer')}
                   </button>
                 </div>
               </form>
@@ -2525,7 +2788,7 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
 
             {/* SUBJECT FORM */}
             {modalType === 'subject' && (
-              <form onSubmit={handleAddSubject} className="space-y-4">
+            <form onSubmit={editingSubject ? handleUpdateSubject : handleAddSubject} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-2">Nom de la matière *</label>
                   <input
@@ -2559,6 +2822,25 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
                       min="1"
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Classes concernées (optionnel)</label>
+                    <select
+                      multiple
+                      value={subjectForm.selectedClasses || []}
+                      onChange={(e) => {
+                        const selected = Array.from(e.target.selectedOptions, option => option.value);
+                        setSubjectForm({...subjectForm, selectedClasses: selected});
+                      }}
+                      className="w-full border rounded px-3 py-2 h-32"
+                    >
+                      {classes.map(cls => (
+                        <option key={cls.id} value={cls.id}>{cls.name}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Maintenez Ctrl (ou Cmd) pour sélectionner plusieurs classes
+                    </p>
+                  </div>
                 </div>
                 <div className="flex gap-3 justify-end pt-4">
                   <button
@@ -2573,7 +2855,7 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
                     disabled={loading}
                     className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
                   >
-                    {loading ? 'Création...' : 'Créer'}
+                    {loading ? (editingSubject ? 'Modification...' : 'Création...') : (editingSubject ? 'Modifier' : 'Créer')}
                   </button>
                 </div>
               </form>
@@ -2642,6 +2924,7 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
                       <option value="3">Mercredi</option>
                       <option value="4">Jeudi</option>
                       <option value="5">Vendredi</option>
+                      <option value="6">Samedi</option>
                     </select>
                   </div>
                   <div>

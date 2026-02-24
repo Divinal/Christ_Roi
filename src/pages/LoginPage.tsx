@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { GraduationCap, AlertCircle, Info, Network, Code, Briefcase, Award, BookOpen, Users, X } from 'lucide-react';
+import { AlertCircle, Menu, X as CloseIcon } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { User } from '../types';
 
@@ -8,62 +8,20 @@ interface LoginPageProps {
   setCurrentPage?: (page: string) => void;
 }
 
-// Utilisateurs de démo (mode hors ligne)
-const DEMO_USERS: Record<string, { password: string; user: User }> = {
-  'admin@demo.com': {
-    password: 'admin123',
-    user: {
-      id: 'demo-admin',
-      email: 'admin@demo.com',
-      role: 'admin',
-      firstName: 'Admin',
-      lastName: 'Demo',
-    },
-  },
-  'enseignant@demo.com': {
-    password: 'demo123',
-    user: {
-      id: 'demo-teacher',
-      email: 'enseignant@demo.com',
-      role: 'teacher',
-      firstName: 'Prof.',
-      lastName: 'Martin',
-    },
-  },
-  'etudiant@demo.com': {
-    password: 'demo123',
-    user: {
-      id: 'demo-student',
-      email: 'etudiant@demo.com',
-      role: 'student',
-      firstName: 'Étudiant',
-      lastName: 'Test',
-    },
-  },
-};
-
 const LoginPage: React.FC<LoginPageProps> = ({ onLogin, setCurrentPage }) => {
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [showLoginModal, setShowLoginModal] = useState<boolean>(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
-    // Vérifier d'abord les utilisateurs de démo
-    const demoUser = DEMO_USERS[email.toLowerCase()];
-    if (demoUser && demoUser.password === password) {
-      onLogin(demoUser.user);
-      setLoading(false);
-      return;
-    }
-
     try {
-      // Connexion avec Supabase
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -72,7 +30,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, setCurrentPage }) => {
       if (authError) throw authError;
 
       if (authData.user) {
-        // Récupérer les informations utilisateur
         const { data: userData, error: userError } = await supabase
           .from('users')
           .select('*')
@@ -81,7 +38,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, setCurrentPage }) => {
 
         if (userError) throw userError;
 
-              if (userData) {
+        if (userData) {
           const user: User = {
             id: userData.id,
             email: userData.email,
@@ -103,233 +60,311 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, setCurrentPage }) => {
     }
   };
 
-  const fillDemoCredentials = (email: string, password: string) => {
-    setEmail(email);
-    setPassword(password);
-  };
-
-  const formations = [
-    {
-      icon: Network,
-      title: 'Systèmes & Réseaux',
-      description: 'Administration système, sécurité réseau, infrastructure IT',
-      color: 'blue',
-      niveau: 'Cycle Initial',
-      duree: '2 ans',
-    },
-    {
-      icon: Code,
-      title: 'Développement Informatique',
-      description: 'Programmation web, mobile, bases de données, frameworks modernes',
-      color: 'purple',
-      niveau: 'Cycle Initial',
-      duree: '2 ans',
-    },
-    {
-      icon: Briefcase,
-      title: 'Gestion d\'Entreprise',
-      description: 'Management, comptabilité, marketing, ressources humaines',
-      color: 'green',
-      niveau: 'Cycle Initial',
-      duree: '2 ans',
-    },
-  ];
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-100">
-      {/* NAVBAR */}
-      <nav className="bg-white/80 backdrop-blur-md shadow-md fixed top-0 left-0 right-0 z-40">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-600 rounded-lg">
-              <GraduationCap className="w-8 h-8 text-white" />
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-50 to-blue-50">
+      {/* ============ HEADER ============ */}
+      <header className="bg-white shadow-sm sticky top-0 z-40">
+        <nav className="container mx-auto px-4 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            {/* Logo */}
+            <div className="flex items-center gap-3">
+              <img 
+                src="../Images/RezoCampus.png" 
+                alt="Logo" 
+                className="h-10 w-10 object-contain"
+                onError={(e) => {
+                  e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="40" height="40"%3E%3Crect fill="%233b82f6" width="40" height="40" rx="8"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="20" font-weight="bold"%3EUC%3C/text%3E%3C/svg%3E';
+                }}
+              />
+              <h1 className="text-xl md:text-2xl font-bold text-blue-600">
+                Rezo Campus Consulting
+              </h1>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">E-Learning Platform</h1>
-              <p className="text-xs text-gray-600">Excellence & Innovation</p>
-            </div>
-          </div>
-          <button
-            onClick={() => setShowLoginModal(true)}
-            className="bg-indigo-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-indigo-700 transition shadow-lg"
-          >
-            Connexion
-          </button>
-        </div>
-      </nav>
 
-      {/* HERO SECTION */}
-      <div className="pt-32 pb-16 px-4">
-        <div className="container mx-auto text-center">
-          <h2 className="text-5xl font-bold text-gray-800 mb-4">
-            Bienvenue dans votre avenir
-          </h2>
-          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-            Formez-vous aux métiers d'avenir avec nos programmes certifiés et reconnus
-          </p>
-          <div className="flex justify-center gap-4 mb-12">
-            <div className="bg-white p-4 rounded-lg shadow-md">
-              <Award className="w-8 h-8 text-indigo-600 mx-auto mb-2" />
-              <p className="text-sm font-semibold">Diplômes Reconnus</p>
-            </div>
-            <div className="bg-white p-4 rounded-lg shadow-md">
-              <Users className="w-8 h-8 text-purple-600 mx-auto mb-2" />
-              <p className="text-sm font-semibold">Formateurs Experts</p>
-            </div>
-            <div className="bg-white p-4 rounded-lg shadow-md">
-              <BookOpen className="w-8 h-8 text-green-600 mx-auto mb-2" />
-              <p className="text-sm font-semibold">Cours Pratiques</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* FORMATIONS CYCLE INITIAL */}
-      <div className="container mx-auto px-4 pb-16">
-        <div className="text-center mb-12">
-          <h3 className="text-3xl font-bold text-gray-800 mb-2">Nos Formations - Cycle Initial</h3>
-          <p className="text-gray-600">Formations diplômantes sur 2 ans</p>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-          {formations.map((formation, index) => {
-            const Icon = formation.icon;
-            return (
-              <div
-                key={index}
-                className="bg-white rounded-2xl shadow-xl p-6 hover:shadow-2xl hover:-translate-y-2 transition-all duration-300"
+            {/* Navigation Desktop */}
+            <div className="hidden md:flex items-center gap-8">
+              <a href="#accueil" className="text-gray-600 hover:text-blue-600 transition">
+                Accueil
+              </a>
+              <a href="#apropos" className="text-gray-600 hover:text-blue-600 transition">
+                À propos
+              </a>
+              <a href="#contact" className="text-gray-600 hover:text-blue-600 transition">
+                Contact
+              </a>
+              <button
+                onClick={() => setShowLoginModal(true)}
+                className="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 transition shadow-md"
               >
-                <div className={`inline-block p-4 bg-${formation.color}-100 rounded-full mb-4`}>
-                  <Icon className={`w-12 h-12 text-${formation.color}-600`} />
-                </div>
-                <h4 className="text-xl font-bold text-gray-800 mb-2">{formation.title}</h4>
-                <p className="text-gray-600 mb-4 text-sm">{formation.description}</p>
-                <div className="flex justify-between items-center pt-4 border-t">
-                  <span className="text-sm font-semibold text-indigo-600">{formation.niveau}</span>
-                  <span className="text-sm text-gray-500">{formation.duree}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+                Connexion
+              </button>
+            </div>
 
-      {/* CYCLE SUPÉRIEUR FEDE */}
-      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 py-16 px-4">
-        <div className="container mx-auto text-center text-white">
-          <h3 className="text-3xl font-bold mb-4">Cycle Supérieur - FEDE</h3>
-          <p className="text-xl mb-6 opacity-90">
-            Poursuivez vos études avec nos formations de niveau Licence et Master
-          </p>
-          <p className="max-w-3xl mx-auto text-lg opacity-80 mb-8">
-            La Fédération Européenne Des Écoles (FEDE) délivre des diplômes européens reconnus, 
-            permettant une poursuite d'études en France et à l'international.
-          </p>
-          <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-            <div className="bg-white/10 backdrop-blur-sm p-6 rounded-lg">
-              <h4 className="font-bold text-xl mb-2">Bachelor FEDE</h4>
-              <p className="text-sm opacity-90">Niveau Licence (Bac+3)</p>
+            {/* Bouton Menu Mobile */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-2 text-gray-600 hover:text-blue-600"
+            >
+              {mobileMenuOpen ? <CloseIcon className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+          </div>
+
+          {/* Menu Mobile */}
+          {mobileMenuOpen && (
+            <div className="md:hidden mt-4 pb-4 space-y-3 border-t pt-4">
+              <a 
+                href="#accueil" 
+                className="block text-gray-600 hover:text-blue-600 transition py-2"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Accueil
+              </a>
+              <a 
+                href="#apropos" 
+                className="block text-gray-600 hover:text-blue-600 transition py-2"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                À propos
+              </a>
+              <a 
+                href="#contact" 
+                className="block text-gray-600 hover:text-blue-600 transition py-2"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Contact
+              </a>
+              <button
+                onClick={() => {
+                  setShowLoginModal(true);
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 transition"
+              >
+                Connexion
+              </button>
             </div>
-            <div className="bg-white/10 backdrop-blur-sm p-6 rounded-lg">
-              <h4 className="font-bold text-xl mb-2">Master FEDE</h4>
-              <p className="text-sm opacity-90">Niveau Master (Bac+5)</p>
+          )}
+        </nav>
+      </header>
+
+      {/* ============ HERO SECTION ============ */}
+      <main className="flex-1">
+        <section id="accueil" className="container mx-auto px-4 lg:px-8 py-16 md:py-24">
+          <div className="max-w-4xl mx-auto text-center">
+            {/* Badge */}
+            <div className="inline-block mb-6">
+              <span className="bg-blue-100 text-blue-600 px-4 py-2 rounded-full text-sm font-medium">
+                Plateforme E-Learning Universitaire
+              </span>
             </div>
-            <div className="bg-white/10 backdrop-blur-sm p-6 rounded-lg">
-              <h4 className="font-bold text-xl mb-2">Reconnaissance</h4>
-              <p className="text-sm opacity-90">Diplômes Européens</p>
+
+            {/* Titre Principal */}
+            <h2 className="text-3xl md:text-5xl lg:text-6xl font-bold text-gray-900 mb-6">
+              Votre parcours académique{' '}
+              <span className="text-blue-600">simplifié</span> et{' '}
+              <span className="text-blue-600">connecté</span>
+            </h2>
+
+            {/* Description */}
+            <p className="text-lg md:text-xl text-gray-600 mb-8 max-w-3xl mx-auto leading-relaxed">
+              Une plateforme moderne pour faciliter l'accès aux cours, examens et 
+              informations essentielles pour tous les membres de la communauté universitaire.
+            </p>
+
+            {/* Boutons CTA */}
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+              <button
+                onClick={() => setShowLoginModal(true)}
+                className="bg-blue-600 text-white px-8 py-3 rounded-lg font-medium hover:bg-blue-700 transition shadow-lg text-lg w-full sm:w-auto"
+              >
+                Commencer maintenant
+              </button>
+              <button
+                className="bg-white text-gray-700 px-8 py-3 rounded-lg font-medium hover:bg-gray-50 transition border border-gray-300 text-lg w-full sm:w-auto"
+              >
+                En savoir plus
+              </button>
+            </div>
+
+            {/* Stats ou Features */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-16">
+              <div className="bg-white p-6 rounded-xl shadow-md">
+                <div className="text-3xl font-bold text-blue-600 mb-2">500+</div>
+                <div className="text-gray-600">Étudiants</div>
+              </div>
+              <div className="bg-white p-6 rounded-xl shadow-md">
+                <div className="text-3xl font-bold text-blue-600 mb-2">50+</div>
+                <div className="text-gray-600">Enseignants</div>
+              </div>
+              <div className="bg-white p-6 rounded-xl shadow-md">
+                <div className="text-3xl font-bold text-blue-600 mb-2">100%</div>
+                <div className="text-gray-600">En ligne</div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        </section>
+      </main>
 
-      {/* FOOTER */}
-      <footer className="bg-gray-800 text-white py-8 px-4">
-        <div className="container mx-auto text-center">
-          <p className="text-sm opacity-75">© 2025 E-Learning Platform. Tous droits réservés.</p>
-          <p className="text-xs opacity-50 mt-2">Formation professionnelle et certifiante</p>
+      {/* ============ FOOTER ============ */}
+      <footer className="bg-white border-t mt-auto">
+        <div className="container mx-auto px-4 lg:px-8 py-12">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {/* Colonne 1 : À propos */}
+            <div>
+              <h3 className="font-bold text-gray-900 mb-4 text-lg">Institut de Gestion Informatique & Commerciale</h3>
+              <p className="text-gray-600 text-sm leading-relaxed">
+                La plateforme e-learning qui connecte étudiants, professeurs et administration.
+              </p>
+            </div>
+
+            {/* Colonne 2 : Liens rapides */}
+            <div>
+              <h3 className="font-bold text-gray-900 mb-4 text-lg">Liens rapides</h3>
+              <ul className="space-y-2 text-sm">
+                <li>
+                  <a href="#accueil" className="text-gray-600 hover:text-blue-600 transition">
+                    Accueil
+                  </a>
+                </li>
+                <li>
+                  <a href="#apropos" className="text-gray-600 hover:text-blue-600 transition">
+                    À propos
+                  </a>
+                </li>
+                <li>
+                  <a href="#contact" className="text-gray-600 hover:text-blue-600 transition">
+                    Contact
+                  </a>
+                </li>
+                <li>
+                  <button 
+                    onClick={() => setShowLoginModal(true)}
+                    className="text-gray-600 hover:text-blue-600 transition"
+                  >
+                    Connexion
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            {/* Colonne 3 : Ressources */}
+            <div>
+              <h3 className="font-bold text-gray-900 mb-4 text-lg">Ressources</h3>
+              <ul className="space-y-2 text-sm">
+                <li>
+                  <a href="#" className="text-gray-600 hover:text-blue-600 transition">
+                    Aide
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="text-gray-600 hover:text-blue-600 transition">
+                    Guide d'utilisation
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="text-gray-600 hover:text-blue-600 transition">
+                    FAQ
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="text-gray-600 hover:text-blue-600 transition">
+                    Support
+                  </a>
+                </li>
+              </ul>
+            </div>
+
+            {/* Colonne 4 : Contact */}
+            <div>
+              <h3 className="font-bold text-gray-900 mb-4 text-lg">Contact</h3>
+              <ul className="space-y-2 text-sm text-gray-600">
+                <li>1°Ét., 28800, Imm Kihel, Bd Hassan II</li>
+                <li>Mohammédia 28800, Maroc</li>
+                <li>
+                  <a href="mailto:contact@universite-connect.fr" className="hover:text-blue-600 transition">
+                    contact@universite-connect.fr
+                  </a>
+                </li>
+                <li>
+                  <a href="tel:+212666976698" className="hover:text-blue-600 transition">
+                    +212 6 66 97 66 98
+                  </a>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Copyright */}
+          <div className="border-t mt-8 pt-8 text-center">
+            <p className="text-sm text-gray-500">
+              © 2026 Université Connect. Tous droits réservés by mister divin.
+            </p>
+          </div>
         </div>
       </footer>
 
-      {/* MODAL DE CONNEXION */}
+      {/* ============ MODAL DE CONNEXION ============ */}
       {showLoginModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md relative">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 w-full max-w-md relative">
             <button
               onClick={() => setShowLoginModal(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition"
             >
-              <X className="w-6 h-6" />
+              <CloseIcon className="w-6 h-6" />
             </button>
 
+            {/* Logo et Titre */}
             <div className="text-center mb-6">
-              <div className="inline-block p-4 bg-indigo-100 rounded-full mb-4">
-                <GraduationCap className="w-12 h-12 text-indigo-600" />
+              <div className="inline-block mb-4">
+                <img 
+                  src="../Images/RezoCampus.png" 
+                  alt="Logo" 
+                  className="w-20 h-20 md:w-24 md:h-24 mx-auto object-contain"
+                  onError={(e) => {
+                    e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="96" height="96"%3E%3Crect fill="%233b82f6" width="96" height="96" rx="12"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="40" font-weight="bold"%3EUC%3C/text%3E%3C/svg%3E';
+                  }}
+                />
               </div>
-              <h2 className="text-2xl font-bold text-gray-800">Connexion</h2>
-              <p className="text-gray-600 mt-2">Accédez à votre espace personnel</p>
+              <h2 className="text-xl md:text-2xl font-bold text-gray-800">Connexion</h2>
+              <p className="text-gray-600 mt-2 text-sm md:text-base">
+                Accédez à votre espace personnel
+              </p>
             </div>
 
-            {/* Identifiants de démo */}
-            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-center gap-2 text-blue-700 mb-3">
-                <Info className="w-5 h-5" />
-                <span className="font-medium">Identifiants de démo</span>
-              </div>
-              <div className="space-y-2 text-sm">
-                <button
-                  type="button"
-                  onClick={() => fillDemoCredentials('admin@demo.com', 'admin123')}
-                  className="w-full text-left p-2 bg-purple-100 hover:bg-purple-200 rounded transition"
-                >
-                  <span className="font-medium text-purple-700">Admin:</span>{' '}
-                  <span className="text-gray-600">admin@demo.com / admin123</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => fillDemoCredentials('enseignant@demo.com', 'demo123')}
-                  className="w-full text-left p-2 bg-blue-100 hover:bg-blue-200 rounded transition"
-                >
-                  <span className="font-medium text-blue-700">Enseignant:</span>{' '}
-                  <span className="text-gray-600">enseignant@demo.com / demo123</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => fillDemoCredentials('etudiant@demo.com', 'demo123')}
-                  className="w-full text-left p-2 bg-green-100 hover:bg-green-200 rounded transition"
-                >
-                  <span className="font-medium text-green-700">Étudiant:</span>{' '}
-                  <span className="text-gray-600">etudiant@demo.com / demo123</span>
-                </button>
-              </div>
-            </div>
-
+            {/* Message d'erreur */}
             {error && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
-                <AlertCircle className="w-5 h-5" />
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
                 <span className="text-sm">{error}</span>
               </div>
             )}
 
+            {/* Formulaire */}
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email
+                </label>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                   placeholder="votre@email.com"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Mot de passe</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Mot de passe
+                </label>
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                   placeholder="••••••••"
                   required
                 />
@@ -338,16 +373,17 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, setCurrentPage }) => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-indigo-600 text-white py-3 rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
               >
                 {loading ? 'Connexion...' : 'Se connecter'}
               </button>
             </form>
 
+            {/* Lien mot de passe oublié */}
             <p className="text-center text-sm text-gray-600 mt-4">
               Mot de passe oublié ?{' '}
-              <a href="#" className="text-indigo-600 hover:underline">
-                Réinitialiser
+              <a href="#" className="text-blue-600 hover:underline font-medium">
+                Contactez l'administrateur
               </a>
             </p>
           </div>

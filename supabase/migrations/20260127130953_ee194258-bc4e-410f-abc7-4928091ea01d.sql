@@ -84,6 +84,14 @@ CREATE TABLE public.teacher_classes (
     UNIQUE (teacher_id, class_id, subject_id)
 );
 
+-- Créer la table de liaison matières-classes
+CREATE TABLE public.subject_classes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    subject_id UUID REFERENCES public.subjects(id) ON DELETE CASCADE NOT NULL,
+    class_id UUID REFERENCES public.classes(id) ON DELETE CASCADE NOT NULL,
+    UNIQUE (subject_id, class_id)
+);
+
 -- Create schedules table
 CREATE TABLE public.schedules (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -143,7 +151,9 @@ CREATE TABLE public.messages (
     sent_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
+
 -- Enable RLS on all tables
+ALTER TABLE public.subject_classes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.classes ENABLE ROW LEVEL SECURITY;
@@ -314,6 +324,14 @@ FOR SELECT USING (
   (recipient_type = 'all_teachers' AND public.has_role(auth.uid(), 'teacher')) OR
   sender_id = auth.uid()
 );
+
+-- Politique : tout le monde peut voir
+CREATE POLICY "Everyone can view subject classes" ON public.subject_classes
+FOR SELECT TO authenticated USING (true);
+
+-- Politique : admin peut gérer
+CREATE POLICY "Admins can manage subject classes" ON public.subject_classes
+FOR ALL USING (public.has_role(auth.uid(), 'admin'));
 
 CREATE POLICY "Authenticated users can send messages" ON public.messages
 FOR INSERT TO authenticated WITH CHECK (sender_id = auth.uid());

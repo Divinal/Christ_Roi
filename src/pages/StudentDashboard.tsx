@@ -233,6 +233,13 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
     return totalCoef > 0 ? total / totalCoef : 0;
   };
 
+   const handleLogout = () => {
+      const confirmed = window.confirm("Voulez-vous vous déconnecter ?");
+      if (confirmed) {
+        onLogout();
+      }
+    };
+
   // Grouper les emplois du temps par jour
   const getSchedulesByDay = () => {
     const byDay: { [key: number]: Schedule[] } = {
@@ -256,12 +263,11 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
           <h1 className="text-2xl font-bold">Espace Étudiant</h1>
           <div className="flex items-center gap-4">
             <span className="text-sm">Bienvenue, {user?.first_name} {user?.last_name}</span>
-            <button
-              onClick={onLogout}
-              className="bg-blue-700 px-4 py-2 rounded hover:bg-blue-800 flex items-center gap-2"
-            >
+           <button
+             onClick={handleLogout}
+              className="bg-green-700 px-4 py-2 rounded hover:bg-green-800 flex items-center gap-2">
               <LogOut className="w-4 h-4" />
-              Déconnexion
+               Déconnexion
             </button>
           </div>
         </div>
@@ -596,8 +602,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
                     </tr>
                   </thead>
                   <tbody>
-                    {['08:00-10:00', '10:00-12:00', '14:00-16:00', '16:00-18:00'].map((timeSlot) => (
-                      <tr key={timeSlot}>
+                    {['09:00-10:30', '10:30-12:00', '14:30-16:00', '16:00-17:30'].map((timeSlot) => (                      <tr key={timeSlot}>
                         <td className="border-2 px-4 py-3 font-bold bg-gray-50">{timeSlot}</td>
                         {[1, 2, 3, 4, 5].map((day) => {
                           const daySchedules = schedules.filter(s => 
