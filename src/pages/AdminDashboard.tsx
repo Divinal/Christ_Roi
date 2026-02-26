@@ -5,7 +5,7 @@ import {
   Calendar, FileText, MessageSquare, X, Save, Bell, Clock,
   ChevronLeft, ChevronRight, Filter, Menu
 } from 'lucide-react';
-import { supabase } from '../lib/supabaseClient';
+import { supabase, supabaseAdmin } from '../lib/supabaseClient';
 
 interface User {
   id: string;
@@ -578,94 +578,149 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
   }
 };
 
-  // ==================== AJOUT ÉTUDIANT ====================
-  const handleAddStudent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+        // ==================== AJOUT ÉTUDIANT ====================
+    const handleAddStudent = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setLoading(true);
 
-    try {
-      const userId = crypto.randomUUID();
-
-      const { error: userError } = await supabase
-        .from('users')
-        .insert({
-          id: userId,
+      try {
+        console.log('🔵 Étape 1: Création utilisateur dans auth.users...');        
+        // 1. Créer l'utilisateur dans auth.users
+        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
           email: studentForm.email,
-          password_hash: 'TEMP_PASSWORD_TO_BE_SET',
-          role: 'student',
-          first_name: studentForm.firstName,
-          last_name: studentForm.lastName,
-          phone: studentForm.phone || null
+          password: studentForm.studentNumber, // Mot de passe = matricule
+          email_confirm: true,
+          user_metadata: {
+            first_name: studentForm.firstName,
+            last_name: studentForm.lastName,
+            phone: studentForm.phone || null,
+            role: 'student'
+          }
         });
 
-      if (userError) throw userError;
+        if (authError) {
+          console.error('❌ Erreur auth:', authError);
+          throw authError;
+        }
+        if (!authData.user) {
+          throw new Error('Aucun utilisateur créé');
+        }
+        const userId = authData.user.id;
+        console.log('✅ Utilisateur créé avec ID:', userId);
 
-      const { error: studentError } = await supabase
-        .from('students')
-        .insert({
-          user_id: userId,
-          student_number: studentForm.studentNumber,
-          date_of_birth: studentForm.dateOfBirth || null,
-          address: studentForm.address || null,
-          status: 'active'
-        });
+        // 2. Créer l'enregistrement étudiant directement
+        console.log('🔵 Étape 2: Création enregistrement étudiant...');
+        const { error: studentError } = await supabase
+          .from('students')
+          .insert({
+            user_id: userId,
+            student_number: studentForm.studentNumber,
+            date_of_birth: studentForm.dateOfBirth || null,
+            address: studentForm.address || null,
+            parent_phone: studentForm.phone || null,
+            status: 'active'
+          });
 
-      if (studentError) throw studentError;
+        if (studentError) {
+          console.error('❌ Erreur création étudiant:', studentError);
+          // Si l'étudiant n'a pas pu être créé, on supprime l'utilisateur auth
+          await supabaseAdmin.auth.admin.deleteUser(userId);
+          throw studentError;
+        }        
+        console.log('✅ Étudiant créé avec succès !');
+        alert(`✅ Étudiant créé avec succès !
+        
+    📧 Email : ${studentForm.email}
+    🔑 Mot de passe temporaire : ${studentForm.studentNumber}
+    👤 Matricule : ${studentForm.studentNumber}
 
-      alert('✅ Étudiant ajouté avec succès !');
-      setShowModal(false);
-      resetStudentForm();
-      loadStudents();
-    } catch (error: any) {
-      alert(`❌ Erreur: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
+    ⚠️ L'étudiant peut se connecter avec ces identifiants.
+    Il devra changer son mot de passe à la première connexion.`);
+        
+        setShowModal(false);
+        resetStudentForm();
+        await loadStudents();
+        
+      } catch (error: any) {
+        console.error('❌ Erreur complète:', error);
+        alert(`❌ Erreur lors de la création:\n\n${error.message || error}`);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  // ==================== AJOUT ENSEIGNANT ====================
-  const handleAddTeacher = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+     // ==================== AJOUT ENSEIGNANT ====================
+    const handleAddTeacher = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setLoading(true);
 
-    try {
-      const userId = crypto.randomUUID();
-
-      const { error: userError } = await supabase
-        .from('users')
-        .insert({
-          id: userId,
+      try {
+        console.log('🔵 Étape 1: Création utilisateur dans auth.users...');
+        
+        // 1. Créer l'utilisateur dans auth.users
+        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
           email: teacherForm.email,
-          password_hash: 'TEMP_PASSWORD_TO_BE_SET',
-          role: 'teacher',
-          first_name: teacherForm.firstName,
-          last_name: teacherForm.lastName,
-          phone: teacherForm.phone || null
+          password: teacherForm.teacherNumber, // Mot de passe = matricule
+          email_confirm: true,
+          user_metadata: {
+            first_name: teacherForm.firstName,
+            last_name: teacherForm.lastName,
+            phone: teacherForm.phone || null,
+            role: 'teacher'
+          }
         });
 
-      if (userError) throw userError;
+        if (authError) {
+          console.error('❌ Erreur auth:', authError);
+          throw authError;
+        }
+        if (!authData.user) {
+          throw new Error('Aucun utilisateur créé');
+        }
 
-      const { error: teacherError } = await supabase
-        .from('teachers')
-        .insert({
-          user_id: userId,
-          teacher_number: teacherForm.teacherNumber,
-          specialization: teacherForm.specialization || null,
-          department: teacherForm.department || null
-        });
+        const userId = authData.user.id;
+        console.log('✅ Utilisateur créé avec ID:', userId);
 
-      if (teacherError) throw teacherError;
+        // 2. Créer l'enregistrement enseignant directement
+        console.log('🔵 Étape 2: Création enregistrement enseignant...');
+        const { error: teacherError } = await supabase
+          .from('teachers')
+          .insert({
+            user_id: userId,
+            teacher_number: teacherForm.teacherNumber,
+            specialization: teacherForm.specialization || null,
+            department: teacherForm.department || null
+          });
 
-      alert('✅ Enseignant ajouté avec succès !');
-      setShowModal(false);
-      resetTeacherForm();
-      loadTeachers();
-    } catch (error: any) {
-      alert(`❌ Erreur: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
+        if (teacherError) {
+          console.error('❌ Erreur création enseignant:', teacherError);
+          // Si l'enseignant n'a pas pu être créé, on supprime l'utilisateur auth
+          await supabaseAdmin.auth.admin.deleteUser(userId);
+          throw teacherError;
+        }
+        
+        console.log('✅ Enseignant créé avec succès !');
+
+        alert(`✅ Enseignant créé avec succès !
+        
+    📧 Email : ${teacherForm.email}
+    🔑 Mot de passe temporaire : ${teacherForm.teacherNumber}
+    👤 Matricule : ${teacherForm.teacherNumber}
+
+    ⚠️ L'enseignant peut se connecter avec ces identifiants.
+    Il devra changer son mot de passe à la première connexion.`);
+        
+        setShowModal(false);
+        resetTeacherForm();
+        await loadTeachers();
+        
+      } catch (error: any) {
+        console.error('❌ Erreur complète:', error);
+        alert(`❌ Erreur lors de la création:\n\n${error.message || error}`);
+      } finally {
+        setLoading(false);
+      }
+    };
 
   // ==================== AJOUT CLASSE ====================
   const handleAddClass = async (e: React.FormEvent) => {
@@ -1184,12 +1239,21 @@ const filteredSubjects = subjects.filter(subject => {
             const filteredClasses = classes.filter(cls => 
               cls.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
               cls.level.toLowerCase().includes(searchTerm.toLowerCase())
-            );
+            );     
+                     
+            const filteredSchedules = schedules.filter(schedule => {
+            // Filtre par classe
+            const matchesClass = !selectedClassForSchedule || schedule.class_id === selectedClassForSchedule;
             
-          // Filtrer les emplois du temps par classe sélectionnée
-          const filteredSchedules = selectedClassForSchedule
-            ? schedules.filter(s => s.class_id === selectedClassForSchedule)
-            : schedules;
+            // Filtre par recherche (enseignant, matière, salle)
+            const matchesSearch = !searchTerm || 
+              (schedule.subjects?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+              (schedule.teachers?.users?.first_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+              (schedule.teachers?.users?.last_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+              (schedule.room || '').toLowerCase().includes(searchTerm.toLowerCase());
+            
+            return matchesClass && matchesSearch;
+          });
 
           // Grouper les emplois du temps par jour et créer une grille
           const getScheduleGrid = () => {
@@ -2023,8 +2087,7 @@ const filteredSubjects = subjects.filter(subject => {
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          </div>)}
 
         {/* SCHEDULES TAB - EMPLOIS DU TEMPS */}
         {activeTab === 'schedules' && (
@@ -2056,7 +2119,19 @@ const filteredSubjects = subjects.filter(subject => {
                 </button>
               </div>
             </div>
-
+            {/* Barre de recherche emploi du temps */}
+                <div className="mb-4">
+                  <div className="relative">
+                    <Search className="w-5 h-5 absolute left-3 top-2.5 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Rechercher enseignant, matière, salle..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full border rounded-lg px-3 py-2 pl-10"
+                    />
+                  </div>
+                </div>
             {/* Grille emploi du temps */}
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
@@ -2362,153 +2437,214 @@ const filteredSubjects = subjects.filter(subject => {
             </div>
           </div>
         )}
-      </div>
+        {/* TAB AFFECTATION ÉTUDIANTS → CLASSES */}
+            {activeTab === 'assign-students' && (
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold">Affectation Étudiants → Classes</h2>
+                  <button
+                    onClick={() => {
+                      setAssignModalType('student');
+                      setShowAssignModal(true);
+                    }}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                  >
+                    <Plus className="w-5 h-5" />
+                    Affecter un étudiant
+                  </button>
+                </div>
 
-      {/* TAB AFFECTATION ÉTUDIANTS → CLASSES */}
-      {activeTab === 'assign-students' && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold">Affectation Étudiants → Classes</h2>
-            <button
-              onClick={() => {
-                setAssignModalType('student');
-                setShowAssignModal(true);
-              }}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
-            >
-              <Plus className="w-5 h-5" />
-              Affecter un étudiant
-            </button>
-          </div>
-
-          {loading ? (
-            <p className="text-center py-8">Chargement...</p>
-          ) : studentClassAssignments.length === 0 ? (
-            <div className="text-center py-12">
-              <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <p className="text-xl text-gray-500">Aucune affectation</p>
-              <p className="text-sm text-gray-400 mt-2">
-                Cliquez sur "Affecter un étudiant" pour commencer
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="px-4 py-3 text-left">Matricule</th>
-                    <th className="px-4 py-3 text-left">Étudiant</th>
-                    <th className="px-4 py-3 text-left">Classe</th>
-                    <th className="px-4 py-3 text-left">Niveau</th>
-                    <th className="px-4 py-3 text-left">Année</th>
-                    <th className="px-4 py-3 text-left">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {studentClassAssignments.map((assignment: any) => (
-                    <tr key={assignment.id} className="border-b hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium">
-                        {assignment.students?.student_number}
-                      </td>
-                      <td className="px-4 py-3">
-                        {assignment.students?.users?.first_name} {assignment.students?.users?.last_name}
-                      </td>
-                      <td className="px-4 py-3 font-semibold text-blue-600">
-                        {assignment.classes?.name}
-                      </td>
-                      <td className="px-4 py-3">{assignment.classes?.level}</td>
-                      <td className="px-4 py-3">{assignment.academic_year}</td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => handleRemoveStudentFromClass(assignment.id)}
-                          className="text-red-600 hover:bg-red-50 p-2 rounded"
-                          title="Retirer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-        {/* TAB AFFECTATION ENSEIGNANTS → MATIÈRES → CLASSES */}
-        {activeTab === 'assign-teachers' && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">Affectation Enseignants → Matières → Classes</h2>
-              <button
-                onClick={() => {
-                  setAssignModalType('teacher');
-                  setShowAssignModal(true);
-                }}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
-              >
-                <Plus className="w-5 h-5" />
-                Affecter un enseignant
-              </button>
-            </div>
-
-            {loading ? (
-              <p className="text-center py-8">Chargement...</p>
-            ) : teacherClassAssignments.length === 0 ? (
-              <div className="text-center py-12">
-                <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <p className="text-xl text-gray-500">Aucune affectation</p>
-                <p className="text-sm text-gray-400 mt-2">
-                  Cliquez sur "Affecter un enseignant" pour commencer
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-100">
-                    <tr>
-                      <th className="px-4 py-3 text-left">Matricule</th>
-                      <th className="px-4 py-3 text-left">Enseignant</th>
-                      <th className="px-4 py-3 text-left">Matière</th>
-                      <th className="px-4 py-3 text-left">Classe</th>
-                      <th className="px-4 py-3 text-left">Année</th>
-                      <th className="px-4 py-3 text-left">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {teacherClassAssignments.map((assignment: any) => (
-                      <tr key={assignment.id} className="border-b hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium">
-                          {assignment.teachers?.teacher_number}
-                        </td>
-                        <td className="px-4 py-3">
-                          {assignment.teachers?.users?.first_name} {assignment.teachers?.users?.last_name}
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-purple-600">
-                          {assignment.subjects?.name}
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-blue-600">
-                          {assignment.classes?.name}
-                        </td>
-                        <td className="px-4 py-3">{assignment.academic_year}</td>
-                        <td className="px-4 py-3">
-                          <button
-                            onClick={() => handleRemoveTeacherFromClass(assignment.id)}
-                            className="text-red-600 hover:bg-red-50 p-2 rounded"
-                            title="Retirer"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                {loading ? (
+                  <p className="text-center py-8">Chargement...</p>
+                ) : studentClassAssignments.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <p className="text-xl text-gray-500">Aucune affectation</p>
+                    <p className="text-sm text-gray-400 mt-2">
+                      Cliquez sur "Affecter un étudiant" pour commencer
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="px-4 py-3 text-left">Matricule</th>
+                          <th className="px-4 py-3 text-left">Étudiant</th>
+                          <th className="px-4 py-3 text-left">Classe</th>
+                          <th className="px-4 py-3 text-left">Niveau</th>
+                          <th className="px-4 py-3 text-left">Année</th>
+                          <th className="px-4 py-3 text-left">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {studentClassAssignments.map((assignment: any) => (
+                          <tr key={assignment.id} className="border-b hover:bg-gray-50">
+                            <td className="px-4 py-3 font-medium">
+                              {assignment.students?.student_number}
+                            </td>
+                            <td className="px-4 py-3">
+                              {assignment.students?.users?.first_name} {assignment.students?.users?.last_name}
+                            </td>
+                            <td className="px-4 py-3 font-semibold text-blue-600">
+                              {assignment.classes?.name}
+                            </td>
+                            <td className="px-4 py-3">{assignment.classes?.level}</td>
+                            <td className="px-4 py-3">{assignment.academic_year}</td>
+                            <td className="px-4 py-3">
+                              <button
+                                onClick={() => handleRemoveStudentFromClass(assignment.id)}
+                                className="text-red-600 hover:bg-red-50 p-2 rounded"
+                                title="Retirer"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
-          </div>
-        )}
+        {/* TAB AFFECTATION ENSEIGNANTS → MATIÈRES → CLASSES */}
+            {activeTab === 'assign-teachers' && (
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold">Affectation Enseignants → Matières → Classes</h2>
+                  {/* Barre de recherche */}
+
+                  <button
+                    onClick={() => {
+                      setAssignModalType('teacher');
+                      setShowAssignModal(true);
+                    }}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+                  >
+                    <Plus className="w-5 h-5" />
+                    Affecter un enseignant
+                  </button>                  
+                </div>
+                   <div className="mb-4 flex-1 max-w-md mx-4">
+                      <div className="relative">
+                        <Search className="w-5 h-5 absolute left-3 top-2.5 text-gray-400" />
+                        <input
+                          type="text"
+                          placeholder="Rechercher enseignant, matière, classe..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="w-full border rounded-lg px-3 py-2 pl-10"
+                        />
+                      </div>
+                    </div>
+                {loading ? (
+                  <p className="text-center py-8">Chargement...</p>
+                ) : teacherClassAssignments.length === 0 ? (
+                  <div className="text-center py-12">
+                    <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <p className="text-xl text-gray-500">Aucune affectation</p>
+                    <p className="text-sm text-gray-400 mt-2">
+                      Cliquez sur "Affecter un enseignant" pour commencer
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="px-4 py-3 text-left">Matricule</th>
+                          <th className="px-4 py-3 text-left">Enseignant</th>
+                          <th className="px-4 py-3 text-left">Matière</th>
+                          <th className="px-4 py-3 text-left">Classe</th>
+                          <th className="px-4 py-3 text-left">Année</th>
+                          <th className="px-4 py-3 text-left">Actions</th>
+                        </tr>
+                      </thead>
+                        <tbody>
+                       {Object.entries(
+                        // Grouper par enseignant (avec filtre de recherche)
+                        teacherClassAssignments
+                          .filter(assignment => {
+                            // Si pas de recherche, afficher tout
+                            if (!searchTerm) return true;
+                            
+                            // Sinon, filtrer par recherche
+                            const matchesSearch = 
+                              (assignment.teachers?.teacher_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                              (assignment.teachers?.users?.first_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                              (assignment.teachers?.users?.last_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                              (assignment.subjects?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                              (assignment.classes?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
+                            
+                            return matchesSearch;
+                            })
+                            .reduce((acc: any, assignment: any) => {
+                              const teacherId = assignment.teacher_id;
+                              if (!acc[teacherId]) {
+                                acc[teacherId] = {
+                                  teacher: assignment.teachers,
+                                  assignments: []
+                                };
+                              }
+                              acc[teacherId].assignments.push(assignment);
+                              return acc;
+                            }, {})
+                        ).map(([teacherId, data]: any) => (
+                          <tr key={teacherId} className="border-b hover:bg-gray-50">
+                            {/* Matricule */}
+                            <td className="px-4 py-3 font-medium">
+                              {data.teacher?.teacher_number}
+                            </td>                            
+                            {/* Nom (rowspan pour fusionner les lignes) */}
+                            <td className="px-4 py-3">
+                              {data.teacher?.users?.first_name} {data.teacher?.users?.last_name}
+                            </td>                            
+                            {/* Matières (liste) */}
+                            <td className="px-4 py-3">
+                              {data.assignments.map((a: any, idx: number) => (
+                                <div key={idx} className="mb-1">
+                                  <span className="font-semibold text-purple-600">{a.subjects?.name}</span>
+                                </div>
+                              ))}
+                            </td>                            
+                            {/* Classes (liste) */}
+                            <td className="px-4 py-3">
+                              {data.assignments.map((a: any, idx: number) => (
+                                <div key={idx} className="mb-1">
+                                  <span className="font-semibold text-blue-600">{a.classes?.name}</span>
+                                </div>
+                              ))}
+                            </td>
+                            
+                            {/* Année */}
+                            <td className="px-4 py-3">{data.assignments[0].academic_year}</td>
+                            
+                            {/* Actions (supprimer toutes les affectations de cet enseignant) */}
+                            <td className="px-4 py-3">
+                              <div className="flex flex-col gap-1">
+                                {data.assignments.map((a: any) => (
+                                  <button
+                                    key={a.id}
+                                    onClick={() => handleRemoveTeacherFromClass(a.id)}
+                                    className="text-red-600 hover:bg-red-50 p-1 rounded text-xs"
+                                    title={`Retirer ${a.subjects?.name} - ${a.classes?.name}`}
+                                  >
+                                    <Trash2 className="w-3 h-3 inline mr-1" />
+                                    {a.subjects?.code}
+                                  </button>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                        </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+      </div>
 
       {/* MODAL */}
       {showModal && (
@@ -2888,9 +3024,17 @@ const filteredSubjects = subjects.filter(subject => {
                       required
                     >
                       <option value="">Sélectionner...</option>
-                      {subjects.map(subject => (
-                        <option key={subject.id} value={subject.id}>{subject.name}</option>
-                      ))}
+                     {subjects.filter(subject => {
+                          // Si aucune classe sélectionnée, afficher toutes les matières
+                          if (!scheduleForm.classId) return true;                          
+                          // Sinon, afficher uniquement les matières liées à la classe
+                          return subjectClassLinks.some(
+                            link => link.subject_id === subject.id && link.class_id === scheduleForm.classId
+                          );})
+                        .map(subject => (
+                          <option key={subject.id} value={subject.id}>{subject.name}</option>
+                        ))
+                      }
                     </select>
                   </div>
                 </div>
