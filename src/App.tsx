@@ -1,17 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './lib/supabaseClient';
-import LoginPage from './pages/LoginPage';
+import HomePage from './pages/HomePage';
+import ContactPage from './pages/ContactPage';
+import PrivacyPage from './pages/PrivacyPage';
 import StudentDashboard from './pages/StudentDashboard';
 import TeacherDashboard from './pages/TeacherDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import LoginModal from './components/LoginModal';
+import { PublicPage } from './components/PublicHeader';
 import { User } from './types';
 
-type Page = 'login' | 'student-dashboard' | 'teacher-dashboard' | 'admin-dashboard';
+type Page = PublicPage | 'student-dashboard' | 'teacher-dashboard' | 'admin-dashboard';
 
 const App: React.FC = () => {
-  const [currentPage, setCurrentPage] = useState<Page>('login');
+  const [currentPage, setCurrentPage] = useState<Page>('home');
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [showLoginModal, setShowLoginModal] = useState<boolean>(false);
 
   useEffect(() => {
     // Vérifier la session au chargement
@@ -25,7 +30,7 @@ const App: React.FC = () => {
         // Ne pas déconnecter si c'est un utilisateur démo
         if (!user?.id?.startsWith('demo-')) {
           setUser(null);
-          setCurrentPage('login');
+          setCurrentPage('home');
         }
       }
     });
@@ -72,7 +77,7 @@ const App: React.FC = () => {
           teacher: 'teacher-dashboard',
           admin: 'admin-dashboard',
         };
-        setCurrentPage(pageMap[data.role] || 'login');
+        setCurrentPage(pageMap[data.role] || 'home');
       }
     } catch (error) {
       console.error('Error fetching user data:', error);
@@ -81,24 +86,25 @@ const App: React.FC = () => {
 
   const handleLogin = (loggedInUser: User) => {
     setUser(loggedInUser);
+    setShowLoginModal(false);
     const pageMap: Record<string, Page> = {
       student: 'student-dashboard',
       teacher: 'teacher-dashboard',
       admin: 'admin-dashboard',
     };
-    setCurrentPage(pageMap[loggedInUser.role] || 'login');
+    setCurrentPage(pageMap[loggedInUser.role] || 'home');
   };
 
   const handleLogout = async () => {
     // Pour les utilisateurs démo, juste réinitialiser l'état
     if (user?.id?.startsWith('demo-')) {
       setUser(null);
-      setCurrentPage('login');
+      setCurrentPage('home');
       return;
     }
     await supabase.auth.signOut();
     setUser(null);
-    setCurrentPage('login');
+    setCurrentPage('home');
   };
 
   if (loading) {
@@ -112,10 +118,19 @@ const App: React.FC = () => {
     );
   }
 
+  const handleNavigate = (page: PublicPage) => setCurrentPage(page);
+  const handleLoginClick = () => setShowLoginModal(true);
+
   return (
     <div>
-      {currentPage === 'login' && (
-        <LoginPage onLogin={handleLogin} />
+      {currentPage === 'home' && (
+        <HomePage onNavigate={handleNavigate} onLoginClick={handleLoginClick} />
+      )}
+      {currentPage === 'contact' && (
+        <ContactPage onNavigate={handleNavigate} onLoginClick={handleLoginClick} />
+      )}
+      {currentPage === 'privacy' && (
+        <PrivacyPage onNavigate={handleNavigate} onLoginClick={handleLoginClick} />
       )}
       {currentPage === 'student-dashboard' && user && (
         <StudentDashboard user={user} onLogout={handleLogout} />
@@ -125,6 +140,9 @@ const App: React.FC = () => {
       )}
       {currentPage === 'admin-dashboard' && user && (
         <AdminDashboard user={user} onLogout={handleLogout} />
+      )}
+      {showLoginModal && (
+        <LoginModal onClose={() => setShowLoginModal(false)} onLogin={handleLogin} />
       )}
     </div>
   );
