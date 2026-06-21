@@ -386,7 +386,7 @@ const loadTeacherClassAssignments = async () => {
           .from('grades')
           .select(`
             *,
-            subjects (name, code),
+            subjects (name, code, coefficient),
             teachers (users(first_name, last_name)),
             classes (name)
           `)
@@ -409,7 +409,7 @@ const loadTeacherClassAssignments = async () => {
       setGradeForm({
         gradeValue: grade.grade_value,
         gradeType: grade.grade_type,
-        coefficient: grade.coefficient,
+        coefficient: grade.subjects?.coefficient || grade.coefficient,
         examDate: grade.exam_date || '',
         comment: grade.comment || ''
       });
@@ -1550,7 +1550,7 @@ const filteredSubjects = subjects.filter(subject => {
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded">
-                            {grade.coefficient}
+                            {grade.subjects?.coefficient || grade.coefficient}
                           </span>
                         </td>
                         <td className="px-4 py-3">
@@ -1594,8 +1594,8 @@ const filteredSubjects = subjects.filter(subject => {
                   <div className="bg-green-50 p-4 rounded-lg">
                     <p className="text-sm text-green-800">Moyenne générale</p>
                     <p className="text-3xl font-bold text-green-600">
-                      {(studentGrades.reduce((sum, g) => sum + (g.grade_value * g.coefficient), 0) / 
-                        studentGrades.reduce((sum, g) => sum + g.coefficient, 0)).toFixed(2)}
+                      {(studentGrades.reduce((sum, g) => sum + (g.grade_value * (g.subjects?.coefficient || g.coefficient)), 0) /
+                        studentGrades.reduce((sum, g) => sum + (g.subjects?.coefficient || g.coefficient), 0)).toFixed(2)}
                     </p>
                   </div>
                   <div className="bg-purple-50 p-4 rounded-lg">
@@ -3262,15 +3262,15 @@ const filteredSubjects = subjects.filter(subject => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Coefficient *</label>
+                  <label className="block text-sm font-medium mb-2">Coefficient (UF)</label>
                   <input
                     type="number"
                     min="1"
                     max="10"
                     value={gradeForm.coefficient}
-                    onChange={(e) => setGradeForm({...gradeForm, coefficient: parseInt(e.target.value)})}
-                    className="w-full border rounded px-3 py-2"
-                    required
+                    disabled
+                    title="Le coefficient est défini au niveau de l'Unité de Formation (onglet Matières)"
+                    className="w-full border rounded px-3 py-2 bg-gray-100 cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -3284,10 +3284,11 @@ const filteredSubjects = subjects.filter(subject => {
                     className="w-full border rounded px-3 py-2"
                     required
                   >
-                    <option>Examen</option>
-                    <option>Devoir</option>
-                    <option>TP</option>
-                    <option>Contrôle</option>
+                    <option value="CC1">CC1 (Contrôle Continu 1)</option>
+                    <option value="CC2">CC2 (Contrôle Continu 2)</option>
+                    <option value="CC3">CC3 (Contrôle Continu 3)</option>
+                    <option value="E.Théorique">Examen Théorique</option>
+                    <option value="E.Pratique">Examen Pratique</option>
                   </select>
                 </div>
                 <div>

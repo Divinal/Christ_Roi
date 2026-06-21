@@ -25,6 +25,7 @@ interface TeacherClass {
   level: string;
   subject_name: string;
   subject_id: string;
+  subject_coefficient: number;
 }
 
 interface StudentGrade {
@@ -79,7 +80,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
   // États pour la saisie de notes
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [selectedSubject, setSelectedSubject] = useState<string>('');
-  const [gradeType, setGradeType] = useState<string>('Examen');
+  const [gradeType, setGradeType] = useState<string>('CC1');
   const [coefficient, setCoefficient] = useState<number>(1);
   const [examDate, setExamDate] = useState<string>('');
   const [studentsGrades, setStudentsGrades] = useState<StudentGrade[]>([]);
@@ -125,7 +126,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
           class_id,
           subject_id,
           classes (id, name, level),
-          subjects (id, name, code)
+          subjects (id, name, code, coefficient)
         `)
         .eq('teacher_id', teacherData.id)
         .eq('academic_year', '2025-2026');
@@ -136,7 +137,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
           name: item.classes.name,
           level: item.classes.level,
           subject_id: item.subject_id,
-          subject_name: item.subjects.name
+          subject_name: item.subjects.name,
+          subject_coefficient: item.subjects.coefficient || 1
         }));
         setMyClasses(formattedClasses);
       }
@@ -369,7 +371,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
           .from('grades')
           .select(`
             *,
-            subjects (name, code),
+            subjects (name, code, coefficient),
             classes (name)
           `)
           .eq('student_id', studentId)
@@ -625,7 +627,12 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
                   <label className="block text-sm font-medium mb-2">Matière *</label>
                   <select
                     value={selectedSubject}
-                    onChange={(e) => setSelectedSubject(e.target.value)}
+                    onChange={(e) => {
+                      const subjectId = e.target.value;
+                      setSelectedSubject(subjectId);
+                      const cls = myClasses.find(c => c.id === selectedClass && c.subject_id === subjectId);
+                      setCoefficient(cls?.subject_coefficient || 1);
+                    }}
                     className="w-full border rounded px-3 py-2"
                   >
                     <option value="">Sélectionner...</option>
@@ -646,22 +653,24 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
                     onChange={(e) => setGradeType(e.target.value)}
                     className="w-full border rounded px-3 py-2"
                   >
-                    <option>Examen</option>
-                    <option>Devoir</option>
-                    <option>TP</option>
-                    <option>Contrôle</option>
+                    <option value="CC1">CC1 (Contrôle Continu 1)</option>
+                    <option value="CC2">CC2 (Contrôle Continu 2)</option>
+                    <option value="CC3">CC3 (Contrôle Continu 3)</option>
+                    <option value="E.Théorique">Examen Théorique</option>
+                    <option value="E.Pratique">Examen Pratique</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">Coefficient *</label>
+                  <label className="block text-sm font-medium mb-2">Coefficient (UF) *</label>
                   <input
                     type="number"
                     min="1"
                     max="10"
                     value={coefficient}
-                    onChange={(e) => setCoefficient(parseInt(e.target.value))}
-                    className="w-full border rounded px-3 py-2"
+                    disabled
+                    title="Le coefficient est défini au niveau de l'Unité de Formation (onglet Matières)"
+                    className="w-full border rounded px-3 py-2 bg-gray-100 cursor-not-allowed"
                   />
                 </div>
 
@@ -825,7 +834,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
                             </td>
                             <td className="px-4 py-3 text-center">
                               <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded">
-                                {grade.coefficient}
+                                {grade.subjects?.coefficient || grade.coefficient}
                               </span>
                             </td>
                             <td className="px-4 py-3">

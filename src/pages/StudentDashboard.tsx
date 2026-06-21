@@ -34,6 +34,7 @@ interface Grade {
   subjects?: {
     name: string;
     code: string;
+    coefficient?: number;
   };
 }
 
@@ -145,7 +146,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
   const loadGrades = async (studentId: string) => {
     const { data, error } = await supabase
       .from('grades')
-      .select('*, subjects(name, code)')
+      .select('*, subjects(name, code, coefficient)')
       .eq('student_id', studentId)
       .order('exam_date', { ascending: false });
 
@@ -204,32 +205,16 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
     }
   };
 
+  // Le coefficient officiel est celui de la matière (Unité de Formation),
+  // le coefficient stocké sur la note peut être obsolète si la matière a été modifiée depuis
+  const getEffectiveCoefficient = (grade: Grade): number =>
+    grade.subjects?.coefficient || grade.coefficient;
+
   // Calculer la moyenne générale
   const calculateAverage = (): number => {
     if (grades.length === 0) return 0;
-    const total = grades.reduce((sum, grade) => sum + (grade.grade_value * grade.coefficient), 0);
-    const totalCoef = grades.reduce((sum, grade) => sum + grade.coefficient, 0);
-    return totalCoef > 0 ? total / totalCoef : 0;
-  };
-
-  // Grouper les notes par matière
-  const getGradesBySubject = () => {
-    const grouped: { [key: string]: Grade[] } = {};
-    grades.forEach(grade => {
-      const subjectName = grade.subjects?.name || 'Inconnu';
-      if (!grouped[subjectName]) {
-        grouped[subjectName] = [];
-      }
-      grouped[subjectName].push(grade);
-    });
-    return grouped;
-  };
-
-  // Calculer la moyenne par matière
-  const calculateSubjectAverage = (subjectGrades: Grade[]): number => {
-    if (subjectGrades.length === 0) return 0;
-    const total = subjectGrades.reduce((sum, g) => sum + (g.grade_value * g.coefficient), 0);
-    const totalCoef = subjectGrades.reduce((sum, g) => sum + g.coefficient, 0);
+    const total = grades.reduce((sum, grade) => sum + (grade.grade_value * getEffectiveCoefficient(grade)), 0);
+    const totalCoef = grades.reduce((sum, grade) => sum + getEffectiveCoefficient(grade), 0);
     return totalCoef > 0 ? total / totalCoef : 0;
   };
 
@@ -278,7 +263,6 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
         <div className="flex gap-2 mb-6 overflow-x-auto">
           {[
             { id: 'dashboard', label: 'Tableau de bord', icon: Home },
-            { id: 'grades', label: 'Mes Notes', icon: FileText },
             { id: 'courses', label: 'Mes Cours', icon: BookOpen },
             { id: 'schedule', label: 'Emploi du temps', icon: Calendar },
             { id: 'announcements', label: 'Annonces', icon: Bell },
@@ -380,12 +364,6 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
                     <p className="text-center text-gray-500 py-8">Aucune note disponible</p>
                   )}
                 </div>
-                <button 
-                  onClick={() => setActiveTab('grades')}
-                  className="w-full mt-4 text-blue-600 font-semibold hover:bg-blue-50 py-2 rounded-lg"
-                >
-                  Voir toutes mes notes →
-                </button>
               </div>
 
               <div className="bg-white rounded-lg shadow p-6">
@@ -421,112 +399,6 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
                 </button>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* GRADES TAB - MES NOTES */}
-        {activeTab === 'grades' && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">Mon Relevé de Notes</h2>
-              <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
-                <Download className="w-4 h-4" />
-                Télécharger PDF
-              </button>
-            </div>
-
-            {/* Moyenne générale */}
-            <div className="bg-gradient-to-r from-blue-100 to-indigo-100 p-6 rounded-lg mb-6">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-sm text-blue-800 mb-1">Moyenne Générale</p>
-                  <p className={`text-5xl font-bold ${
-                    calculateAverage() >= 15 ? 'text-green-600' : 
-                    calculateAverage() >= 10 ? 'text-blue-600' : 'text-red-600'
-                  }`}>
-                    {calculateAverage().toFixed(2)}/20
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm text-blue-800 mb-1">Statut</p>
-                  <span className={`text-lg font-bold ${
-                    calculateAverage() >= 10 ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {calculateAverage() >= 10 ? '✓ Admis' : '✗ À rattraper'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Notes par matière */}
-            {loading ? (
-              <p className="text-center py-8">Chargement...</p>
-            ) : grades.length === 0 ? (
-              <div className="text-center py-12">
-                <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <p className="text-xl text-gray-500">Aucune note disponible</p>
-                <p className="text-sm text-gray-400 mt-2">
-                  Les notes seront affichées dès qu'elles seront saisies par vos enseignants
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {Object.entries(getGradesBySubject()).map(([subject, subjectGrades]) => {
-                  const avg = calculateSubjectAverage(subjectGrades);
-                  return (
-                    <div key={subject} className="border-2 rounded-lg overflow-hidden">
-                      <div className={`p-4 font-bold text-lg flex justify-between items-center ${
-                        avg >= 10 ? 'bg-green-50' : 'bg-red-50'
-                      }`}>
-                        <span>📚 {subject}</span>
-                        <span className={`text-2xl ${avg >= 10 ? 'text-green-600' : 'text-red-600'}`}>
-                          {avg.toFixed(2)}/20
-                        </span>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full">
-                          <thead className="bg-gray-100">
-                            <tr>
-                              <th className="px-4 py-3 text-left">Type</th>
-                              <th className="px-4 py-3 text-center">Note</th>
-                              <th className="px-4 py-3 text-center">Coefficient</th>
-                              <th className="px-4 py-3 text-left">Date</th>
-                              <th className="px-4 py-3 text-left">Commentaire</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {subjectGrades.map((grade) => (
-                              <tr key={grade.id} className="border-b hover:bg-gray-50">
-                                <td className="px-4 py-3 font-medium">{grade.grade_type}</td>
-                                <td className="px-4 py-3 text-center">
-                                  <span className={`text-xl font-bold ${
-                                    grade.grade_value >= 15 ? 'text-green-600' : 
-                                    grade.grade_value >= 10 ? 'text-blue-600' : 'text-red-600'
-                                  }`}>
-                                    {grade.grade_value.toFixed(2)}/20
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3 text-center">
-                                  <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-semibold">
-                                    {grade.coefficient}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3 text-gray-600">
-                                  {grade.exam_date ? new Date(grade.exam_date).toLocaleDateString() : '-'}
-                                </td>
-                                <td className="px-4 py-3 text-sm text-gray-600">
-                                  {grade.comment || '-'}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
           </div>
         )}
 
