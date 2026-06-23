@@ -9,7 +9,7 @@ interface TeacherOption {
   id: string;
   teacher_number: string;
   hourly_rate?: number | null;
-  users?: { first_name: string; last_name: string };
+  profiles?: { first_name: string; last_name: string };
 }
 
 interface PayrollFlowProps {
@@ -68,7 +68,7 @@ const PayrollFlow: React.FC<PayrollFlowProps> = ({ teachers, academicYear, onTea
         gross_amount: grossAmount,
         payslip_number: payslipNumber,
       })
-      .select('*, teachers(teacher_number, users(first_name, last_name))')
+      .select('*, teachers(teacher_number, profiles(first_name, last_name))')
       .single();
 
     if (error) {
@@ -88,7 +88,7 @@ const PayrollFlow: React.FC<PayrollFlowProps> = ({ teachers, academicYear, onTea
           <option value="">Enseignant...</option>
           {teachers.map((t) => (
             <option key={t.id} value={t.id}>
-              {t.users?.first_name} {t.users?.last_name} ({t.teacher_number})
+              {t.profiles?.first_name} {t.profiles?.last_name} ({t.teacher_number})
             </option>
           ))}
         </select>

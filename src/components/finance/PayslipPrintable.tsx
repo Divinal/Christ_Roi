@@ -9,7 +9,7 @@ interface PayslipPrintableProps {
 }
 
 const PayslipPrintable: React.FC<PayslipPrintableProps> = ({ payslip, onClose }) => {
-  const teacherName = `${payslip.teachers?.users?.first_name || ''} ${payslip.teachers?.users?.last_name || ''}`.trim();
+  const teacherName = `${payslip.teachers?.profiles?.first_name || ''} ${payslip.teachers?.profiles?.last_name || ''}`.trim();
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">

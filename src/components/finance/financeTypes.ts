@@ -39,7 +39,7 @@ export interface TuitionPayment {
   void_reason?: string | null;
   students?: {
     student_number: string;
-    users?: { first_name: string; last_name: string };
+    profiles?: { first_name: string; last_name: string };
     classes?: { name: string };
   };
 }
@@ -58,7 +58,7 @@ export interface TeacherPayslip {
   void_reason?: string | null;
   teachers?: {
     teacher_number: string;
-    users?: { first_name: string; last_name: string };
+    profiles?: { first_name: string; last_name: string };
   };
 }
 

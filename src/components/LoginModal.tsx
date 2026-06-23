@@ -29,28 +29,34 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLogin }) => {
       if (authError) throw authError;
 
       if (authData.user) {
-        const { data: userData, error: userError } = await supabase
-          .from('users')
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
           .select('*')
-          .eq('id', authData.user.id)
+          .eq('user_id', authData.user.id)
           .maybeSingle();
 
-        if (userError) throw userError;
+        if (profileError) throw profileError;
+        if (!profileData) throw new Error('Profil non trouvé dans la base de données');
 
-        if (userData) {
-          const user: User = {
-            id: userData.id,
-            email: userData.email,
-            role: userData.role,
-            firstName: userData.first_name,
-            lastName: userData.last_name,
-            first_name: userData.first_name,
-            last_name: userData.last_name,
-          };
-          onLogin(user);
-        } else {
-          throw new Error('Utilisateur non trouvé dans la base de données');
-        }
+        const { data: roleData, error: roleError } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', authData.user.id)
+          .maybeSingle();
+
+        if (roleError) throw roleError;
+        if (!roleData) throw new Error("Aucun rôle n'est attribué à ce compte. Contactez l'administrateur.");
+
+        const user: User = {
+          id: profileData.user_id,
+          email: profileData.email,
+          role: roleData.role,
+          firstName: profileData.first_name,
+          lastName: profileData.last_name,
+          first_name: profileData.first_name,
+          last_name: profileData.last_name,
+        };
+        onLogin(user);
       }
     } catch (error: any) {
       setError(error.message || 'Erreur de connexion');

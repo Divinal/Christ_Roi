@@ -3,16 +3,10 @@ import React, { useState, useEffect } from 'react';
 import {
   Home, Users, BookOpen, Plus, Edit, Trash2, Search,
   Calendar, FileText, MessageSquare, X, Save, Bell, Clock,
-  ChevronLeft, ChevronRight, Filter, Menu, DollarSign
+  ChevronLeft, ChevronRight, Filter, Menu, DollarSign, Shield
 } from 'lucide-react';
 import { supabase, supabaseAdmin } from '../lib/supabaseClient';
-import { FinancialCategory } from '../components/finance/financeTypes';
-import BudgetGrid from '../components/finance/BudgetGrid';
-import CategoryQuickAdd from '../components/finance/CategoryQuickAdd';
-import TransactionsPanel from '../components/finance/TransactionsPanel';
-import TuitionPaymentFlow from '../components/finance/TuitionPaymentFlow';
-import PayrollFlow from '../components/finance/PayrollFlow';
-import MonthlyComparisonTable from '../components/finance/MonthlyComparisonTable';
+import FinanceManagement from '../components/finance/FinanceManagement';
 
 interface User {
   id: string;
@@ -27,14 +21,21 @@ interface Student {
   id: string;
   user_id: string;
   student_number: string;
+  class_id?: string | null;
   date_of_birth?: string;
   address?: string;
   status: string;
   annual_tuition_fee?: number | null;
-  users?: {
+  profiles?: {
     first_name: string;
     last_name: string;
     email: string;
+  };
+  classes?: {
+    id: string;
+    name: string;
+    level: string;
+    academic_year: string;
   };
 }
 
@@ -45,7 +46,7 @@ interface Teacher {
   specialization?: string;
   department?: string;
   hourly_rate?: number | null;
-  users?: {
+  profiles?: {
     first_name: string;
     last_name: string;
     email: string;
@@ -93,7 +94,7 @@ interface Schedule {
 interface ScheduleDetailed extends Schedule {
   classes?: { name: string };
   subjects?: { name: string };
-  teachers?: { users?: { first_name: string; last_name: string } };
+  teachers?: { profiles?: { first_name: string; last_name: string } };
 }
 
 interface Announcement {
@@ -106,6 +107,23 @@ interface Announcement {
   published_at: string;
   expires_at?: string;
 }
+
+// Onglets visibles selon le rôle connecté (la vraie barrière reste les
+// policies RLS côté base ; ceci n'est qu'un filtrage d'affichage)
+const ROLE_TABS: Record<string, string[]> = {
+  admin: ['dashboard', 'students', 'teachers', 'classes', 'subjects', 'courses', 'schedules', 'announcements', 'assign-students', 'assign-teachers', 'grades', 'finance', 'admins'],
+  academic_admin: ['dashboard', 'students', 'teachers', 'classes', 'subjects', 'courses', 'schedules', 'announcements', 'assign-students', 'assign-teachers', 'grades'],
+  finance_admin: ['dashboard', 'students', 'teachers', 'assign-students', 'finance'],
+  admin_secretaire: ['dashboard', 'students', 'teachers', 'subjects', 'courses', 'schedules', 'assign-students', 'assign-teachers'],
+};
+
+// Rôles gérables depuis l'onglet "Comptes Admin" (admin général uniquement)
+const ADMIN_ROLE_LABELS: Record<string, string> = {
+  admin: 'Admin Général',
+  academic_admin: 'Admin Pédagogique',
+  finance_admin: 'Admin Financier',
+  admin_secretaire: 'Admin Secrétaire',
+};
 
 interface AdminDashboardProps {
   user: User | null;
@@ -121,12 +139,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [schedules, setSchedules] = useState<ScheduleDetailed[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [adminAccounts, setAdminAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [showModal, setShowModal] = useState<boolean>(false);
-  const [modalType, setModalType] = useState<'student' | 'teacher' | 'class' | 'subject' | 'schedule' | 'announcement'>('student');
+  const [modalType, setModalType] = useState<'student' | 'teacher' | 'class' | 'subject' | 'schedule' | 'announcement' | 'admin'>('student');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
-  const [studentClassAssignments, setStudentClassAssignments] = useState<any[]>([]);
   const [teacherClassAssignments, setTeacherClassAssignments] = useState<any[]>([]);
   const [showAssignModal, setShowAssignModal] = useState<boolean>(false);
   const [assignModalType, setAssignModalType] = useState<'student' | 'teacher'>('student');
@@ -175,6 +193,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
     teacherNumber: '', specialization: '', department: ''
   });
 
+  const [adminForm, setAdminForm] = useState({
+    firstName: '', lastName: '', email: '', password: '', role: 'academic_admin'
+  });
+
   const [classForm, setClassForm] = useState({
     name: '', level: '', academicYear: '2025-2026', maxStudents: 30
   });
@@ -214,11 +236,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
   const [selectedClassForSchedule, setSelectedClassForSchedule] = useState<string>('');
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
 
-  // États pour la gestion financière
-  const [financialCategories, setFinancialCategories] = useState<FinancialCategory[]>([]);
-  const [financeSubTab, setFinanceSubTab] = useState<'budget' | 'revenue' | 'expense' | 'comparison'>('budget');
-  const [financeAcademicYear, setFinanceAcademicYear] = useState<string>('2025-2026');
-
   // ==================== CHARGEMENT DONNÉES ====================
   useEffect(() => {
     loadAllData();
@@ -235,10 +252,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
         loadCourses(),
         loadSchedules(),
         loadAnnouncements(),
-        loadStudentClassAssignments(),
         loadTeacherClassAssignments(),
         loadSubjectClassLinks(),
-        loadFinancialCategories()
+        ...(user?.role === 'admin' ? [loadAdminAccounts()] : [])
       ]);
     } catch (error) {
       console.error('Erreur chargement:', error);
@@ -247,31 +263,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
     }
   };
 
-  const loadStudentClassAssignments = async () => {
-  const { data, error } = await supabase
-    .from('student_classes')
-    .select(`*, students( id, student_number, users(first_name, last_name, email)),
-      classes(id, name, level)`)
-    .eq('academic_year', '2025-2026')
-    .order('created_at', { ascending: false });
-  
-  if (error) {
-    console.error('Erreur chargement affectations étudiants:', error);
-  } else {
-    setStudentClassAssignments(data || []);
-  }
-};
-
 const loadTeacherClassAssignments = async () => {
   const { data, error } = await supabase
-    .from('teacher_subject_classes')
-    .select(`*, teachers(id, teacher_number, users(first_name, last_name, email)),
+    .from('teacher_classes')
+    .select(`*, teachers(id, teacher_number, profiles(first_name, last_name, email)),
       subjects(id, name, code),
-      classes(id, name, level)
-    `)
-    .eq('academic_year', '2025-2026')
-    .order('created_at', { ascending: false });
-  
+      classes(id, name, level, academic_year)
+    `);
+
   if (error) {
     console.error('Erreur chargement affectations enseignants:', error);
   } else {
@@ -279,26 +278,12 @@ const loadTeacherClassAssignments = async () => {
   }
 };
 
-  const loadFinancialCategories = async () => {
-    const { data, error } = await supabase
-      .from('financial_categories')
-      .select('*')
-      .order('kind', { ascending: true })
-      .order('name', { ascending: true });
-
-    if (error) {
-      console.error('Erreur chargement catégories financières:', error);
-    } else {
-      setFinancialCategories(data || []);
-    }
-  };
-
   const loadStudents = async () => {
     const { data, error } = await supabase
       .from('students')
-      .select('*, users(first_name, last_name, email)')
+      .select('*, profiles(first_name, last_name, email), classes(id, name, level, academic_year)')
       .order('created_at', { ascending: false });
-    
+
     if (error) {
       console.error('Erreur chargement étudiants:', error);
     } else {
@@ -309,13 +294,27 @@ const loadTeacherClassAssignments = async () => {
   const loadTeachers = async () => {
     const { data, error } = await supabase
       .from('teachers')
-      .select('*, users(first_name, last_name, email)')
+      .select('*, profiles(first_name, last_name, email)')
       .order('created_at', { ascending: false });
     
     if (error) {
       console.error('Erreur chargement enseignants:', error);
     } else {
       setTeachers(data || []);
+    }
+  };
+
+  const loadAdminAccounts = async () => {
+    const { data, error } = await supabase
+      .from('user_roles')
+      .select('id, user_id, role, profiles(first_name, last_name, email)')
+      .in('role', ['admin', 'academic_admin', 'finance_admin', 'admin_secretaire'])
+      .order('role', { ascending: true });
+
+    if (error) {
+      console.error('Erreur chargement comptes admin:', error);
+    } else {
+      setAdminAccounts(data || []);
     }
   };
 
@@ -378,7 +377,7 @@ const loadTeacherClassAssignments = async () => {
         *,
         classes(name),
         subjects(name),
-        teachers(users(first_name, last_name))
+        teachers(profiles(first_name, last_name))
       `)
       .order('day_of_week', { ascending: true });
     
@@ -416,7 +415,7 @@ const loadTeacherClassAssignments = async () => {
           .select(`
             *,
             subjects (name, code, coefficient),
-            teachers (users(first_name, last_name)),
+            teachers (profiles(first_name, last_name)),
             classes (name)
           `)
           .eq('student_id', studentId)
@@ -504,25 +503,15 @@ const loadTeacherClassAssignments = async () => {
       setLoading(true);
       try {
         const { error } = await supabase
-          .from('student_classes')
-          .insert({
-            student_id: studentAssignForm.studentId,
-            class_id: studentAssignForm.classId,
-            academic_year: studentAssignForm.academicYear
-          });
+          .from('students')
+          .update({ class_id: studentAssignForm.classId })
+          .eq('id', studentAssignForm.studentId);
 
-        if (error) {
-          if (error.code === '23505') {
-            alert('⚠️ Cet étudiant est déjà affecté à cette classe');
-          } else {
-            throw error;
-          }
-        } else {
-          alert('✅ Étudiant affecté à la classe avec succès !');
-          setShowAssignModal(false);
-          setStudentAssignForm({ studentId: '', classId: '', academicYear: '2025-2026' });
-          loadStudentClassAssignments();
-        }
+        if (error) throw error;
+        alert('✅ Étudiant affecté à la classe avec succès !');
+        setShowAssignModal(false);
+        setStudentAssignForm({ studentId: '', classId: '', academicYear: '2025-2026' });
+        loadStudents();
       } catch (error: any) {
         alert(`❌ Erreur: ${error.message}`);
       } finally {
@@ -541,12 +530,11 @@ const handleAssignTeacherToClass = async (e: React.FormEvent) => {
   setLoading(true);
   try {
     const { error } = await supabase
-      .from('teacher_subject_classes')
+      .from('teacher_classes')
       .insert({
         teacher_id: teacherAssignForm.teacherId,
         subject_id: teacherAssignForm.subjectId,
-        class_id: teacherAssignForm.classId,
-        academic_year: teacherAssignForm.academicYear
+        class_id: teacherAssignForm.classId
       });
 
     if (error) {
@@ -573,18 +561,18 @@ const handleAssignTeacherToClass = async (e: React.FormEvent) => {
   }
 };
 
-const handleRemoveStudentFromClass = async (assignmentId: string) => {
+const handleRemoveStudentFromClass = async (studentId: string) => {
   if (!window.confirm('⚠️ Retirer cet étudiant de cette classe ?')) return;
 
   try {
     const { error } = await supabase
-      .from('student_classes')
-      .delete()
-      .eq('id', assignmentId);
+      .from('students')
+      .update({ class_id: null })
+      .eq('id', studentId);
 
     if (error) throw error;
     alert('✅ Étudiant retiré de la classe');
-    loadStudentClassAssignments();
+    loadStudents();
   } catch (error: any) {
     alert(`❌ Erreur: ${error.message}`);
   }
@@ -595,7 +583,7 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
 
   try {
     const { error } = await supabase
-      .from('teacher_subject_classes')
+      .from('teacher_classes')
       .delete()
       .eq('id', assignmentId);
 
@@ -742,12 +730,83 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
         setShowModal(false);
         resetTeacherForm();
         await loadTeachers();
-        
+
       } catch (error: any) {
         console.error('❌ Erreur complète:', error);
         alert(`❌ Erreur lors de la création:\n\n${error.message || error}`);
       } finally {
         setLoading(false);
+      }
+    };
+
+    const handleAddAdmin = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setLoading(true);
+
+      try {
+        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+          email: adminForm.email,
+          password: adminForm.password,
+          email_confirm: true,
+          user_metadata: {
+            first_name: adminForm.firstName,
+            last_name: adminForm.lastName,
+            role: adminForm.role
+          }
+        });
+
+        if (authError) throw authError;
+        if (!authData.user) throw new Error('Aucun utilisateur créé');
+
+        const userId = authData.user.id;
+
+        const { error: roleError } = await supabase
+          .from('user_roles')
+          .insert({ user_id: userId, role: adminForm.role });
+
+        if (roleError) {
+          // Si le rôle n'a pas pu être attribué, on supprime l'utilisateur auth
+          await supabaseAdmin.auth.admin.deleteUser(userId);
+          throw roleError;
+        }
+
+        alert(`✅ Compte créé avec succès !
+
+    📧 Email : ${adminForm.email}
+    🔑 Mot de passe temporaire : ${adminForm.password}
+    🛡️ Rôle : ${ADMIN_ROLE_LABELS[adminForm.role]}
+
+    ⚠️ Cette personne devra changer son mot de passe à la première connexion.`);
+
+        setShowModal(false);
+        setAdminForm({ firstName: '', lastName: '', email: '', password: '', role: 'academic_admin' });
+        await loadAdminAccounts();
+      } catch (error: any) {
+        console.error('❌ Erreur complète:', error);
+        alert(`❌ Erreur lors de la création:\n\n${error.message || error}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const handleRemoveAdminRole = async (assignmentId: string, targetUserId: string) => {
+      if (targetUserId === user?.id) {
+        alert("⚠️ Vous ne pouvez pas retirer votre propre rôle.");
+        return;
+      }
+      if (!window.confirm("⚠️ Retirer ce rôle d'administration à cette personne ?")) return;
+
+      try {
+        const { error } = await supabase
+          .from('user_roles')
+          .delete()
+          .eq('id', assignmentId);
+
+        if (error) throw error;
+        alert('✅ Rôle retiré');
+        loadAdminAccounts();
+      } catch (error: any) {
+        alert(`❌ Erreur: ${error.message}`);
       }
     };
 
@@ -1229,14 +1288,13 @@ const filteredSubjects = subjects.filter(subject => {
       });
     const filteredStudents = students.filter(s => {
       const matchesSearch = (s.student_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (s.users?.first_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (s.users?.last_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (s.users?.email || '').toLowerCase().includes(searchTerm.toLowerCase());
+                          (s.profiles?.first_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (s.profiles?.last_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (s.profiles?.email || '').toLowerCase().includes(searchTerm.toLowerCase());
       
       // Filtrer par classe
-      const studentClass = studentClassAssignments.find(sc => sc.student_id === s.id);
-      const matchesClass = classFilter === 'all' || studentClass?.class_id === classFilter;
-      
+      const matchesClass = classFilter === 'all' || s.class_id === classFilter;
+
       return matchesSearch && matchesClass;
     });
 
@@ -1247,9 +1305,9 @@ const filteredSubjects = subjects.filter(subject => {
 
     const filteredTeachers = teachers.filter(t => {
       const matchesSearch = (t.teacher_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (t.users?.first_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (t.users?.last_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (t.users?.email || '').toLowerCase().includes(searchTerm.toLowerCase());
+                          (t.profiles?.first_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (t.profiles?.last_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (t.profiles?.email || '').toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesDepartment = departmentFilter === 'all' || t.department === departmentFilter;
       
@@ -1277,8 +1335,8 @@ const filteredSubjects = subjects.filter(subject => {
             // Filtre par recherche (enseignant, matière, salle)
             const matchesSearch = !searchTerm || 
               (schedule.subjects?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-              (schedule.teachers?.users?.first_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-              (schedule.teachers?.users?.last_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+              (schedule.teachers?.profiles?.first_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+              (schedule.teachers?.profiles?.last_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
               (schedule.room || '').toLowerCase().includes(searchTerm.toLowerCase());
             
             return matchesClass && matchesSearch;
@@ -1359,7 +1417,7 @@ const filteredSubjects = subjects.filter(subject => {
           { id: 'courses', label: 'Cours', icon: FileText },
           { id: 'schedules', label: 'Emplois du temps', icon: Clock },
           { id: 'announcements', label: 'Annonces', icon: Bell },
-        ].map(tab => {
+        ].filter(tab => (ROLE_TABS[user?.role || 'admin'] || ROLE_TABS.admin).includes(tab.id)).map(tab => {
           const Icon = tab.icon;
           return (
             <button
@@ -1392,7 +1450,8 @@ const filteredSubjects = subjects.filter(subject => {
             { id: 'assign-teachers', label: 'Affecter Enseignants', icon: BookOpen },
             { id: 'grades', label: 'Gestion des notes', icon: FileText },
             { id: 'finance', label: 'Gestion Financière', icon: DollarSign },
-          ].map(tab => {
+            { id: 'admins', label: 'Comptes Admin', icon: Shield },
+          ].filter(tab => (ROLE_TABS[user?.role || 'admin'] || ROLE_TABS.admin).includes(tab.id)).map(tab => {
             const Icon = tab.icon;
             return (
               <button
@@ -1535,7 +1594,7 @@ const filteredSubjects = subjects.filter(subject => {
               <option value="">-- Choisir un étudiant --</option>
               {students.map((student) => (
                 <option key={student.id} value={student.id}>
-                  {student.student_number} - {student.users?.first_name} {student.users?.last_name}
+                  {student.student_number} - {student.profiles?.first_name} {student.profiles?.last_name}
                 </option>
               ))}
             </select>
@@ -1587,7 +1646,7 @@ const filteredSubjects = subjects.filter(subject => {
                           {grade.exam_date ? new Date(grade.exam_date).toLocaleDateString() : '-'}
                         </td>
                         <td className="px-4 py-3 text-sm">
-                          {grade.teachers?.users?.first_name} {grade.teachers?.users?.last_name}
+                          {grade.teachers?.profiles?.first_name} {grade.teachers?.profiles?.last_name}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600">
                           {grade.comment || '-'}
@@ -1647,88 +1706,7 @@ const filteredSubjects = subjects.filter(subject => {
       )}
 
       {/* FINANCE TAB - GESTION FINANCIÈRE */}
-      {activeTab === 'finance' && (
-        <div className="bg-white rounded-lg shadow p-4 md:p-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
-            <h2 className="text-xl md:text-2xl font-bold">Gestion Financière</h2>
-            <select
-              value={financeAcademicYear}
-              onChange={(e) => setFinanceAcademicYear(e.target.value)}
-              className="border rounded px-3 py-2"
-            >
-              {Array.from(new Set([...classes.map(c => c.academic_year), '2025-2026'])).map((year) => (
-                <option key={year} value={year}>{year}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex gap-2 mb-6 overflow-x-auto border-b">
-            {[
-              { id: 'budget', label: 'Budget Prévisionnel' },
-              { id: 'revenue', label: 'Recettes' },
-              { id: 'expense', label: 'Dépenses' },
-              { id: 'comparison', label: 'Comparaison' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setFinanceSubTab(tab.id as typeof financeSubTab)}
-                className={`px-4 py-2 font-medium whitespace-nowrap border-b-2 transition ${
-                  financeSubTab === tab.id
-                    ? 'border-purple-600 text-purple-700'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {financeSubTab === 'budget' && (
-            <div className="space-y-8">
-              <div>
-                <h3 className="text-lg font-bold mb-3">Recettes prévisionnelles</h3>
-                <CategoryQuickAdd kind="revenue" categories={financialCategories} onChanged={loadFinancialCategories} />
-                <BudgetGrid kind="revenue" academicYear={financeAcademicYear} categories={financialCategories} />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold mb-3">Dépenses prévisionnelles</h3>
-                <CategoryQuickAdd kind="expense" categories={financialCategories} onChanged={loadFinancialCategories} />
-                <BudgetGrid kind="expense" academicYear={financeAcademicYear} categories={financialCategories} />
-              </div>
-            </div>
-          )}
-
-          {financeSubTab === 'revenue' && (
-            <div className="space-y-8">
-              <div>
-                <h3 className="text-lg font-bold mb-3">Frais de scolarité</h3>
-                <TuitionPaymentFlow classes={classes} academicYear={financeAcademicYear} />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold mb-3">Autres recettes (subventions, etc.)</h3>
-                <TransactionsPanel kind="revenue" academicYear={financeAcademicYear} categories={financialCategories} />
-              </div>
-            </div>
-          )}
-
-          {financeSubTab === 'expense' && (
-            <div className="space-y-8">
-              <div>
-                <h3 className="text-lg font-bold mb-3">Paie des enseignants</h3>
-                <PayrollFlow teachers={teachers} academicYear={financeAcademicYear} onTeacherRateUpdated={loadTeachers} />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold mb-3">Autres dépenses (loyer, déplacements, etc.)</h3>
-                <TransactionsPanel kind="expense" academicYear={financeAcademicYear} categories={financialCategories} />
-              </div>
-            </div>
-          )}
-
-          {financeSubTab === 'comparison' && (
-            <MonthlyComparisonTable academicYear={financeAcademicYear} />
-          )}
-        </div>
-      )}
+      {activeTab === 'finance' && <FinanceManagement />}
 
        {/* STUDENTS TAB */}
       {activeTab === 'students' && (
@@ -1817,8 +1795,8 @@ const filteredSubjects = subjects.filter(subject => {
                     {paginatedStudents.map((student) => (
                       <tr key={student.id} className="border-b hover:bg-gray-50">
                         <td className="px-3 md:px-4 py-3 font-medium text-xs md:text-sm">{student.student_number}</td>
-                        <td className="px-3 md:px-4 py-3 text-xs md:text-sm">{student.users?.first_name} {student.users?.last_name}</td>
-                        <td className="px-3 md:px-4 py-3 text-xs md:text-sm hidden md:table-cell">{student.users?.email}</td>
+                        <td className="px-3 md:px-4 py-3 text-xs md:text-sm">{student.profiles?.first_name} {student.profiles?.last_name}</td>
+                        <td className="px-3 md:px-4 py-3 text-xs md:text-sm hidden md:table-cell">{student.profiles?.email}</td>
                         <td className="px-3 md:px-4 py-3">
                           <span className={`px-2 py-1 rounded text-xs ${
                             student.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
@@ -1961,8 +1939,8 @@ const filteredSubjects = subjects.filter(subject => {
                       {paginatedTeachers.map((teacher) => (
                         <tr key={teacher.id} className="border-b hover:bg-gray-50">
                           <td className="px-3 md:px-4 py-3 font-medium text-xs md:text-sm">{teacher.teacher_number}</td>
-                          <td className="px-3 md:px-4 py-3 text-xs md:text-sm">{teacher.users?.first_name} {teacher.users?.last_name}</td>
-                          <td className="px-3 md:px-4 py-3 text-xs md:text-sm hidden md:table-cell">{teacher.users?.email}</td>
+                          <td className="px-3 md:px-4 py-3 text-xs md:text-sm">{teacher.profiles?.first_name} {teacher.profiles?.last_name}</td>
+                          <td className="px-3 md:px-4 py-3 text-xs md:text-sm hidden md:table-cell">{teacher.profiles?.email}</td>
                           <td className="px-3 md:px-4 py-3 text-xs md:text-sm hidden lg:table-cell">{teacher.specialization || '-'}</td>
                           <td className="px-3 md:px-4 py-3 text-xs md:text-sm hidden lg:table-cell">{teacher.department || '-'}</td>
                           <td className="px-3 md:px-4 py-3">
@@ -2274,7 +2252,7 @@ const filteredSubjects = subjects.filter(subject => {
                                 <p className="font-semibold">{schedule.subjects?.name}</p>
                                 <p className="text-xs text-gray-600">{schedule.classes?.name}</p>
                                 <p className="text-xs text-gray-600">
-                                  {schedule.teachers?.users?.first_name} {schedule.teachers?.users?.last_name}
+                                  {schedule.teachers?.profiles?.first_name} {schedule.teachers?.profiles?.last_name}
                                 </p>
                                 <p className="text-xs text-gray-500">{schedule.room}</p>
                                 <div className="flex gap-1 mt-1">
@@ -2396,7 +2374,7 @@ const filteredSubjects = subjects.filter(subject => {
                       <option value="">Sélectionner un étudiant...</option>
                       {students.map((student) => (
                         <option key={student.id} value={student.id}>
-                          {student.student_number} - {student.users?.first_name} {student.users?.last_name}
+                          {student.student_number} - {student.profiles?.first_name} {student.profiles?.last_name}
                         </option>
                       ))}
                     </select>
@@ -2416,23 +2394,10 @@ const filteredSubjects = subjects.filter(subject => {
                       <option value="">Sélectionner une classe...</option>
                       {classes.map((cls) => (
                         <option key={cls.id} value={cls.id}>
-                          {cls.name} ({cls.level})
+                          {cls.name} ({cls.level}) - {cls.academic_year}
                         </option>
                       ))}
                     </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Année académique</label>
-                    <input
-                      type="text"
-                      value={studentAssignForm.academicYear}
-                      onChange={(e) => setStudentAssignForm({
-                        ...studentAssignForm, 
-                        academicYear: e.target.value
-                      })}
-                      className="w-full border rounded px-3 py-2"
-                    />
                   </div>
 
                   <div className="flex gap-3 justify-end pt-4">
@@ -2471,7 +2436,7 @@ const filteredSubjects = subjects.filter(subject => {
                       <option value="">Sélectionner un enseignant...</option>
                       {teachers.map((teacher) => (
                         <option key={teacher.id} value={teacher.id}>
-                          {teacher.teacher_number} - {teacher.users?.first_name} {teacher.users?.last_name}
+                          {teacher.teacher_number} - {teacher.profiles?.first_name} {teacher.profiles?.last_name}
                         </option>
                       ))}
                     </select>
@@ -2511,23 +2476,10 @@ const filteredSubjects = subjects.filter(subject => {
                       <option value="">Sélectionner une classe...</option>
                       {classes.map((cls) => (
                         <option key={cls.id} value={cls.id}>
-                          {cls.name} ({cls.level})
+                          {cls.name} ({cls.level}) - {cls.academic_year}
                         </option>
                       ))}
                     </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Année académique</label>
-                    <input
-                      type="text"
-                      value={teacherAssignForm.academicYear}
-                      onChange={(e) => setTeacherAssignForm({
-                        ...teacherAssignForm, 
-                        academicYear: e.target.value
-                      })}
-                      className="w-full border rounded px-3 py-2"
-                    />
                   </div>
 
                   <div className="flex gap-3 justify-end pt-4">
@@ -2551,6 +2503,77 @@ const filteredSubjects = subjects.filter(subject => {
             </div>
           </div>
         )}
+
+        {/* TAB COMPTES ADMIN */}
+        {activeTab === 'admins' && (
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold">Comptes Admin</h2>
+              <button
+                onClick={() => {
+                  setModalType('admin');
+                  setShowModal(true);
+                }}
+                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2"
+              >
+                <Plus className="w-5 h-5" />
+                Ajouter un admin
+              </button>
+            </div>
+
+            {loading ? (
+              <p className="text-center py-8">Chargement...</p>
+            ) : adminAccounts.length === 0 ? (
+              <div className="text-center py-12">
+                <Shield className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <p className="text-xl text-gray-500">Aucun compte admin</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="px-4 py-3 text-left">Nom</th>
+                      <th className="px-4 py-3 text-left">Email</th>
+                      <th className="px-4 py-3 text-left">Rôle</th>
+                      <th className="px-4 py-3 text-left">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {adminAccounts.map((account: any) => (
+                      <tr key={account.id} className="border-b hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          {account.profiles?.first_name} {account.profiles?.last_name}
+                          {account.user_id === user?.id && (
+                            <span className="ml-2 text-xs text-gray-400">(vous)</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">{account.profiles?.email}</td>
+                        <td className="px-4 py-3">
+                          <span className="px-2 py-1 rounded text-xs font-semibold bg-purple-100 text-purple-700">
+                            {ADMIN_ROLE_LABELS[account.role] || account.role}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          {account.user_id !== user?.id && (
+                            <button
+                              onClick={() => handleRemoveAdminRole(account.id, account.user_id)}
+                              className="text-red-600 hover:bg-red-50 p-2 rounded"
+                              title="Retirer ce rôle"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* TAB AFFECTATION ÉTUDIANTS → CLASSES */}
             {activeTab === 'assign-students' && (
               <div className="bg-white rounded-lg shadow p-6">
@@ -2570,7 +2593,7 @@ const filteredSubjects = subjects.filter(subject => {
 
                 {loading ? (
                   <p className="text-center py-8">Chargement...</p>
-                ) : studentClassAssignments.length === 0 ? (
+                ) : students.filter(s => s.class_id).length === 0 ? (
                   <div className="text-center py-12">
                     <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                     <p className="text-xl text-gray-500">Aucune affectation</p>
@@ -2592,22 +2615,22 @@ const filteredSubjects = subjects.filter(subject => {
                         </tr>
                       </thead>
                       <tbody>
-                        {studentClassAssignments.map((assignment: any) => (
-                          <tr key={assignment.id} className="border-b hover:bg-gray-50">
+                        {students.filter(s => s.class_id).map((student) => (
+                          <tr key={student.id} className="border-b hover:bg-gray-50">
                             <td className="px-4 py-3 font-medium">
-                              {assignment.students?.student_number}
+                              {student.student_number}
                             </td>
                             <td className="px-4 py-3">
-                              {assignment.students?.users?.first_name} {assignment.students?.users?.last_name}
+                              {student.profiles?.first_name} {student.profiles?.last_name}
                             </td>
                             <td className="px-4 py-3 font-semibold text-blue-600">
-                              {assignment.classes?.name}
+                              {student.classes?.name}
                             </td>
-                            <td className="px-4 py-3">{assignment.classes?.level}</td>
-                            <td className="px-4 py-3">{assignment.academic_year}</td>
+                            <td className="px-4 py-3">{student.classes?.level}</td>
+                            <td className="px-4 py-3">{student.classes?.academic_year}</td>
                             <td className="px-4 py-3">
                               <button
-                                onClick={() => handleRemoveStudentFromClass(assignment.id)}
+                                onClick={() => handleRemoveStudentFromClass(student.id)}
                                 className="text-red-600 hover:bg-red-50 p-2 rounded"
                                 title="Retirer"
                               >
@@ -2686,8 +2709,8 @@ const filteredSubjects = subjects.filter(subject => {
                             // Sinon, filtrer par recherche
                             const matchesSearch = 
                               (assignment.teachers?.teacher_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                              (assignment.teachers?.users?.first_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                              (assignment.teachers?.users?.last_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                              (assignment.teachers?.profiles?.first_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                              (assignment.teachers?.profiles?.last_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                               (assignment.subjects?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                               (assignment.classes?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
                             
@@ -2712,7 +2735,7 @@ const filteredSubjects = subjects.filter(subject => {
                             </td>                            
                             {/* Nom (rowspan pour fusionner les lignes) */}
                             <td className="px-4 py-3">
-                              {data.teacher?.users?.first_name} {data.teacher?.users?.last_name}
+                              {data.teacher?.profiles?.first_name} {data.teacher?.profiles?.last_name}
                             </td>                            
                             {/* Matières (liste) */}
                             <td className="px-4 py-3">
@@ -2732,7 +2755,7 @@ const filteredSubjects = subjects.filter(subject => {
                             </td>
                             
                             {/* Année */}
-                            <td className="px-4 py-3">{data.assignments[0].academic_year}</td>
+                            <td className="px-4 py-3">{data.assignments[0].classes?.academic_year}</td>
                             
                             {/* Actions (supprimer toutes les affectations de cet enseignant) */}
                             <td className="px-4 py-3">
@@ -2772,6 +2795,7 @@ const filteredSubjects = subjects.filter(subject => {
                 {modalType === 'subject' && 'Créer une matière'}
                 {modalType === 'schedule' && (editingSchedule ? 'Modifier le créneau' : 'Ajouter un créneau')}
                 {modalType === 'announcement' && 'Publier une annonce'}
+                {modalType === 'admin' && 'Ajouter un compte admin'}
               </h3>
               <button onClick={() => { setShowModal(false); setEditingSchedule(null); }} className="text-3xl">×</button>
             </div>
@@ -3163,7 +3187,7 @@ const filteredSubjects = subjects.filter(subject => {
                     <option value="">Sélectionner...</option>
                     {teachers.map(teacher => (
                       <option key={teacher.id} value={teacher.id}>
-                        {teacher.users?.first_name} {teacher.users?.last_name}
+                        {teacher.profiles?.first_name} {teacher.profiles?.last_name}
                       </option>
                     ))}
                   </select>
@@ -3324,6 +3348,84 @@ const filteredSubjects = subjects.filter(subject => {
                     className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
                   >
                     {loading ? 'Publication...' : 'Publier'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* ADMIN FORM */}
+            {modalType === 'admin' && (
+              <form onSubmit={handleAddAdmin} className="space-y-4">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Prénom *</label>
+                    <input
+                      type="text"
+                      value={adminForm.firstName}
+                      onChange={(e) => setAdminForm({...adminForm, firstName: e.target.value})}
+                      className="w-full border rounded px-3 py-2"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Nom *</label>
+                    <input
+                      type="text"
+                      value={adminForm.lastName}
+                      onChange={(e) => setAdminForm({...adminForm, lastName: e.target.value})}
+                      className="w-full border rounded px-3 py-2"
+                      required
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Email *</label>
+                  <input
+                    type="email"
+                    value={adminForm.email}
+                    onChange={(e) => setAdminForm({...adminForm, email: e.target.value})}
+                    className="w-full border rounded px-3 py-2"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Mot de passe temporaire *</label>
+                  <input
+                    type="text"
+                    value={adminForm.password}
+                    onChange={(e) => setAdminForm({...adminForm, password: e.target.value})}
+                    className="w-full border rounded px-3 py-2"
+                    minLength={6}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Rôle *</label>
+                  <select
+                    value={adminForm.role}
+                    onChange={(e) => setAdminForm({...adminForm, role: e.target.value})}
+                    className="w-full border rounded px-3 py-2"
+                    required
+                  >
+                    {Object.entries(ADMIN_ROLE_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex gap-3 justify-end pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowModal(false)}
+                    className="px-6 py-2 border rounded"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
+                  >
+                    {loading ? 'Enregistrement...' : 'Enregistrer'}
                   </button>
                 </div>
               </form>

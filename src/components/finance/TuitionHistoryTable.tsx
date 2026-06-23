@@ -30,7 +30,7 @@ const TuitionHistoryTable: React.FC<TuitionHistoryTableProps> = ({
     setLoading(true);
     const { data, error } = await supabase
       .from('tuition_fee_payments')
-      .select('*, students(student_number, users(first_name, last_name), classes(name))')
+      .select('*, students(student_number, profiles(first_name, last_name), classes(name))')
       .eq('student_id', studentId)
       .eq('academic_year', academicYear)
       .is('voided_at', null)
@@ -89,7 +89,7 @@ const TuitionHistoryTable: React.FC<TuitionHistoryTableProps> = ({
                 <tr key={p.id} className="border-b hover:bg-gray-50">
                   {showStudentName && (
                     <td className="px-3 py-2">
-                      {p.students?.users?.first_name} {p.students?.users?.last_name}
+                      {p.students?.profiles?.first_name} {p.students?.profiles?.last_name}
                     </td>
                   )}
                   <td className="px-3 py-2">{monthLabel(p.month)} {p.academic_year}</td>

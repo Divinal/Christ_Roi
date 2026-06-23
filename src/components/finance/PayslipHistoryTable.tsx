@@ -28,7 +28,7 @@ const PayslipHistoryTable: React.FC<PayslipHistoryTableProps> = ({
     setLoading(true);
     const { data, error } = await supabase
       .from('teacher_payslips')
-      .select('*, teachers(teacher_number, users(first_name, last_name))')
+      .select('*, teachers(teacher_number, profiles(first_name, last_name))')
       .eq('teacher_id', teacherId)
       .eq('academic_year', academicYear)
       .is('voided_at', null)
@@ -68,7 +68,7 @@ const PayslipHistoryTable: React.FC<PayslipHistoryTableProps> = ({
               <tr key={p.id} className="border-b hover:bg-gray-50">
                 {showTeacherName && (
                   <td className="px-3 py-2">
-                    {p.teachers?.users?.first_name} {p.teachers?.users?.last_name}
+                    {p.teachers?.profiles?.first_name} {p.teachers?.profiles?.last_name}
                   </td>
                 )}
                 <td className="px-3 py-2">{monthLabel(p.month)} {p.academic_year}</td>

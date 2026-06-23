@@ -18,7 +18,7 @@ const ReceiptPrintable: React.FC<ReceiptPrintableProps> = ({
   remainingBalance,
   onClose,
 }) => {
-  const studentName = `${payment.students?.users?.first_name || ''} ${payment.students?.users?.last_name || ''}`.trim();
+  const studentName = `${payment.students?.profiles?.first_name || ''} ${payment.students?.profiles?.last_name || ''}`.trim();
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">

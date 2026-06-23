@@ -14,7 +14,7 @@ interface RosterStudent {
   id: string;
   student_number: string;
   annual_tuition_fee: number | null;
-  users?: { first_name: string; last_name: string };
+  profiles?: { first_name: string; last_name: string };
 }
 
 interface TuitionPaymentFlowProps {
@@ -63,7 +63,7 @@ const TuitionPaymentFlow: React.FC<TuitionPaymentFlowProps> = ({ classes, academ
   const loadRoster = async (classId: string) => {
     const { data, error } = await supabase
       .from('student_classes')
-      .select('students(id, student_number, annual_tuition_fee, users(first_name, last_name))')
+      .select('students(id, student_number, annual_tuition_fee, profiles(first_name, last_name))')
       .eq('class_id', classId)
       .eq('academic_year', academicYear);
 
@@ -94,7 +94,7 @@ const TuitionPaymentFlow: React.FC<TuitionPaymentFlowProps> = ({ classes, academ
         amount,
         receipt_number: receiptNumber,
       })
-      .select('*, students(student_number, annual_tuition_fee, users(first_name, last_name), classes(name))')
+      .select('*, students(student_number, annual_tuition_fee, profiles(first_name, last_name), classes(name))')
       .single();
 
     if (error) {
@@ -131,7 +131,7 @@ const TuitionPaymentFlow: React.FC<TuitionPaymentFlowProps> = ({ classes, academ
           <option value="">Étudiant...</option>
           {roster.map((s) => (
             <option key={s.id} value={s.id}>
-              {s.users?.first_name} {s.users?.last_name} ({s.student_number})
+              {s.profiles?.first_name} {s.profiles?.last_name} ({s.student_number})
             </option>
           ))}
         </select>

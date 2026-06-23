@@ -1,7 +1,7 @@
 // Contenu personnalisable par école : modifier ce fichier (et lui seul) suffit
 // à adapter le nom, le logo, les textes et les coordonnées d'un site cloné.
 export const siteConfig = {
-  schoolName: 'Rezo Campus Consulting',
+  schoolName: 'Complexe Scolaire Christ Roi',
   tagline: 'Plateforme E-Learning Universitaire',
   logoUrl: '../Images/RezoCampus.png',
   logoFallbackInitials: 'UC',
@@ -20,9 +20,9 @@ export const siteConfig = {
     description: "La plateforme e-learning qui connecte étudiants, professeurs et administration.",
   },
   contact: {
-    addressLines: ['1°Ét., 28800, Imm Kihel, Bd Hassan II', 'Mohammédia 28800, Maroc'],
+    addressLines: ['Votre adresse ici avec quartier', 'Ville, Pays'],
     email: 'contact@universite-connect.fr',
-    phone: '+212 6 66 97 66 98',
+    phone: '+242 06 000 00 00',
   },
   copyrightOwner: 'Université Connect',
 };

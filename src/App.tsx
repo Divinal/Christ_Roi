@@ -53,32 +53,43 @@ const App: React.FC = () => {
 
   const fetchUserData = async (userId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('users')
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
         .select('*')
-        .eq('id', userId)
+        .eq('user_id', userId)
         .maybeSingle();
 
-      if (error) throw error;
+      if (profileError) throw profileError;
+      if (!profileData) return;
 
-      if (data) {
-        const userData: User = {
-          id: data.id,
-          email: data.email,
-          role: data.role,
-          firstName: data.first_name,
-          lastName: data.last_name,
-        };
-        setUser(userData);
-        
-        // Rediriger vers le dashboard approprié
-        const pageMap: Record<string, Page> = {
-          student: 'student-dashboard',
-          teacher: 'teacher-dashboard',
-          admin: 'admin-dashboard',
-        };
-        setCurrentPage(pageMap[data.role] || 'home');
-      }
+      const { data: roleData, error: roleError } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (roleError) throw roleError;
+      if (!roleData) return;
+
+      const userData: User = {
+        id: profileData.user_id,
+        email: profileData.email,
+        role: roleData.role,
+        firstName: profileData.first_name,
+        lastName: profileData.last_name,
+      };
+      setUser(userData);
+
+      // Rediriger vers le dashboard approprié
+      const pageMap: Record<string, Page> = {
+        student: 'student-dashboard',
+        teacher: 'teacher-dashboard',
+        admin: 'admin-dashboard',
+        academic_admin: 'admin-dashboard',
+        finance_admin: 'admin-dashboard',
+        admin_secretaire: 'admin-dashboard',
+      };
+      setCurrentPage(pageMap[roleData.role] || 'home');
     } catch (error) {
       console.error('Error fetching user data:', error);
     }
@@ -91,6 +102,9 @@ const App: React.FC = () => {
       student: 'student-dashboard',
       teacher: 'teacher-dashboard',
       admin: 'admin-dashboard',
+      academic_admin: 'admin-dashboard',
+      finance_admin: 'admin-dashboard',
+      admin_secretaire: 'admin-dashboard',
     };
     setCurrentPage(pageMap[loggedInUser.role] || 'home');
   };
