@@ -1,10 +1,11 @@
 // src/pages/TeacherDashboard.tsx
 import React, { useState, useEffect } from 'react';
-import { 
-  Home, BookOpen, FileText, Upload, Calendar, MessageSquare, 
-  Save, Send, Eye, Download, Trash2, Check, X, Search, LogOut
+import {
+  Home, BookOpen, FileText, Upload, Calendar, MessageSquare,
+  Save, Send, Eye, Download, Trash2, Check, X, Search, LogOut, DollarSign
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import PayslipHistoryTable from '../components/finance/PayslipHistoryTable';
 
 interface User {
   id: string;
@@ -468,7 +469,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
     { id: 'grades', label: 'Saisie notes', icon: FileText },
     { id: 'courses', label: 'Mes cours', icon: BookOpen },
     { id: 'schedule', label: 'Emploi du temps', icon: Calendar },
-    { id: 'messages', label: 'Messages', icon: MessageSquare }
+    { id: 'messages', label: 'Messages', icon: MessageSquare },
+    { id: 'payslips', label: 'Mes Bulletins de Paie', icon: DollarSign }
   ];
 
   const getDayName = (day: number) => {
@@ -1070,6 +1072,18 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+        )}
+
+        {/* BULLETINS DE PAIE */}
+        {activeTab === 'payslips' && (
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-2xl font-bold mb-6">Mes Bulletins de Paie</h2>
+            {teacherId ? (
+              <PayslipHistoryTable teacherId={teacherId} academicYear="2025-2026" showTeacherName={false} />
+            ) : (
+              <p className="text-center text-gray-500 py-12">Chargement...</p>
             )}
           </div>
         )}

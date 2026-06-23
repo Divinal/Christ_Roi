@@ -315,6 +315,7 @@ export type Database = {
       students: {
         Row: {
           address: string | null
+          annual_tuition_fee: number | null
           class_id: string | null
           created_at: string
           date_of_birth: string | null
@@ -327,6 +328,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          annual_tuition_fee?: number | null
           class_id?: string | null
           created_at?: string
           date_of_birth?: string | null
@@ -339,6 +341,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          annual_tuition_fee?: number | null
           class_id?: string | null
           created_at?: string
           date_of_birth?: string | null
@@ -467,6 +470,7 @@ export type Database = {
           created_at: string
           department: string | null
           hire_date: string | null
+          hourly_rate: number | null
           id: string
           specialization: string | null
           teacher_number: string
@@ -476,6 +480,7 @@ export type Database = {
           created_at?: string
           department?: string | null
           hire_date?: string | null
+          hourly_rate?: number | null
           id?: string
           specialization?: string | null
           teacher_number: string
@@ -485,12 +490,228 @@ export type Database = {
           created_at?: string
           department?: string | null
           hire_date?: string | null
+          hourly_rate?: number | null
           id?: string
           specialization?: string | null
           teacher_number?: string
           user_id?: string
         }
         Relationships: []
+      }
+      financial_categories: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          is_system: boolean
+          kind: Database["public"]["Enums"]["financial_kind"]
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          kind: Database["public"]["Enums"]["financial_kind"]
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          kind?: Database["public"]["Enums"]["financial_kind"]
+          name?: string
+        }
+        Relationships: []
+      }
+      financial_budgets: {
+        Row: {
+          academic_year: string
+          category_id: string
+          created_at: string
+          estimated_amount: number
+          id: string
+          month: number
+          updated_at: string
+        }
+        Insert: {
+          academic_year: string
+          category_id: string
+          created_at?: string
+          estimated_amount?: number
+          id?: string
+          month: number
+          updated_at?: string
+        }
+        Update: {
+          academic_year?: string
+          category_id?: string
+          created_at?: string
+          estimated_amount?: number
+          id?: string
+          month?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_budgets_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "financial_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_transactions: {
+        Row: {
+          academic_year: string
+          amount: number
+          category_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          month: number
+          transaction_date: string
+        }
+        Insert: {
+          academic_year: string
+          amount: number
+          category_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          month: number
+          transaction_date?: string
+        }
+        Update: {
+          academic_year?: string
+          amount?: number
+          category_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          month?: number
+          transaction_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_transactions_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "financial_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tuition_fee_payments: {
+        Row: {
+          academic_year: string
+          amount: number
+          created_at: string
+          created_by: string | null
+          id: string
+          month: number
+          payment_date: string
+          receipt_number: string
+          student_id: string
+          void_reason: string | null
+          voided_at: string | null
+        }
+        Insert: {
+          academic_year: string
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          month: number
+          payment_date?: string
+          receipt_number: string
+          student_id: string
+          void_reason?: string | null
+          voided_at?: string | null
+        }
+        Update: {
+          academic_year?: string
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          month?: number
+          payment_date?: string
+          receipt_number?: string
+          student_id?: string
+          void_reason?: string | null
+          voided_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tuition_fee_payments_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teacher_payslips: {
+        Row: {
+          academic_year: string
+          created_at: string
+          created_by: string | null
+          gross_amount: number
+          hourly_rate: number
+          hours_worked: number
+          id: string
+          month: number
+          payment_date: string
+          payslip_number: string
+          teacher_id: string
+          void_reason: string | null
+          voided_at: string | null
+        }
+        Insert: {
+          academic_year: string
+          created_at?: string
+          created_by?: string | null
+          gross_amount: number
+          hourly_rate: number
+          hours_worked: number
+          id?: string
+          month: number
+          payment_date?: string
+          payslip_number: string
+          teacher_id: string
+          void_reason?: string | null
+          voided_at?: string | null
+        }
+        Update: {
+          academic_year?: string
+          created_at?: string
+          created_by?: string | null
+          gross_amount?: number
+          hourly_rate?: number
+          hours_worked?: number
+          id?: string
+          month?: number
+          payment_date?: string
+          payslip_number?: string
+          teacher_id?: string
+          void_reason?: string | null
+          voided_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teacher_payslips_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -532,6 +753,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "teacher" | "student"
+      financial_kind: "expense" | "revenue"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -660,6 +882,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "teacher", "student"],
+      financial_kind: ["expense", "revenue"],
     },
   },
 } as const

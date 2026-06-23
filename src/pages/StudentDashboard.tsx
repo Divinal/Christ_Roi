@@ -1,10 +1,11 @@
 // src/pages/StudentDashboard.tsx
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   Home, BookOpen, FileText, Calendar, MessageSquare, Download,
-  Bell, Award, TrendingUp, Eye, LogOut
+  Bell, Award, TrendingUp, Eye, LogOut, DollarSign
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import TuitionHistoryTable from '../components/finance/TuitionHistoryTable';
 
 interface User {
   id: string;
@@ -20,6 +21,7 @@ interface Student {
   student_number: string;
   date_of_birth?: string;
   status: string;
+  annual_tuition_fee?: number | null;
 }
 
 interface Grade {
@@ -266,6 +268,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
             { id: 'courses', label: 'Mes Cours', icon: BookOpen },
             { id: 'schedule', label: 'Emploi du temps', icon: Calendar },
             { id: 'announcements', label: 'Annonces', icon: Bell },
+            { id: 'payments', label: 'Mes Paiements', icon: DollarSign },
           ].map(tab => {
             const Icon = tab.icon;
             return (
@@ -565,6 +568,23 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+        )}
+
+        {/* MES PAIEMENTS - FRAIS DE SCOLARITÉ */}
+        {activeTab === 'payments' && (
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-2xl font-bold mb-6">Mes Paiements</h2>
+            {studentData ? (
+              <TuitionHistoryTable
+                studentId={studentData.id}
+                annualFee={studentData.annual_tuition_fee}
+                academicYear="2025-2026"
+                showStudentName={false}
+              />
+            ) : (
+              <p className="text-center text-gray-500 py-12">Chargement...</p>
             )}
           </div>
         )}
