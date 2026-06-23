@@ -1,8 +1,8 @@
 // src/pages/StudentDashboard.tsx
 import React, { useState, useEffect } from 'react';
 import {
-  Home, BookOpen, FileText, Calendar, MessageSquare, Download,
-  Bell, Award, TrendingUp, Eye, LogOut, DollarSign
+  Home, BookOpen, FileText, Calendar, Download,
+  Bell, Award, TrendingUp, LogOut, DollarSign
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import TuitionHistoryTable from '../components/finance/TuitionHistoryTable';
@@ -11,8 +11,8 @@ interface User {
   id: string;
   email: string;
   role: string;
-  first_name: string;
-  last_name: string;
+  first_name?: string;
+  last_name?: string;
 }
 
 interface Student {
@@ -86,7 +86,6 @@ interface StudentDashboardProps {
 const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) => {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [studentData, setStudentData] = useState<Student | null>(null);
-  const [studentClassId, setStudentClassId] = useState<string | null>(null);
   const [grades, setGrades] = useState<Grade[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -123,8 +122,6 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
           .single();
 
         if (classData) {
-          setStudentClassId(classData.class_id);
-
           // 3. Charger l'emploi du temps de la classe
           loadSchedules(classData.class_id);
         }
@@ -226,19 +223,6 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
         onLogout();
       }
     };
-
-  // Grouper les emplois du temps par jour
-  const getSchedulesByDay = () => {
-    const byDay: { [key: number]: Schedule[] } = {
-      1: [], 2: [], 3: [], 4: [], 5: []
-    };
-    schedules.forEach(schedule => {
-      if (schedule.day_of_week >= 1 && schedule.day_of_week <= 5) {
-        byDay[schedule.day_of_week].push(schedule);
-      }
-    });
-    return byDay;
-  };
 
   const dayNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
 

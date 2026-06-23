@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Home, Users, BookOpen, Plus, Edit, Trash2, Search,
-  Calendar, FileText, MessageSquare, X, Save, Bell, Clock,
+  Calendar, FileText, Bell, Clock,
   ChevronLeft, ChevronRight, Filter, Menu, DollarSign, Shield
 } from 'lucide-react';
 import { supabase, supabaseAdmin } from '../lib/supabaseClient';
@@ -12,8 +12,8 @@ interface User {
   id: string;
   email: string;
   role: string;
-  first_name: string;
-  last_name: string;
+  first_name?: string;
+  last_name?: string;
   phone?: string;
 }
 
@@ -1341,21 +1341,6 @@ const filteredSubjects = subjects.filter(subject => {
             
             return matchesClass && matchesSearch;
           });
-
-          // Grouper les emplois du temps par jour et créer une grille
-          const getScheduleGrid = () => {
-            const grid: { [key: string]: ScheduleDetailed[] } = {
-              '1': [], '2': [], '3': [], '4': [], '5': [], '6': []
-            };
-
-            filteredSchedules.forEach(schedule => {
-              if (schedule.day_of_week >= 1 && schedule.day_of_week <= 6) {
-                grid[schedule.day_of_week.toString()].push(schedule);
-              }
-            });
-
-            return grid;
-          };
 
           const dayNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 

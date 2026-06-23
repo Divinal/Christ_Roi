@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Home, BookOpen, FileText, Upload, Calendar, MessageSquare,
-  Save, Send, Eye, Download, Trash2, Check, X, Search, LogOut, DollarSign
+  Save, Eye, Trash2, LogOut, DollarSign
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import PayslipHistoryTable from '../components/finance/PayslipHistoryTable';
@@ -11,8 +11,8 @@ interface User {
   id: string;
   email: string;
   role: string;
-  first_name: string;
-  last_name: string;
+  first_name?: string;
+  last_name?: string;
 }
 
 interface TeacherDashboardProps {
@@ -478,19 +478,6 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
     return days[day] || '';
   };
 
-  // Grouper les emplois du temps par jour
-  const getSchedulesByDay = () => {
-    const byDay: { [key: number]: Schedule[] } = {
-      1: [], 2: [], 3: [], 4: [], 5: []
-    };
-    mySchedule.forEach(schedule => {
-      if (schedule.day_of_week >= 1 && schedule.day_of_week <= 5) {
-        byDay[schedule.day_of_week].push(schedule);
-      }
-    });
-    return byDay;
-  };
-
   // ==================== RENDUS ====================
   return (
     <div className="min-h-screen bg-gray-50">
@@ -791,7 +778,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
                   className="w-full border rounded-lg px-3 py-2"
                 >
                   <option value="">-- Choisir un étudiant --</option>
-                  {myClasses.flatMap(cls => 
+                  {myClasses.flatMap(_cls =>
                     studentsGrades
                       .filter(s => s.student_id)
                       .map(s => (
