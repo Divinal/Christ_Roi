@@ -70,7 +70,7 @@ const TuitionPaymentFlow: React.FC<TuitionPaymentFlowProps> = ({ classes, academ
       console.error('Erreur chargement étudiants de la classe:', error);
       setRoster([]);
     } else {
-      setRoster(data || []);
+      setRoster((data || []) as unknown as RosterStudent[]);
     }
   };
 

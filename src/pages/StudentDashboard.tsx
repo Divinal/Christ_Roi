@@ -62,7 +62,7 @@ interface Schedule {
     name: string;
   };
   teachers?: {
-    users?: {
+    profiles?: {
       first_name: string;
       last_name: string;
     };
