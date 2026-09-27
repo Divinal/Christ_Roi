@@ -24,7 +24,7 @@ interface TeacherOption {
 const FinanceManagement: React.FC = () => {
   const [financialCategories, setFinancialCategories] = useState<FinancialCategory[]>([]);
   const [financeSubTab, setFinanceSubTab] = useState<'budget' | 'revenue' | 'expense' | 'comparison'>('budget');
-  const [financeAcademicYear, setFinanceAcademicYear] = useState<string>('2025-2026');
+  const [financeAcademicYear, setFinanceAcademicYear] = useState<string>('2026-2027');
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [teachers, setTeachers] = useState<TeacherOption[]>([]);
 
@@ -74,7 +74,7 @@ const FinanceManagement: React.FC = () => {
           onChange={(e) => setFinanceAcademicYear(e.target.value)}
           className="border rounded px-3 py-2"
         >
-          {Array.from(new Set([...classes.map((c) => c.academic_year), '2025-2026'])).map((year) => (
+          {Array.from(new Set([...classes.map((c) => c.academic_year), '2026-2027'])).map((year) => (
             <option key={year} value={year}>{year}</option>
           ))}
         </select>

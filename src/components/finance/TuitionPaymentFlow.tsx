@@ -62,16 +62,15 @@ const TuitionPaymentFlow: React.FC<TuitionPaymentFlowProps> = ({ classes, academ
 
   const loadRoster = async (classId: string) => {
     const { data, error } = await supabase
-      .from('student_classes')
-      .select('students(id, student_number, annual_tuition_fee, profiles(first_name, last_name))')
-      .eq('class_id', classId)
-      .eq('academic_year', academicYear);
+      .from('students')
+      .select('id, student_number, annual_tuition_fee, profiles(first_name, last_name)')
+      .eq('class_id', classId);
 
     if (error) {
       console.error('Erreur chargement étudiants de la classe:', error);
       setRoster([]);
     } else {
-      setRoster((data || []).map((row: any) => row.students).filter(Boolean));
+      setRoster(data || []);
     }
   };
 

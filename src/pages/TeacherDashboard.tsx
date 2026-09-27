@@ -121,7 +121,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
 
       // 2. Charger les classes assignées avec matières
       const { data: classesData } = await supabase
-        .from('teacher_subject_classes')
+        .from('teacher_classes')
         .select(`
           id,
           class_id,
@@ -129,8 +129,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
           classes (id, name, level),
           subjects (id, name, code, coefficient)
         `)
-        .eq('teacher_id', teacherData.id)
-        .eq('academic_year', '2025-2026');
+        .eq('teacher_id', teacherData.id);
 
       if (classesData) {
         const formattedClasses = classesData.map((item: any) => ({
@@ -185,7 +184,6 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
           subjects (name)
         `)
         .eq('teacher_id', teacherData.id)
-        .eq('academic_year', '2025-2026')
         .order('day_of_week', { ascending: true })
         .order('start_time', { ascending: true });
 
@@ -254,24 +252,20 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
     try {
       // Récupérer les étudiants de la classe sélectionnée
       const { data: studentsData } = await supabase
-        .from('student_classes')
+        .from('students')
         .select(`
-          student_id,
-          students (
-            id,
-            student_number,
-            users (first_name, last_name)
-          )
+          id,
+          student_number,
+          profiles (first_name, last_name)
         `)
-        .eq('class_id', selectedClass)
-        .eq('academic_year', '2025-2026');
+        .eq('class_id', selectedClass);
 
       if (studentsData) {
         const formattedStudents = studentsData.map((item: any) => ({
-          student_id: item.students.id,
-          student_number: item.students.student_number,
-          first_name: item.students.users?.first_name || '',
-          last_name: item.students.users?.last_name || '',
+          student_id: item.id,
+          student_number: item.student_number,
+          first_name: item.profiles?.first_name || '',
+          last_name: item.profiles?.last_name || '',
           grade_value: undefined,
           comment: ''
         }));
@@ -1068,7 +1062,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-2xl font-bold mb-6">Mes Bulletins de Paie</h2>
             {teacherId ? (
-              <PayslipHistoryTable teacherId={teacherId} academicYear="2025-2026" showTeacherName={false} />
+              <PayslipHistoryTable teacherId={teacherId} academicYear="2026-2027" showTeacherName={false} />
             ) : (
               <p className="text-center text-gray-500 py-12">Chargement...</p>
             )}

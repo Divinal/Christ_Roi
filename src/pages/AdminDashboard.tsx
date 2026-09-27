@@ -172,14 +172,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
   const [studentAssignForm, setStudentAssignForm] = useState({
     studentId: '',
     classId: '',
-    academicYear: '2025-2026'
+    academicYear: '2026-2027'
   });
 
   const [teacherAssignForm, setTeacherAssignForm] = useState({
     teacherId: '',
     subjectId: '',
     classId: '',
-    academicYear: '2025-2026'
+    academicYear: '2026-2027'
   });
 
   // Formulaires
@@ -198,7 +198,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
   });
 
   const [classForm, setClassForm] = useState({
-    name: '', level: '', academicYear: '2025-2026', maxStudents: 30
+    name: '', level: '', academicYear: '2026-2027', maxStudents: 30
   });
 
   const [subjectForm, setSubjectForm] = useState({
@@ -222,7 +222,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
     startTime: '09:00',
     endTime: '10:30',
     room: '',
-    academicYear: '2025-2026'
+    academicYear: '2026-2027'
   });
 
   const [announcementForm, setAnnouncementForm] = useState({
@@ -510,7 +510,7 @@ const loadTeacherClassAssignments = async () => {
         if (error) throw error;
         alert('✅ Étudiant affecté à la classe avec succès !');
         setShowAssignModal(false);
-        setStudentAssignForm({ studentId: '', classId: '', academicYear: '2025-2026' });
+        setStudentAssignForm({ studentId: '', classId: '', academicYear: '2026-2027' });
         loadStudents();
       } catch (error: any) {
         alert(`❌ Erreur: ${error.message}`);
@@ -550,7 +550,7 @@ const handleAssignTeacherToClass = async (e: React.FormEvent) => {
         teacherId: '', 
         subjectId: '', 
         classId: '', 
-        academicYear: '2025-2026' 
+        academicYear: '2026-2027'
       });
       loadTeacherClassAssignments();
     }
@@ -643,7 +643,19 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
           // Si l'étudiant n'a pas pu être créé, on supprime l'utilisateur auth
           await supabaseAdmin.auth.admin.deleteUser(userId);
           throw studentError;
-        }        
+        }
+
+        // 3. Attribuer le rôle "student" pour permettre la connexion
+        console.log('🔵 Étape 3: Attribution du rôle...');
+        const { error: roleError } = await supabase
+          .from('user_roles')
+          .insert({ user_id: userId, role: 'student' });
+
+        if (roleError) {
+          console.error('❌ Erreur attribution rôle:', roleError);
+          await supabaseAdmin.auth.admin.deleteUser(userId);
+          throw roleError;
+        }
         console.log('✅ Étudiant créé avec succès !');
         alert(`✅ Étudiant créé avec succès !
         
@@ -715,7 +727,19 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
           await supabaseAdmin.auth.admin.deleteUser(userId);
           throw teacherError;
         }
-        
+
+        // 3. Attribuer le rôle "teacher" pour permettre la connexion
+        console.log('🔵 Étape 3: Attribution du rôle...');
+        const { error: roleError } = await supabase
+          .from('user_roles')
+          .insert({ user_id: userId, role: 'teacher' });
+
+        if (roleError) {
+          console.error('❌ Erreur attribution rôle:', roleError);
+          await supabaseAdmin.auth.admin.deleteUser(userId);
+          throw roleError;
+        }
+
         console.log('✅ Enseignant créé avec succès !');
 
         alert(`✅ Enseignant créé avec succès !
@@ -1236,7 +1260,7 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
 
   const resetClassForm = () => {
     setClassForm({
-      name: '', level: '', academicYear: '2025-2026', maxStudents: 30
+      name: '', level: '', academicYear: '2026-2027', maxStudents: 30
     });
   };
 
@@ -1256,7 +1280,7 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
       startTime: '09:00',
       endTime: '10:30',
       room: '',
-      academicYear: '2025-2026'
+      academicYear: '2026-2027'
     });
   };
 

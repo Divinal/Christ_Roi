@@ -113,17 +113,9 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
       } else {
         setStudentData(studentInfo);
 
-        // 2. Charger la classe de l'étudiant
-        const { data: classData } = await supabase
-          .from('student_classes')
-          .select('class_id')
-          .eq('student_id', studentInfo.id)
-          .eq('academic_year', '2025-2026')
-          .single();
-
-        if (classData) {
-          // 3. Charger l'emploi du temps de la classe
-          loadSchedules(classData.class_id);
+        // 2. Charger l'emploi du temps de la classe de l'étudiant
+        if (studentInfo.class_id) {
+          loadSchedules(studentInfo.class_id);
         }
 
         // 4. Charger les notes
@@ -176,10 +168,9 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
       .select(`
         *,
         subjects(name),
-        teachers(users(first_name, last_name))
+        teachers(profiles(first_name, last_name))
       `)
       .eq('class_id', classId)
-      .eq('academic_year', '2025-2026')
       .order('day_of_week', { ascending: true });
 
     if (error) {
@@ -475,7 +466,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
                                 <div key={schedule.id} className="bg-blue-100 p-3 rounded-lg hover:bg-blue-200 transition">
                                   <p className="font-semibold text-blue-800">{schedule.subjects?.name}</p>
                                   <p className="text-xs text-blue-600">
-                                    {schedule.teachers?.users?.first_name} {schedule.teachers?.users?.last_name}
+                                    {schedule.teachers?.profiles?.first_name} {schedule.teachers?.profiles?.last_name}
                                   </p>
                                   <p className="text-xs text-gray-600">{schedule.room}</p>
                                 </div>
@@ -564,7 +555,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
               <TuitionHistoryTable
                 studentId={studentData.id}
                 annualFee={studentData.annual_tuition_fee}
-                academicYear="2025-2026"
+                academicYear="2026-2027"
                 showStudentName={false}
               />
             ) : (
