@@ -3020,9 +3020,11 @@ const filteredSubjects = subjects.filter(subject => {
                     required
                   >
                     <option value="">Sélectionner...</option>
+                    <option value="College">Collège</option>
+                    <option value="Lycee">Lycée</option>
                     <option value="Technicien">Technicien</option>
-                    <option value="TS1">TS1</option>
-                    <option value="TS2">TS2</option>
+                    <option value="TS1">1ere Année</option>
+                    <option value="TS2">2eme Année</option>
                     <option value="Bachelor">Bachelor</option>
                     <option value="Master 1">Master 1</option>
                     <option value="Master 2">Master 2</option>
