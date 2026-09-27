@@ -2,6 +2,7 @@ import React from 'react';
 import PublicLayout from '../components/PublicLayout';
 import { PublicPage } from '../components/PublicHeader';
 import { siteConfig } from '../config/site.config';
+import { PUBLIC_PATHS } from '../lib/publicRoutes';
 
 interface HomePageProps {
   onNavigate: (page: PublicPage) => void;
@@ -34,12 +35,16 @@ const HomePage: React.FC<HomePageProps> = ({ onNavigate, onLoginClick }) => {
             >
               Commencer maintenant
             </button>
-            <button
-              onClick={() => onNavigate('contact')}
-              className="bg-white text-gray-700 px-8 py-3 rounded-lg font-medium hover:bg-gray-50 transition border border-gray-300 text-lg w-full sm:w-auto"
+            <a
+              href={PUBLIC_PATHS.contact}
+              onClick={(e) => {
+                e.preventDefault();
+                onNavigate('contact');
+              }}
+              className="bg-white text-gray-700 px-8 py-3 rounded-lg font-medium hover:bg-gray-50 transition border border-gray-300 text-lg w-full sm:w-auto text-center"
             >
               En savoir plus
-            </button>
+            </a>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-16">

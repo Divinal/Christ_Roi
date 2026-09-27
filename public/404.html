@@ -2,11 +2,16 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="refresh" content="0; url=/" />
     <title>Redirection...</title>
-    <script>window.location.replace('/');</script>
+    <script>
+      // GitHub Pages n'a pas de vraie route côté serveur : on mémorise le
+      // chemin demandé avant de revenir à l'accueil, pour que App.tsx puisse
+      // le restaurer une fois l'application chargée (voir src/main.tsx).
+      sessionStorage.setItem('redirectPath', location.pathname + location.search);
+      location.replace('/');
+    </script>
   </head>
   <body>
-    <p>Redirection vers l'accueil...</p>
+    <p>Redirection...</p>
   </body>
 </html>

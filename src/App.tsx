@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './lib/supabaseClient';
+import { siteConfig } from './config/site.config';
+import { PUBLIC_PATHS, pathToPublicPage } from './lib/publicRoutes';
 import HomePage from './pages/HomePage';
 import ContactPage from './pages/ContactPage';
 import PrivacyPage from './pages/PrivacyPage';
@@ -12,8 +14,33 @@ import { User } from './types';
 
 type Page = PublicPage | 'student-dashboard' | 'teacher-dashboard' | 'admin-dashboard';
 
+const PAGE_SEO: Record<PublicPage, { title: string; description: string }> = {
+  home: {
+    title: `${siteConfig.schoolName} — ${siteConfig.tagline}`,
+    description: siteConfig.hero.description,
+  },
+  contact: {
+    title: `Contact — ${siteConfig.schoolName}`,
+    description: `Contactez ${siteConfig.schoolName} : adresse, téléphone et email.`,
+  },
+  privacy: {
+    title: `Politique de confidentialité — ${siteConfig.schoolName}`,
+    description: `Politique de confidentialité de ${siteConfig.schoolName}.`,
+  },
+};
+
+const setMetaDescription = (content: string) => {
+  let tag = document.querySelector('meta[name="description"]');
+  if (!tag) {
+    tag = document.createElement('meta');
+    tag.setAttribute('name', 'description');
+    document.head.appendChild(tag);
+  }
+  tag.setAttribute('content', content);
+};
+
 const App: React.FC = () => {
-  const [currentPage, setCurrentPage] = useState<Page>('home');
+  const [currentPage, setCurrentPage] = useState<Page>(() => pathToPublicPage(window.location.pathname));
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [showLoginModal, setShowLoginModal] = useState<boolean>(false);
@@ -21,7 +48,7 @@ const App: React.FC = () => {
   useEffect(() => {
     // Vérifier la session au chargement
     checkUser();
-    
+
     // Écouter les changements d'authentification
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
@@ -35,8 +62,23 @@ const App: React.FC = () => {
       }
     });
 
-    return () => subscription.unsubscribe();
+    // Garder l'URL et l'affichage synchronisés avec les boutons précédent/suivant
+    const onPopState = () => setCurrentPage(pathToPublicPage(window.location.pathname));
+    window.addEventListener('popstate', onPopState);
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener('popstate', onPopState);
+    };
   }, []);
+
+  useEffect(() => {
+    const seo = PAGE_SEO[currentPage as PublicPage];
+    if (seo) {
+      document.title = seo.title;
+      setMetaDescription(seo.description);
+    }
+  }, [currentPage]);
 
   const checkUser = async () => {
     try {
@@ -132,7 +174,13 @@ const App: React.FC = () => {
     );
   }
 
-  const handleNavigate = (page: PublicPage) => setCurrentPage(page);
+  const handleNavigate = (page: PublicPage) => {
+    const path = PUBLIC_PATHS[page];
+    if (window.location.pathname !== path) {
+      window.history.pushState({}, '', path);
+    }
+    setCurrentPage(page);
+  };
   const handleLoginClick = () => setShowLoginModal(true);
 
   return (

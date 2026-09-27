@@ -1,6 +1,7 @@
 import React from 'react';
 import { siteConfig } from '../config/site.config';
 import { PublicPage } from './PublicHeader';
+import { PUBLIC_PATHS } from '../lib/publicRoutes';
 
 interface PublicFooterProps {
   onNavigate: (page: PublicPage) => void;
@@ -8,6 +9,11 @@ interface PublicFooterProps {
 }
 
 const PublicFooter: React.FC<PublicFooterProps> = ({ onNavigate, onLoginClick }) => {
+  const navigate = (page: PublicPage) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    onNavigate(page);
+  };
+
   return (
     <footer className="bg-white border-t mt-auto">
       <div className="container mx-auto px-4 lg:px-8 py-12">
@@ -21,19 +27,19 @@ const PublicFooter: React.FC<PublicFooterProps> = ({ onNavigate, onLoginClick })
             <h3 className="font-bold text-gray-900 mb-4 text-lg">Liens rapides</h3>
             <ul className="space-y-2 text-sm">
               <li>
-                <button onClick={() => onNavigate('home')} className="text-gray-600 hover:text-blue-600 transition">
+                <a href={PUBLIC_PATHS.home} onClick={navigate('home')} className="text-gray-600 hover:text-blue-600 transition">
                   Accueil
-                </button>
+                </a>
               </li>
               <li>
-                <button onClick={() => onNavigate('contact')} className="text-gray-600 hover:text-blue-600 transition">
+                <a href={PUBLIC_PATHS.contact} onClick={navigate('contact')} className="text-gray-600 hover:text-blue-600 transition">
                   Contact
-                </button>
+                </a>
               </li>
               <li>
-                <button onClick={() => onNavigate('privacy')} className="text-gray-600 hover:text-blue-600 transition">
+                <a href={PUBLIC_PATHS.privacy} onClick={navigate('privacy')} className="text-gray-600 hover:text-blue-600 transition">
                   Confidentialité
-                </button>
+                </a>
               </li>
               <li>
                 <button onClick={onLoginClick} className="text-gray-600 hover:text-blue-600 transition">
