@@ -1,14 +1,14 @@
 // Contenu personnalisable par école : modifier ce fichier (et lui seul) suffit
 // à adapter le nom, le logo, les textes et les coordonnées d'un site cloné.
 export const siteConfig = {
-  schoolName: 'Complexe Scolaire Christ Roi',
-  tagline: 'Plateforme E-Learning Universitaire',
+  schoolName: 'Complexe Rezo Edu',
+  tagline: 'Plateforme E-Learning Scolaire',
   logoUrl: '../Images/RezoCampus.png',
   logoFallbackInitials: 'UC',
   hero: {
     title: 'Votre parcours académique simplifié et connecté',
     description:
-      "Une plateforme moderne pour faciliter l'accès aux cours, examens et informations essentielles pour tous les membres de la communauté universitaire.",
+      "Une plateforme moderne pour faciliter l'accès aux cours, examens et informations essentielles pour tous les membres de la communauté universitaire & scolaire.",
   },
   stats: [
     { value: '500+', label: 'Étudiants' },
