@@ -4,6 +4,7 @@ import { ACADEMIC_MONTHS } from './financeTypes';
 import { generatePayslipNumber } from './financeUtils';
 import PayslipHistoryTable from './PayslipHistoryTable';
 import PayslipPrintable from './PayslipPrintable';
+import { notify } from '../ui/feedback';
 
 interface TeacherOption {
   id: string;
@@ -45,14 +46,14 @@ const PayrollFlow: React.FC<PayrollFlowProps> = ({ teachers, academicYear, onTea
       .update({ hourly_rate: hourlyRate })
       .eq('id', selectedTeacher);
 
-    if (error) alert(`❌ Erreur: ${error.message}`);
+    if (error) notify(`❌ Erreur: ${error.message}`);
     else onTeacherRateUpdated?.();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTeacher || !hours || !hourlyRate) {
-      alert('Veuillez sélectionner un enseignant, les heures et le taux horaire');
+      notify('Veuillez sélectionner un enseignant, les heures et le taux horaire');
       return;
     }
 
@@ -72,7 +73,7 @@ const PayrollFlow: React.FC<PayrollFlowProps> = ({ teachers, academicYear, onTea
       .single();
 
     if (error) {
-      alert(`❌ Erreur: ${error.message}`);
+      notify(`❌ Erreur: ${error.message}`);
       return;
     }
 
@@ -132,7 +133,7 @@ const PayrollFlow: React.FC<PayrollFlowProps> = ({ teachers, academicYear, onTea
         <div className="flex items-center px-3 py-2 bg-white border rounded text-sm font-semibold">
           Brut : {grossAmount.toLocaleString('fr-FR')} FCFA
         </div>
-        <button type="submit" className="md:col-span-5 bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700">
+        <button type="submit" className="md:col-span-5 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700">
           Enregistrer le paiement et générer le bulletin
         </button>
       </form>

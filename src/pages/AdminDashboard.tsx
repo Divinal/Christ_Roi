@@ -3,15 +3,24 @@ import React, { useState, useEffect } from 'react';
 import {
   Home, Users, BookOpen, Plus, Edit, Trash2, Search,
   FileText, Bell, Clock, Eye, MessageSquare, GraduationCap,
-  ChevronLeft, ChevronRight, Filter, Menu, DollarSign, Shield
+  ChevronLeft, ChevronRight, Filter, DollarSign, Shield,
+  KeyRound, Link2, Printer
 } from 'lucide-react';
-import { supabase, supabaseAdmin } from '../lib/supabaseClient';
+import { supabase } from '../lib/supabaseClient';
+import { callAdminUsers } from '../lib/adminUsers';
+import AppShell, { NavGroup } from '../components/ui/AppShell';
+import { confirmDialog, infoDialog, notify } from '../components/ui/feedback';
+import AdminHome, { QuickAddType } from '../components/admin/AdminHome';
+import GradesManagement from '../components/grades/GradesManagement';
 import FinanceManagement from '../components/finance/FinanceManagement';
 import LevelSelect from '../components/levels/LevelSelect';
 import LevelsManagement from '../components/levels/LevelsManagement';
+import StudentListPrint from '../components/levels/StudentListPrint';
 import TeacherDetail, { TeacherRecord, TeacherTab } from '../components/teachers/TeacherDetail';
+import { Announcement, PRIORITY_CLASSES, PRIORITY_LABELS } from '../lib/announcements';
 import { CURRENT_ACADEMIC_YEAR, CYCLES, Level, SchoolCycle, fetchLevels } from '../lib/levels';
 import { timeSlotOf, timeSlotsOf } from '../lib/schedule';
+import { useHashTab } from '../lib/useHashTab';
 
 interface User {
   id: string;
@@ -70,17 +79,6 @@ interface ScheduleDetailed extends Schedule {
   teachers?: { profiles?: { first_name: string; last_name: string } };
 }
 
-interface Announcement {
-  id: string;
-  author_id: string;
-  title: string;
-  content: string;
-  target_audience: 'students' | 'teachers' | 'all';
-  priority: 'low' | 'normal' | 'high' | 'urgent';
-  published_at: string;
-  expires_at?: string;
-}
-
 // Onglets visibles selon le rôle connecté (la vraie barrière reste les
 // policies RLS côté base ; ceci n'est qu'un filtrage d'affichage)
 const ROLE_TABS: Record<string, string[]> = {
@@ -89,7 +87,45 @@ const ROLE_TABS: Record<string, string[]> = {
   finance_admin: ['dashboard', 'students', 'teachers', 'levels', 'finance'],
   admin_secretaire: ['dashboard', 'students', 'teachers', 'levels', 'subjects', 'schedules', 'assign-teachers'],
 };
+// Une seule navigation pour tous les rôles admin : chacun n'en voit que ce que
+// ROLE_TABS lui autorise.
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: 'Général',
+    items: [{ id: 'dashboard', label: 'Tableau de bord', icon: Home }],
+  },
+  {
+    label: 'Scolarité',
+    items: [
+      { id: 'students', label: 'Étudiants', icon: Users },
+      { id: 'levels', label: 'Cycles & Niveaux', icon: GraduationCap },
+      { id: 'grades', label: 'Notes', icon: FileText },
+    ],
+  },
+  {
+    label: 'Pédagogie',
+    items: [
+      { id: 'teachers', label: 'Enseignants', icon: BookOpen },
+      { id: 'assign-teachers', label: 'Affectations', icon: Link2 },
+      { id: 'subjects', label: 'Matières', icon: FileText },
+      { id: 'schedules', label: 'Emplois du temps', icon: Clock },
+    ],
+  },
+  {
+    label: 'Communication',
+    items: [{ id: 'announcements', label: 'Annonces', icon: Bell }],
+  },
+  {
+    label: 'Administration',
+    items: [
+      { id: 'finance', label: 'Finances', icon: DollarSign },
+      { id: 'admins', label: 'Comptes admin', icon: Shield },
+    ],
+  },
+];
 
+const fullNameOf = (person?: { profiles?: { first_name?: string; last_name?: string } | null } | null): string =>
+  `${person?.profiles?.first_name || ''} ${person?.profiles?.last_name || ''}`.trim();
 // Rôles gérables depuis l'onglet "Comptes Admin" (admin général uniquement)
 const ADMIN_ROLE_LABELS: Record<string, string> = {
   admin: 'Admin Général',
@@ -101,10 +137,12 @@ const ADMIN_ROLE_LABELS: Record<string, string> = {
 interface AdminDashboardProps {
   user: User | null;
   onLogout: () => void;
+  onChangePassword: () => void;
 }
 
-const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
+const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onChangePassword }) => {
+  const allowedTabs = ROLE_TABS[user?.role || ''] || ['dashboard'];
+  const [activeTab, navigateTab] = useHashTab(allowedTabs, 'dashboard');
   const [students, setStudents] = useState<Student[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [levels, setLevels] = useState<Level[]>([]);
@@ -128,18 +166,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
   const [departmentFilter, setDepartmentFilter] = useState<string>('all');
   const [selectedLevelForSubjects, setSelectedLevelForSubjects] = useState<string>('');
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
-  // États pour la gestion des notes
-    const [selectedStudentForGrades, setSelectedStudentForGrades] = useState<string>('');
-    const [studentGrades, setStudentGrades] = useState<any[]>([]);
-    const [editingGrade, setEditingGrade] = useState<any | null>(null);
-    const [showGradeModal, setShowGradeModal] = useState<boolean>(false);
-    const [gradeForm, setGradeForm] = useState({
-      gradeValue: 0,
-      gradeType: 'Examen',
-      coefficient: 1,
-      examDate: '',
-      comment: ''
-    });
+  const [gradesStudentId, setGradesStudentId] = useState<string>('');
+  const [printLevelId, setPrintLevelId] = useState<string>('');
 
   const [teacherAssignForm, setTeacherAssignForm] = useState({
     teacherId: '',
@@ -159,7 +187,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
   });
 
   const [adminForm, setAdminForm] = useState({
-    firstName: '', lastName: '', email: '', password: '', role: 'academic_admin'
+    firstName: '', lastName: '', email: '', role: 'academic_admin'
   });
 
   const [subjectForm, setSubjectForm] = useState({
@@ -167,12 +195,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
     selectedLevels: [] as string[]
   });
 
-      const handleLogout = () => {
-      const confirmed = window.confirm("Voulez-vous vous déconnecter ?");
-      if (confirmed) {
-        onLogout();
-      }
-    };
 
 
   const [scheduleForm, setScheduleForm] = useState({
@@ -195,7 +217,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
   });
 
   const [selectedLevelForSchedule, setSelectedLevelForSchedule] = useState<string>('');
-  const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
   const [viewingTeacher, setViewingTeacher] = useState<{ id: string; tab: TeacherTab } | null>(null);
 
   // La fiche enseignant (modifier, supprimer, messages...) est réservée à
@@ -203,6 +224,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
   const canManageTeachers = user?.role === 'admin';
   // Mêmes rôles que la policy RLS d'écriture sur la table levels.
   const canManageLevels = user?.role === 'admin' || user?.role === 'academic_admin';
+  // Mêmes rôles que la fonction serveur admin-users.
+  const canDeleteStudents = user?.role === 'admin' || user?.role === 'academic_admin';
+  const canResetStudentPassword = canDeleteStudents || user?.role === 'admin_secretaire';
+
+  const handleSelectTab = (tab: string) => {
+    navigateTab(tab);
+    setViewingTeacher(null);
+    setSearchTerm('');
+  };
+
+  const openQuickAdd = (type: QuickAddType) => {
+    setEditingSubject(null);
+    setEditingSchedule(null);
+    setModalType(type);
+    setShowModal(true);
+  };
+
+  const showCredentials = (title: string, email: string, password: string) => {
+    infoDialog({
+      title,
+      message: `Email de connexion : ${email}\n\nMot de passe temporaire à lui transmettre. Il ne sera plus affiché, et devra être changé à la première connexion :`,
+      secret: password,
+    });
+  };
 
   // ==================== CHARGEMENT DONNÉES ====================
   useEffect(() => {
@@ -346,95 +391,6 @@ const loadTeacherAssignments = async () => {
     }
   };
 
-          // ==================== CHARGEMENT DES NOTES ====================
-    const loadStudentGrades = async (studentId: string) => {
-      if (!studentId) {
-        setStudentGrades([]);
-        return;
-      }
-
-      setLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('grades')
-          .select(`
-            *,
-            subjects (name, code, coefficient),
-            teachers (profiles(first_name, last_name))
-          `)
-          .eq('student_id', studentId)
-          .order('exam_date', { ascending: false });
-
-        if (error) throw error;
-        setStudentGrades(data || []);
-      } catch (error: any) {
-        console.error('Erreur chargement notes:', error);
-        alert(`❌ Erreur: ${error.message}`);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    // ==================== MODIFICATION NOTE ====================
-    const handleEditGrade = (grade: any) => {
-      setEditingGrade(grade);
-      setGradeForm({
-        gradeValue: grade.grade_value,
-        gradeType: grade.grade_type,
-        coefficient: grade.subjects?.coefficient || grade.coefficient,
-        examDate: grade.exam_date || '',
-        comment: grade.comment || ''
-      });
-      setShowGradeModal(true);
-    };
-
-    const handleUpdateGrade = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!editingGrade) return;
-
-      setLoading(true);
-      try {
-        const { error } = await supabase
-          .from('grades')
-          .update({
-            grade_value: gradeForm.gradeValue,
-            grade_type: gradeForm.gradeType,
-            coefficient: gradeForm.coefficient,
-            exam_date: gradeForm.examDate || null,
-            comment: gradeForm.comment || null
-          })
-          .eq('id', editingGrade.id);
-
-        if (error) throw error;
-
-        alert('✅ Note modifiée avec succès !');
-        setShowGradeModal(false);
-        setEditingGrade(null);
-        loadStudentGrades(selectedStudentForGrades);
-      } catch (error: any) {
-        alert(`❌ Erreur: ${error.message}`);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    // ==================== SUPPRESSION NOTE ====================
-    const handleDeleteGrade = async (gradeId: string) => {
-      if (!window.confirm('⚠️ Êtes-vous sûr de vouloir supprimer cette note ?')) return;
-
-      try {
-        const { error } = await supabase
-          .from('grades')
-          .delete()
-          .eq('id', gradeId);
-
-        if (error) throw error;
-        alert('✅ Note supprimée');
-        loadStudentGrades(selectedStudentForGrades);
-      } catch (error: any) {
-        alert(`❌ Erreur: ${error.message}`);
-      }
-    };
       // ==================== GESTION FORMULAIRES ====================
       const handleChangeStudentLevel = async (studentId: string, levelId: string) => {
         const { data, error } = await supabase
@@ -444,9 +400,9 @@ const loadTeacherAssignments = async () => {
           .select('id');
 
         if (error) {
-          alert(`❌ Erreur: ${error.message}`);
+          notify(`❌ Erreur: ${error.message}`);
         } else if (!data?.length) {
-          alert("❌ Modification refusée : vous n'avez pas les droits nécessaires.");
+          notify("❌ Modification refusée : vous n'avez pas les droits nécessaires.");
         } else {
           loadStudents();
         }
@@ -456,7 +412,7 @@ const handleAssignTeacherToLevel = async (e: React.FormEvent) => {
   e.preventDefault();
 
   if (!teacherAssignForm.teacherId || !teacherAssignForm.subjectId || !teacherAssignForm.levelId) {
-    alert('⚠️ Veuillez remplir tous les champs');
+    notify('⚠️ Veuillez remplir tous les champs');
     return;
   }
 
@@ -472,25 +428,25 @@ const handleAssignTeacherToLevel = async (e: React.FormEvent) => {
 
     if (error) {
       if (error.code === '23505') {
-        alert('⚠️ Cet enseignant est déjà affecté à cette matière pour ce niveau');
+        notify('⚠️ Cet enseignant est déjà affecté à cette matière pour ce niveau');
       } else {
         throw error;
       }
     } else {
-      alert('✅ Enseignant affecté avec succès !');
+      notify('✅ Enseignant affecté avec succès !');
       setShowAssignModal(false);
       setTeacherAssignForm({ teacherId: '', subjectId: '', levelId: '' });
       loadTeacherAssignments();
     }
   } catch (error: any) {
-    alert(`❌ Erreur: ${error.message}`);
+    notify(`❌ Erreur: ${error.message}`);
   } finally {
     setLoading(false);
   }
 };
 
 const handleRemoveTeacherAssignment = async (assignmentId: string) => {
-  if (!window.confirm('⚠️ Retirer cet enseignant de cette affectation ?')) return;
+  if (!await confirmDialog('⚠️ Retirer cet enseignant de cette affectation ?')) return;
 
   try {
     const { error } = await supabase
@@ -499,178 +455,60 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
       .eq('id', assignmentId);
 
     if (error) throw error;
-    alert('✅ Enseignant retiré de l\'affectation');
+    notify('✅ Enseignant retiré de l\'affectation');
     loadTeacherAssignments();
   } catch (error: any) {
-    alert(`❌ Erreur: ${error.message}`);
+    notify(`❌ Erreur: ${error.message}`);
   }
 };
 
-        // ==================== AJOUT ÉTUDIANT ====================
+    // ==================== COMPTES DE CONNEXION (fonction serveur admin-users) ====================
     const handleAddStudent = async (e: React.FormEvent) => {
       e.preventDefault();
       setLoading(true);
-
       try {
-        console.log('🔵 Étape 1: Création utilisateur dans auth.users...');        
-        // 1. Créer l'utilisateur dans auth.users
-        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-          email: studentForm.email,
-          password: studentForm.studentNumber, // Mot de passe = matricule
-          email_confirm: true,
-          user_metadata: {
-            first_name: studentForm.firstName,
-            last_name: studentForm.lastName,
-            phone: studentForm.phone || null,
-            role: 'student'
-          }
+        const email = studentForm.email.trim();
+        const { temporary_password } = await callAdminUsers<{ temporary_password: string }>('create_student', {
+          email,
+          first_name: studentForm.firstName,
+          last_name: studentForm.lastName,
+          phone: studentForm.phone,
+          student_number: studentForm.studentNumber,
+          level_id: studentForm.levelId,
+          date_of_birth: studentForm.dateOfBirth,
+          address: studentForm.address,
         });
-
-        if (authError) {
-          console.error('❌ Erreur auth:', authError);
-          throw authError;
-        }
-        if (!authData.user) {
-          throw new Error('Aucun utilisateur créé');
-        }
-        const userId = authData.user.id;
-        console.log('✅ Utilisateur créé avec ID:', userId);
-
-        // 2. Créer l'enregistrement étudiant directement
-        console.log('🔵 Étape 2: Création enregistrement étudiant...');
-        const { error: studentError } = await supabase
-          .from('students')
-          .insert({
-            user_id: userId,
-            student_number: studentForm.studentNumber,
-            level_id: studentForm.levelId || null,
-            date_of_birth: studentForm.dateOfBirth || null,
-            address: studentForm.address || null,
-            parent_phone: studentForm.phone || null,
-            status: 'active'
-          });
-
-        if (studentError) {
-          console.error('❌ Erreur création étudiant:', studentError);
-          // Si l'étudiant n'a pas pu être créé, on supprime l'utilisateur auth
-          await supabaseAdmin.auth.admin.deleteUser(userId);
-          throw studentError;
-        }
-
-        // 3. Attribuer le rôle "student" pour permettre la connexion
-        console.log('🔵 Étape 3: Attribution du rôle...');
-        const { error: roleError } = await supabase
-          .from('user_roles')
-          .insert({ user_id: userId, role: 'student' });
-
-        if (roleError) {
-          console.error('❌ Erreur attribution rôle:', roleError);
-          await supabaseAdmin.auth.admin.deleteUser(userId);
-          throw roleError;
-        }
-        console.log('✅ Étudiant créé avec succès !');
-        alert(`✅ Étudiant créé avec succès !
-        
-    📧 Email : ${studentForm.email}
-    🔑 Mot de passe temporaire : ${studentForm.studentNumber}
-    👤 Matricule : ${studentForm.studentNumber}
-
-    ⚠️ L'étudiant peut se connecter avec ces identifiants.
-    Il devra changer son mot de passe à la première connexion.`);
-        
         setShowModal(false);
         resetStudentForm();
         await loadStudents();
-        
+        showCredentials('Étudiant créé', email, temporary_password);
       } catch (error: any) {
-        console.error('❌ Erreur complète:', error);
-        alert(`❌ Erreur lors de la création:\n\n${error.message || error}`);
+        notify(`❌ ${error.message}`);
       } finally {
         setLoading(false);
       }
     };
 
-     // ==================== AJOUT ENSEIGNANT ====================
     const handleAddTeacher = async (e: React.FormEvent) => {
       e.preventDefault();
       setLoading(true);
-
       try {
-        console.log('🔵 Étape 1: Création utilisateur dans auth.users...');
-        
-        // 1. Créer l'utilisateur dans auth.users
-        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-          email: teacherForm.email,
-          password: teacherForm.teacherNumber, // Mot de passe = matricule
-          email_confirm: true,
-          user_metadata: {
-            first_name: teacherForm.firstName,
-            last_name: teacherForm.lastName,
-            phone: teacherForm.phone || null,
-            role: 'teacher'
-          }
+        const email = teacherForm.email.trim();
+        const { temporary_password } = await callAdminUsers<{ temporary_password: string }>('create_teacher', {
+          email,
+          first_name: teacherForm.firstName,
+          last_name: teacherForm.lastName,
+          phone: teacherForm.phone,
+          teacher_number: teacherForm.teacherNumber,
+          specialization: teacherForm.specialization,
+          department: teacherForm.department,
         });
-
-        if (authError) {
-          console.error('❌ Erreur auth:', authError);
-          throw authError;
-        }
-        if (!authData.user) {
-          throw new Error('Aucun utilisateur créé');
-        }
-
-        const userId = authData.user.id;
-        console.log('✅ Utilisateur créé avec ID:', userId);
-
-        // 2. Créer l'enregistrement enseignant directement
-        console.log('🔵 Étape 2: Création enregistrement enseignant...');
-        const { error: teacherError } = await supabase
-          .from('teachers')
-          .insert({
-            user_id: userId,
-            teacher_number: teacherForm.teacherNumber,
-            phone: teacherForm.phone || null,
-            specialization: teacherForm.specialization || null,
-            department: teacherForm.department || null
-          });
-
-        if (teacherError) {
-          console.error('❌ Erreur création enseignant:', teacherError);
-          // Si l'enseignant n'a pas pu être créé, on supprime l'utilisateur auth
-          await supabaseAdmin.auth.admin.deleteUser(userId);
-          throw teacherError;
-        }
-
-        // 3. Attribuer le rôle "teacher" pour permettre la connexion
-        console.log('🔵 Étape 3: Attribution du rôle...');
-        const { error: roleError } = await supabase
-          .from('user_roles')
-          .insert({ user_id: userId, role: 'teacher' });
-
-        if (roleError) {
-          console.error('❌ Erreur attribution rôle:', roleError);
-          await supabaseAdmin.auth.admin.deleteUser(userId);
-          throw roleError;
-        }
-
-        console.log('✅ Enseignant créé avec succès !');
-
-        alert(`✅ Enseignant créé avec succès !
-        
-    📧 Email : ${teacherForm.email}
-    🔑 Mot de passe temporaire : ${teacherForm.teacherNumber}
-    👤 Matricule : ${teacherForm.teacherNumber}
-
-    ⚠️ L'enseignant peut se connecter avec ces identifiants.
-    Il devra changer son mot de passe à la première connexion.`);
-        
         setShowModal(false);
         resetTeacherForm();
         await loadTeachers();
-
+        showCredentials('Enseignant créé', email, temporary_password);
       } catch (error: any) {
-        console.error('❌ Erreur complète:', error);
-        alert(`❌ Erreur lors de la création:\n\n${error.message || error}`);
+        notify(`❌ ${error.message}`);
       } finally {
         setLoading(false);
       }
@@ -679,59 +517,50 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
     const handleAddAdmin = async (e: React.FormEvent) => {
       e.preventDefault();
       setLoading(true);
-
       try {
-        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-          email: adminForm.email,
-          password: adminForm.password,
-          email_confirm: true,
-          user_metadata: {
-            first_name: adminForm.firstName,
-            last_name: adminForm.lastName,
-            role: adminForm.role
-          }
+        const email = adminForm.email.trim();
+        const { temporary_password } = await callAdminUsers<{ temporary_password: string }>('create_admin', {
+          email,
+          first_name: adminForm.firstName,
+          last_name: adminForm.lastName,
+          role: adminForm.role,
         });
-
-        if (authError) throw authError;
-        if (!authData.user) throw new Error('Aucun utilisateur créé');
-
-        const userId = authData.user.id;
-
-        const { error: roleError } = await supabase
-          .from('user_roles')
-          .insert({ user_id: userId, role: adminForm.role });
-
-        if (roleError) {
-          // Si le rôle n'a pas pu être attribué, on supprime l'utilisateur auth
-          await supabaseAdmin.auth.admin.deleteUser(userId);
-          throw roleError;
-        }
-
-        alert(`✅ Compte créé avec succès !
-
-    📧 Email : ${adminForm.email}
-    🔑 Mot de passe temporaire : ${adminForm.password}
-    🛡️ Rôle : ${ADMIN_ROLE_LABELS[adminForm.role]}
-
-    ⚠️ Cette personne devra changer son mot de passe à la première connexion.`);
-
         setShowModal(false);
-        setAdminForm({ firstName: '', lastName: '', email: '', password: '', role: 'academic_admin' });
+        setAdminForm({ firstName: '', lastName: '', email: '', role: 'academic_admin' });
         await loadAdminAccounts();
+        showCredentials(`Compte ${ADMIN_ROLE_LABELS[adminForm.role]} créé`, email, temporary_password);
       } catch (error: any) {
-        console.error('❌ Erreur complète:', error);
-        alert(`❌ Erreur lors de la création:\n\n${error.message || error}`);
+        notify(`❌ ${error.message}`);
       } finally {
         setLoading(false);
       }
     };
 
+    const handleResetStudentPassword = async (student: Student) => {
+      const name = fullNameOf(student) || student.student_number;
+      const confirmed = await confirmDialog(
+        `Générer un nouveau mot de passe temporaire pour ${name} ?\n\nSon mot de passe actuel ne fonctionnera plus.`,
+        { title: 'Réinitialiser le mot de passe', confirmLabel: 'Réinitialiser' },
+      );
+      if (!confirmed) return;
+
+      try {
+        const { temporary_password } = await callAdminUsers<{ temporary_password: string }>(
+          'reset_student_password',
+          { student_id: student.id },
+        );
+        showCredentials(`Nouveau mot de passe de ${name}`, student.profiles?.email || '', temporary_password);
+      } catch (error: any) {
+        notify(`❌ ${error.message}`);
+      }
+    };
+
     const handleRemoveAdminRole = async (assignmentId: string, targetUserId: string) => {
       if (targetUserId === user?.id) {
-        alert("⚠️ Vous ne pouvez pas retirer votre propre rôle.");
+        notify("⚠️ Vous ne pouvez pas retirer votre propre rôle.");
         return;
       }
-      if (!window.confirm("⚠️ Retirer ce rôle d'administration à cette personne ?")) return;
+      if (!await confirmDialog("⚠️ Retirer ce rôle d'administration à cette personne ?")) return;
 
       try {
         const { error } = await supabase
@@ -740,10 +569,10 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
           .eq('id', assignmentId);
 
         if (error) throw error;
-        alert('✅ Rôle retiré');
+        notify('✅ Rôle retiré');
         loadAdminAccounts();
       } catch (error: any) {
-        alert(`❌ Erreur: ${error.message}`);
+        notify(`❌ Erreur: ${error.message}`);
       }
     };
 
@@ -781,13 +610,13 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
         if (linkError) throw linkError;
       }
 
-      alert('✅ Matière créée avec succès !');
+      notify('✅ Matière créée avec succès !');
       setShowModal(false);
       resetSubjectForm();
       loadSubjects();
       loadSubjectLevelLinks();
     } catch (error: any) {
-      alert(`❌ Erreur: ${error.message}`);
+      notify(`❌ Erreur: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -818,7 +647,7 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
           .eq('id', editingSchedule.id);
 
         if (error) throw error;
-        alert('✅ Emploi du temps modifié avec succès !');
+        notify('✅ Emploi du temps modifié avec succès !');
       } else {
         // Création
         const { error } = await supabase
@@ -826,7 +655,7 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
           .insert(scheduleData);
 
         if (error) throw error;
-        alert('✅ Emploi du temps créé avec succès !');
+        notify('✅ Emploi du temps créé avec succès !');
       }
 
       setShowModal(false);
@@ -834,7 +663,7 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
       setEditingSchedule(null);
       loadSchedules();
     } catch (error: any) {
-      alert(`❌ Erreur: ${error.message}`);
+      notify(`❌ Erreur: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -857,7 +686,7 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
   };
 
   const handleDeleteSchedule = async (scheduleId: string) => {
-    if (!window.confirm('⚠️ Êtes-vous sûr de vouloir supprimer ce créneau ?')) return;
+    if (!await confirmDialog('⚠️ Êtes-vous sûr de vouloir supprimer ce créneau ?')) return;
 
     try {
       const { error } = await supabase
@@ -866,10 +695,10 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
         .eq('id', scheduleId);
 
       if (error) throw error;
-      alert('✅ Créneau supprimé');
+      notify('✅ Créneau supprimé');
       loadSchedules();
     } catch (error: any) {
-      alert(`❌ Erreur: ${error.message}`);
+      notify(`❌ Erreur: ${error.message}`);
     }
   };
 
@@ -892,19 +721,19 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
 
       if (error) throw error;
 
-      alert('✅ Annonce publiée avec succès !');
+      notify('✅ Annonce publiée avec succès !');
       setShowModal(false);
       resetAnnouncementForm();
       loadAnnouncements();
     } catch (error: any) {
-      alert(`❌ Erreur: ${error.message}`);
+      notify(`❌ Erreur: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
   const handleDeleteAnnouncement = async (announcementId: string) => {
-    if (!window.confirm('⚠️ Êtes-vous sûr de vouloir supprimer cette annonce ?')) return;
+    if (!await confirmDialog('⚠️ Êtes-vous sûr de vouloir supprimer cette annonce ?')) return;
 
     try {
       const { error } = await supabase
@@ -913,33 +742,40 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
         .eq('id', announcementId);
 
       if (error) throw error;
-      alert('✅ Annonce supprimée');
+      notify('✅ Annonce supprimée');
       loadAnnouncements();
     } catch (error: any) {
-      alert(`❌ Erreur: ${error.message}`);
+      notify(`❌ Erreur: ${error.message}`);
     }
   };
 
   // ==================== SUPPRESSION ====================
-  const handleDeleteStudent = async (studentId: string) => {
-    if (!window.confirm('⚠️ Êtes-vous sûr de vouloir supprimer cet étudiant ?')) return;
+  const handleDeleteStudent = async (student: Student) => {
+    const name = fullNameOf(student) || student.student_number;
+    const confirmed = await confirmDialog(
+      `⚠️ Supprimer définitivement ${name} ?\n\nSeront supprimés : son compte de connexion, ses notes et ses paiements de scolarité, qui sortiront des totaux financiers.`,
+      { title: "Supprimer l'étudiant", confirmLabel: 'Supprimer' },
+    );
+    if (!confirmed) return;
 
     try {
-      const { error } = await supabase
-        .from('students')
-        .delete()
-        .eq('id', studentId);
-
-      if (error) throw error;
-      alert('✅ Étudiant supprimé');
+      const { login_deleted, reason } = await callAdminUsers<{ login_deleted: boolean; reason?: string }>(
+        'delete_student',
+        { student_id: student.id },
+      );
+      if (login_deleted || reason === 'other_roles') {
+        notify('✅ Étudiant supprimé');
+      } else {
+        notify("⚠️ La fiche est supprimée, mais pas le compte de connexion. Réessayez ou contactez le support.");
+      }
       loadStudents();
     } catch (error: any) {
-      alert(`❌ Erreur: ${error.message}`);
+      notify(`❌ ${error.message}`);
     }
   };
 
   const handleDeleteTeacher = async (teacher: Teacher) => {
-    const name = `${teacher.profiles?.first_name || ''} ${teacher.profiles?.last_name || ''}`.trim() || teacher.teacher_number;
+    const name = fullNameOf(teacher) || teacher.teacher_number;
 
     const { count: payslipCount } = await supabase
       .from('teacher_payslips')
@@ -949,43 +785,33 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
     const payslipWarning = payslipCount
       ? `\n- ses ${payslipCount} bulletin(s) de paie, qui sortiront aussi du suivi financier`
       : '';
-    const confirmed = window.confirm(
-      `⚠️ Supprimer définitivement ${name} ?\n\nSeront supprimés :\n- son compte de connexion\n- ses affectations${payslipWarning}\n\nSes notes et créneaux sont conservés, sans enseignant.`
+    const confirmed = await confirmDialog(
+      `⚠️ Supprimer définitivement ${name} ?\n\nSeront supprimés :\n- son compte de connexion\n- ses affectations${payslipWarning}\n\nSes notes et créneaux sont conservés, sans enseignant.`,
+      { title: "Supprimer l'enseignant", confirmLabel: 'Supprimer' },
     );
     if (!confirmed) return;
 
     try {
-      // .select() : sans droit de suppression, le RLS renvoie 0 ligne et aucune erreur.
-      const { data, error } = await supabase
-        .from('teachers')
-        .delete()
-        .eq('id', teacher.id)
-        .select('id');
-
-      if (error) throw error;
-      if (!data?.length) throw new Error("Suppression refusée : vous n'avez pas les droits nécessaires.");
-
-      // Sans cela, la personne pourrait toujours se connecter à un espace vide.
-      await supabase.from('user_roles').delete().eq('user_id', teacher.user_id);
-      const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(teacher.user_id);
-
-      if (authError) {
-        alert(`⚠️ La fiche est supprimée, mais pas le compte de connexion :\n${authError.message}`);
+      const { login_deleted, reason } = await callAdminUsers<{ login_deleted: boolean; reason?: string }>(
+        'delete_teacher',
+        { teacher_id: teacher.id },
+      );
+      if (login_deleted || reason === 'other_roles') {
+        notify('✅ Enseignant supprimé');
       } else {
-        alert('✅ Enseignant supprimé');
+        notify("⚠️ La fiche est supprimée, mais pas le compte de connexion. Réessayez ou contactez le support.");
       }
-
       setViewingTeacher(null);
       loadTeachers();
       loadTeacherAssignments();
       loadSchedules();
     } catch (error: any) {
-      alert(`❌ Erreur: ${error.message}`);
+      notify(`❌ ${error.message}`);
     }
   };
 
   const handleDeleteSubject = async (subjectId: string) => {
-    if (!window.confirm('⚠️ Êtes-vous sûr de vouloir supprimer cette matière ?')) return;
+    if (!await confirmDialog('⚠️ Êtes-vous sûr de vouloir supprimer cette matière ?')) return;
 
     try {
       const { error } = await supabase
@@ -994,10 +820,10 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
         .eq('id', subjectId);
 
       if (error) throw error;
-      alert('✅ Matière supprimée');
+      notify('✅ Matière supprimée');
       loadSubjects();
     } catch (error: any) {
-      alert(`❌ Erreur: ${error.message}`);
+      notify(`❌ Erreur: ${error.message}`);
     }
   };
 
@@ -1061,14 +887,14 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
           if (linkError) throw linkError;
         }
 
-        alert('✅ Matière modifiée avec succès !');
+        notify('✅ Matière modifiée avec succès !');
         setShowModal(false);
         setEditingSubject(null);
         resetSubjectForm();
         loadSubjects();
         loadSubjectLevelLinks();
       } catch (error: any) {
-        alert(`❌ Erreur: ${error.message}`);
+        notify(`❌ Erreur: ${error.message}`);
       } finally {
         setLoading(false);
       }
@@ -1150,9 +976,12 @@ const filteredSubjects = subjects.filter(subject => {
     });
 
       // Pagination étudiants
-      const totalPagesStudents = Math.ceil(filteredStudents.length / itemsPerPage);
-      const startIndexStudents = (currentPageStudents - 1) * itemsPerPage;
+      const totalPagesStudents = Math.max(1, Math.ceil(filteredStudents.length / itemsPerPage));
+      // Évite une page vide quand un filtre ou une suppression réduit la liste.
+      const pageStudents = Math.min(currentPageStudents, totalPagesStudents);
+      const startIndexStudents = (pageStudents - 1) * itemsPerPage;
       const paginatedStudents = filteredStudents.slice(startIndexStudents, startIndexStudents + itemsPerPage);
+      const levelToPrint = levels.find(level => level.id === printLevelId);
 
     const filteredTeachers = teachers.filter(t => {
       const matchesSearch = (t.teacher_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1166,8 +995,9 @@ const filteredSubjects = subjects.filter(subject => {
     });
 
         // Pagination enseignants
-        const totalPagesTeachers = Math.ceil(filteredTeachers.length / itemsPerPage);
-        const startIndexTeachers = (currentPageTeachers - 1) * itemsPerPage;
+        const totalPagesTeachers = Math.max(1, Math.ceil(filteredTeachers.length / itemsPerPage));
+        const pageTeachers = Math.min(currentPageTeachers, totalPagesTeachers);
+        const startIndexTeachers = (pageTeachers - 1) * itemsPerPage;
         const paginatedTeachers = filteredTeachers.slice(startIndexTeachers, startIndexTeachers + itemsPerPage);
 
         // Départements uniques
@@ -1192,365 +1022,72 @@ const filteredSubjects = subjects.filter(subject => {
 
   // ==================== RENDER ====================
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* NAVBAR */}
-      <nav className="bg-purple-600 text-white p-3 md:p-4 shadow-lg fixed top-0 left-0 right-0 z-40">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2 md:gap-4">
-            {/* Bouton menu mobile */}
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="lg:hidden p-2 hover:bg-purple-700 rounded"
-            >
-              <Menu className="w-6 h-6" />
-            </button>
-            <h1 className="text-lg md:text-2xl font-bold truncate">📚 Administration</h1>
-          </div>
-          <div className="flex items-center gap-2 md:gap-4">
-            <span className="text-xs md:text-sm hidden sm:inline">Admin : 👤 {user?.first_name} {user?.last_name}</span>
-          <button
-            onClick={handleLogout}
-            className="bg-purple-700 px-3 py-1.5 md:px-4 md:py-2 rounded hover:bg-purple-800 transition text-sm"
-          >
-            <span className="hidden sm:inline">Déconnexion</span>
-            <span className="sm:hidden">×</span>
-          </button>
-          </div>
-        </div>
-      </nav>
+    <AppShell
+      spaceLabel="Administration"
+      groups={NAV_GROUPS.map(group => ({
+        ...group,
+        items: group.items
+          .filter(item => allowedTabs.includes(item.id))
+          .map(item => item.id === 'levels'
+            ? { ...item, badge: students.filter(student => !student.level_id).length }
+            : item),
+      }))}
+      activeId={activeTab}
+      onSelect={(tab) => {
+        setGradesStudentId('');
+        handleSelectTab(tab);
+      }}
+      userName={`${user?.first_name || ''} ${user?.last_name || ''}`.trim()}
+      roleLabel={ADMIN_ROLE_LABELS[user?.role || ''] || 'Administration'}
+      onLogout={onLogout}
+      onChangePassword={onChangePassword}
+    >
 
-     {/* OVERLAY MOBILE */}
-      {sidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-     {/* LAYOUT AVEC SIDEBAR */}
-<div className="flex pt-14 md:pt-16">
-  {/* SIDEBAR VERTICAL */}
-  <aside className={`
-    w-64 bg-white shadow-lg fixed left-0 top-14 md:top-16 bottom-0 overflow-y-auto z-30
-    transform transition-transform duration-300 ease-in-out
-    ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-    lg:translate-x-0
-  `}>
-    <div className="p-4">
-      <h2 className="text-xs font-semibold text-gray-500 uppercase mb-3">Menu Principal</h2>
-      <nav className="space-y-1">
-        {[
-          { id: 'dashboard', label: 'Dashboard', icon: Home },
-          { id: 'students', label: 'Étudiants', icon: Users },
-          { id: 'teachers', label: 'Enseignants', icon: BookOpen },
-          { id: 'levels', label: 'Cycles & Niveaux', icon: GraduationCap },
-          { id: 'subjects', label: 'Matières', icon: FileText },
-          { id: 'schedules', label: 'Emplois du temps', icon: Clock },
-          { id: 'announcements', label: 'Annonces', icon: Bell },
-        ].filter(tab => (ROLE_TABS[user?.role || 'admin'] || ROLE_TABS.admin).includes(tab.id)).map(tab => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => {
-                setActiveTab(tab.id);
-                setViewingTeacher(null);
-                setSidebarOpen(false);
-              }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition text-left ${
-                activeTab === tab.id
-                  ? 'bg-purple-100 text-purple-700 font-semibold shadow-sm'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              <Icon className="w-5 h-5" />
-              <span>{tab.label}</span>
-              {activeTab === tab.id && (
-                <span className="ml-auto w-1.5 h-8 bg-purple-600 rounded-l"></span>
-              )}
-            </button>
-          );
-        })}
-      </nav>
-
-      <div className="border-t mt-4 pt-4">
-        <h2 className="text-xs font-semibold text-gray-500 uppercase mb-3">Gestion Avancée</h2>
-        <nav className="space-y-1">
-          {[
-            { id: 'assign-teachers', label: 'Affecter Enseignants', icon: BookOpen },
-            { id: 'grades', label: 'Gestion des notes', icon: FileText },
-            { id: 'finance', label: 'Gestion Financière', icon: DollarSign },
-            { id: 'admins', label: 'Comptes Admin', icon: Shield },
-          ].filter(tab => (ROLE_TABS[user?.role || 'admin'] || ROLE_TABS.admin).includes(tab.id)).map(tab => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id);
-                  setViewingTeacher(null);
-                  setSidebarOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition text-left ${
-                  activeTab === tab.id
-                    ? 'bg-purple-100 text-purple-700 font-semibold shadow-sm'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                <Icon className="w-5 h-5" />
-                <span className="text-sm">{tab.label}</span>
-                {activeTab === tab.id && (
-                  <span className="ml-auto w-1.5 h-8 bg-purple-600 rounded-l"></span>
-                )}
-              </button>
-            );
-          })}
-        </nav>
-      </div>
-
-      {/* STATISTIQUES RAPIDES */}
-      <div className="border-t mt-4 pt-4">
-        <h2 className="text-xs font-semibold text-gray-500 uppercase mb-3">Statistiques</h2>
-        <div className="space-y-2">
-          <div className="bg-blue-50 p-3 rounded-lg">
-            <p className="text-xs text-blue-600">Étudiants</p>
-            <p className="text-2xl font-bold text-blue-700">{students.length}</p>
-          </div>
-          <div className="bg-green-50 p-3 rounded-lg">
-            <p className="text-xs text-green-600">Enseignants</p>
-            <p className="text-2xl font-bold text-green-700">{teachers.length}</p>
-          </div>
-          <div className="bg-purple-50 p-3 rounded-lg">
-            <p className="text-xs text-purple-600">Niveaux</p>
-            <p className="text-2xl font-bold text-purple-700">{levels.length}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </aside>
-
-  {/* CONTENU PRINCIPAL */}
-  <div className="flex-1 min-w-0 lg:ml-64 p-3 md:p-6">
-
-        {/* DASHBOARD TAB */}
+        {/* TABLEAU DE BORD */}
         {activeTab === 'dashboard' && (
-          <div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 mb-6">
-              <div className="bg-blue-50 p-4 md:p-6 rounded-lg">
-                <p className="text-2xl md:text-4xl font-bold text-blue-600">{students.length}</p>
-                <p className="text-xs md:text-base text-gray-600">Étudiants</p>
-              </div>
-              <div className="bg-green-50 p-4 md:p-6 rounded-lg">
-                <p className="text-2xl md:text-4xl font-bold text-green-600">{teachers.length}</p>
-                <p className="text-xs md:text-base text-gray-600">Enseignants</p>
-              </div>
-              <div className="bg-purple-50 p-4 md:p-6 rounded-lg">
-                <p className="text-2xl md:text-4xl font-bold text-purple-600">{levels.length}</p>
-                <p className="text-xs md:text-base text-gray-600">Niveaux</p>
-              </div>
-              <div className="bg-orange-50 p-4 md:p-6 rounded-lg">
-                <p className="text-2xl md:text-4xl font-bold text-orange-600">{subjects.length}</p>
-                <p className="text-xs md:text-base text-gray-600">Matières</p>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow p-4 md:p-6">
-              <h2 className="text-lg md:text-xl font-bold mb-4">Actions rapides</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
-                <button
-                  onClick={() => { setModalType('student'); setShowModal(true); }}
-                  className="flex items-center gap-2 p-3 md:p-4 border rounded-lg hover:bg-blue-50"
-                >
-                  <Plus className="w-4 h-4 md:w-5 md:h-5 text-blue-600" />
-                  <span className="text-xs md:text-base">Ajouter étudiant</span>
-                </button>
-                <button
-                  onClick={() => { setModalType('teacher'); setShowModal(true); }}
-                  className="flex items-center gap-2 p-3 md:p-4 border rounded-lg hover:bg-green-50"
-                >
-                  <Plus className="w-4 h-4 md:w-5 md:h-5 text-green-600" />
-                  <span className="text-xs md:text-base">Ajouter enseignant</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab('levels')}
-                  className="flex items-center gap-2 p-3 md:p-4 border rounded-lg hover:bg-purple-50"
-                >
-                  <GraduationCap className="w-4 h-4 md:w-5 md:h-5 text-purple-600" />
-                  <span className="text-xs md:text-base">Inscrire par niveau</span>
-                </button>
-                <button
-                  onClick={() => { setModalType('subject'); setShowModal(true); }}
-                  className="flex items-center gap-2 p-3 md:p-4 border rounded-lg hover:bg-orange-50"
-                >
-                  <Plus className="w-4 h-4 md:w-5 md:h-5 text-orange-600" />
-                  <span className="text-xs md:text-base">Créer matière</span>
-                </button>
-                <button
-                  onClick={() => { setModalType('schedule'); setShowModal(true); }}
-                  className="flex items-center gap-2 p-3 md:p-4 border rounded-lg hover:bg-indigo-50"
-                >
-                  <Plus className="w-4 h-4 md:w-5 md:h-5 text-indigo-600" />
-                  <span className="text-xs md:text-base">Ajouter créneau</span>
-                </button>
-                <button
-                  onClick={() => { setModalType('announcement'); setShowModal(true); }}
-                  className="flex items-center gap-2 p-3 md:p-4 border rounded-lg hover:bg-pink-50"
-                >
-                  <Plus className="w-4 h-4 md:w-5 md:h-5 text-pink-600" />
-                  <span className="text-xs md:text-base">Publier annonce</span>
-                </button>
-              </div>
-            </div>
-          </div>
+          <AdminHome
+            students={students}
+            teacherCount={teachers.length}
+            subjectCount={subjects.length}
+            levels={levels}
+            announcements={announcements}
+            allowedTabs={allowedTabs}
+            onNavigate={handleSelectTab}
+            onQuickAdd={openQuickAdd}
+          />
         )}
 
-        {/* TAB GESTION DES NOTES */}
-      {activeTab === 'grades' && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-2xl font-bold mb-6">Gestion des Notes</h2>
-
-          {/* Sélection étudiant */}
-          <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-            <label className="block text-sm font-medium mb-2">
-              Sélectionner un étudiant pour voir ses notes *
-            </label>
-            <select
-              value={selectedStudentForGrades}
-              onChange={(e) => {
-                setSelectedStudentForGrades(e.target.value);
-                loadStudentGrades(e.target.value);
-              }}
-              className="w-full border rounded-lg px-3 py-2"
-            >
-              <option value="">-- Choisir un étudiant --</option>
-              {students.map((student) => (
-                <option key={student.id} value={student.id}>
-                  {student.student_number} - {student.profiles?.first_name} {student.profiles?.last_name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Affichage des notes */}
-          {selectedStudentForGrades ? (
-            loading ? (
-              <p className="text-center py-8">Chargement des notes...</p>
-            ) : studentGrades.length === 0 ? (
-              <div className="text-center py-12">
-                <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <p className="text-xl text-gray-500">Aucune note pour cet étudiant</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-100">
-                    <tr>
-                      <th className="px-4 py-3 text-left">Matière</th>
-                      <th className="px-4 py-3 text-left">Type</th>
-                      <th className="px-4 py-3 text-center">Note /20</th>
-                      <th className="px-4 py-3 text-center">Coef.</th>
-                      <th className="px-4 py-3 text-left">Date</th>
-                      <th className="px-4 py-3 text-left">Enseignant</th>
-                      <th className="px-4 py-3 text-left">Commentaire</th>
-                      <th className="px-4 py-3 text-left">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {studentGrades.map((grade) => (
-                      <tr key={grade.id} className="border-b hover:bg-gray-50">
-                        <td className="px-4 py-3 font-semibold">{grade.subjects?.name}</td>
-                        <td className="px-4 py-3">{grade.grade_type}</td>
-                        <td className="px-4 py-3 text-center">
-                          <span className={`text-xl font-bold ${
-                            grade.grade_value >= 15 ? 'text-green-600' :
-                            grade.grade_value >= 10 ? 'text-blue-600' : 'text-red-600'
-                          }`}>
-                            {grade.grade_value.toFixed(2)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded">
-                            {grade.subjects?.coefficient || grade.coefficient}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          {grade.exam_date ? new Date(grade.exam_date).toLocaleDateString() : '-'}
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          {grade.teachers?.profiles?.first_name} {grade.teachers?.profiles?.last_name}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
-                          {grade.comment || '-'}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleEditGrade(grade)}
-                              className="text-blue-600 hover:bg-blue-50 p-2 rounded"
-                              title="Modifier"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteGrade(grade.id)}
-                              className="text-red-600 hover:bg-red-50 p-2 rounded"
-                              title="Supprimer"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-
-                {/* Statistiques */}
-                <div className="mt-6 grid md:grid-cols-3 gap-4">
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <p className="text-sm text-blue-800">Nombre de notes</p>
-                    <p className="text-3xl font-bold text-blue-600">{studentGrades.length}</p>
-                  </div>
-                  <div className="bg-green-50 p-4 rounded-lg">
-                    <p className="text-sm text-green-800">Moyenne générale</p>
-                    <p className="text-3xl font-bold text-green-600">
-                      {(studentGrades.reduce((sum, g) => sum + (g.grade_value * (g.subjects?.coefficient || g.coefficient)), 0) /
-                        studentGrades.reduce((sum, g) => sum + (g.subjects?.coefficient || g.coefficient), 0)).toFixed(2)}
-                    </p>
-                  </div>
-                  <div className="bg-purple-50 p-4 rounded-lg">
-                    <p className="text-sm text-purple-800">Meilleure note</p>
-                    <p className="text-3xl font-bold text-purple-600">
-                      {Math.max(...studentGrades.map(g => g.grade_value)).toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )
-          ) : (
-            <div className="text-center py-12">
-              <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <p className="text-xl text-gray-500">Sélectionnez un étudiant pour voir ses notes</p>
-            </div>
-          )}
-        </div>
-      )}
+        {/* NOTES */}
+        {activeTab === 'grades' && (
+          <GradesManagement levels={levels} canEdit initialStudentId={gradesStudentId || undefined} />
+        )}
 
       {/* FINANCE TAB - GESTION FINANCIÈRE */}
       {activeTab === 'finance' && <FinanceManagement />}
 
        {/* STUDENTS TAB */}
       {activeTab === 'students' && (
-        <div className="bg-white rounded-lg shadow p-4 md:p-6">
+        <div className="bg-white rounded-xl shadow p-4 md:p-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
             <h2 className="text-xl md:text-2xl font-bold">Étudiants ({filteredStudents.length})</h2>
-            <button
-              onClick={() => { setModalType('student'); setShowModal(true); }}
-              className="bg-purple-600 text-white px-3 py-2 md:px-4 rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm md:text-base w-full sm:w-auto justify-center"
-            >
-              <Plus className="w-4 h-4 md:w-5 md:h-5" />
-              Ajouter
-            </button>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <button
+                onClick={() => setPrintLevelId(levelFilter)}
+                disabled={!levelFilter}
+                title={levelFilter ? 'Imprimer la liste de ce niveau' : "Choisissez d'abord un niveau dans les filtres"}
+                className="border px-3 py-2 md:px-4 rounded-lg hover:bg-gray-100 flex items-center gap-2 text-sm md:text-base justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Printer className="w-4 h-4 md:w-5 md:h-5" />
+                Imprimer la liste
+              </button>
+              <button
+                onClick={() => openQuickAdd('student')}
+                className="bg-indigo-600 text-white px-3 py-2 md:px-4 rounded-lg hover:bg-indigo-700 flex items-center gap-2 text-sm md:text-base justify-center"
+              >
+                <Plus className="w-4 h-4 md:w-5 md:h-5" />
+                Ajouter
+              </button>
+            </div>
           </div>
 
           {/* FILTRES ET RECHERCHE */}
@@ -1563,7 +1100,7 @@ const filteredSubjects = subjects.filter(subject => {
                   type="text"
                   placeholder="Nom, matricule, email..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => { setSearchTerm(e.target.value); setCurrentPageStudents(1); }}
                   className="w-full border rounded-lg px-3 py-2 pl-10 text-sm md:text-base"
                 />
               </div>
@@ -1666,16 +1203,42 @@ const filteredSubjects = subjects.filter(subject => {
                           <span className={`px-2 py-1 rounded text-xs ${
                             student.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
                           }`}>
-                            {student.status}
+                            {student.status === 'active' ? 'Actif' : student.status === 'suspended' ? 'Suspendu' : 'Inactif'}
                           </span>
                         </td>
                         <td className="px-3 md:px-4 py-3">
-                          <button
-                            onClick={() => handleDeleteStudent(student.id)}
-                            className="text-red-600 hover:bg-red-50 p-2 rounded"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <div className="flex gap-1">
+                            {allowedTabs.includes('grades') && (
+                              <button
+                                onClick={() => { handleSelectTab('grades'); setGradesStudentId(student.id); }}
+                                className="text-gray-700 hover:bg-gray-100 p-2 rounded"
+                                title="Voir ses notes"
+                                aria-label={`Voir les notes de ${fullNameOf(student)}`}
+                              >
+                                <FileText className="w-4 h-4" />
+                              </button>
+                            )}
+                            {canResetStudentPassword && (
+                              <button
+                                onClick={() => handleResetStudentPassword(student)}
+                                className="text-blue-600 hover:bg-blue-50 p-2 rounded"
+                                title="Réinitialiser le mot de passe"
+                                aria-label={`Réinitialiser le mot de passe de ${fullNameOf(student)}`}
+                              >
+                                <KeyRound className="w-4 h-4" />
+                              </button>
+                            )}
+                            {canDeleteStudents && (
+                              <button
+                                onClick={() => handleDeleteStudent(student)}
+                                className="text-red-600 hover:bg-red-50 p-2 rounded"
+                                title="Supprimer"
+                                aria-label={`Supprimer ${fullNameOf(student)}`}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1691,20 +1254,20 @@ const filteredSubjects = subjects.filter(subject => {
                 
                 <div className="flex gap-2">
                   <button
-                    onClick={() => setCurrentPageStudents(prev => Math.max(1, prev - 1))}
-                    disabled={currentPageStudents === 1}
+                    onClick={() => setCurrentPageStudents(pageStudents - 1)}
+                    disabled={pageStudents === 1}
                     className="px-2 md:px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
                   
                   <span className="px-3 md:px-4 py-1 border rounded bg-gray-50 text-xs md:text-sm">
-                    {currentPageStudents} / {totalPagesStudents}
+                    {pageStudents} / {totalPagesStudents}
                   </span>
                   
                   <button
-                    onClick={() => setCurrentPageStudents(prev => Math.min(totalPagesStudents, prev + 1))}
-                    disabled={currentPageStudents === totalPagesStudents}
+                    onClick={() => setCurrentPageStudents(pageStudents + 1)}
+                    disabled={pageStudents === totalPagesStudents}
                     className="px-2 md:px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ChevronRight className="w-4 h-4" />
@@ -1734,12 +1297,12 @@ const filteredSubjects = subjects.filter(subject => {
 
         {/* TEACHERS TAB */}
         {activeTab === 'teachers' && !openedTeacher && (
-          <div className="bg-white rounded-lg shadow p-4 md:p-6">
+          <div className="bg-white rounded-xl shadow p-4 md:p-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
               <h2 className="text-xl md:text-2xl font-bold">Enseignants ({filteredTeachers.length})</h2>
               <button
-                onClick={() => { setModalType('teacher'); setShowModal(true); }}
-                className="bg-purple-600 text-white px-3 py-2 md:px-4 rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm md:text-base w-full sm:w-auto justify-center"
+                onClick={() => openQuickAdd('teacher')}
+                className="bg-indigo-600 text-white px-3 py-2 md:px-4 rounded-lg hover:bg-indigo-700 flex items-center gap-2 text-sm md:text-base w-full sm:w-auto justify-center"
               >
                 <Plus className="w-4 h-4 md:w-5 md:h-5" />
                 Ajouter
@@ -1756,7 +1319,7 @@ const filteredSubjects = subjects.filter(subject => {
                     type="text"
                     placeholder="Nom, matricule, email..."
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onChange={(e) => { setSearchTerm(e.target.value); setCurrentPageTeachers(1); }}
                     className="w-full border rounded-lg px-3 py-2 pl-10 text-sm md:text-base"
                   />
                 </div>
@@ -1878,20 +1441,20 @@ const filteredSubjects = subjects.filter(subject => {
                   
                   <div className="flex gap-2">
                     <button
-                      onClick={() => setCurrentPageTeachers(prev => Math.max(1, prev - 1))}
-                      disabled={currentPageTeachers === 1}
+                      onClick={() => setCurrentPageTeachers(pageTeachers - 1)}
+                      disabled={pageTeachers === 1}
                       className="px-2 md:px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <ChevronLeft className="w-4 h-4" />
                     </button>
                     
                     <span className="px-3 md:px-4 py-1 border rounded bg-gray-50 text-xs md:text-sm">
-                      {currentPageTeachers} / {totalPagesTeachers}
+                      {pageTeachers} / {totalPagesTeachers}
                     </span>
                     
                     <button
-                      onClick={() => setCurrentPageTeachers(prev => Math.min(totalPagesTeachers, prev + 1))}
-                      disabled={currentPageTeachers === totalPagesTeachers}
+                      onClick={() => setCurrentPageTeachers(pageTeachers + 1)}
+                      disabled={pageTeachers === totalPagesTeachers}
                       className="px-2 md:px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <ChevronRight className="w-4 h-4" />
@@ -1916,7 +1479,7 @@ const filteredSubjects = subjects.filter(subject => {
 
         {/* SUBJECTS TAB */}
           {activeTab === 'subjects' && (
-            <div className="bg-white rounded-lg shadow p-4 md:p-6">
+            <div className="bg-white rounded-xl shadow p-4 md:p-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
                 <h2 className="text-xl md:text-2xl font-bold">Matières ({subjects.length})</h2>
                 <button
@@ -1926,7 +1489,7 @@ const filteredSubjects = subjects.filter(subject => {
                     resetSubjectForm();
                     setShowModal(true); 
                   }}
-                  className="bg-purple-600 text-white px-3 py-2 md:px-4 rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm md:text-base w-full sm:w-auto justify-center"
+                  className="bg-indigo-600 text-white px-3 py-2 md:px-4 rounded-lg hover:bg-indigo-700 flex items-center gap-2 text-sm md:text-base w-full sm:w-auto justify-center"
                 >
                   <Plus className="w-4 h-4 md:w-5 md:h-5" />
                   Créer
@@ -2006,7 +1569,7 @@ const filteredSubjects = subjects.filter(subject => {
 
         {/* SCHEDULES TAB - EMPLOIS DU TEMPS */}
         {activeTab === 'schedules' && (
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-xl shadow p-6">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-6">
               <h2 className="text-2xl font-bold">Emplois du temps</h2>
               <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
@@ -2025,7 +1588,7 @@ const filteredSubjects = subjects.filter(subject => {
                     setModalType('schedule'); 
                     setShowModal(true); 
                   }}
-                  className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2"
+                  className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-2"
                 >
                   <Plus className="w-5 h-5" />
                   Ajouter un créneau
@@ -2104,12 +1667,12 @@ const filteredSubjects = subjects.filter(subject => {
 
         {/* ANNOUNCEMENTS TAB - ANNONCES */}
         {activeTab === 'announcements' && (
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-xl shadow p-6">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold">Annonces ({announcements.length})</h2>
               <button
-                onClick={() => { setModalType('announcement'); setShowModal(true); }}
-                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2"
+                onClick={() => openQuickAdd('announcement')}
+                className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-2"
               >
                 <Plus className="w-5 h-5" />
                 Publier
@@ -2123,15 +1686,10 @@ const filteredSubjects = subjects.filter(subject => {
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
                         <h3 className="font-bold text-lg">{announcement.title}</h3>
-                        <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                          announcement.priority === 'urgent' ? 'bg-red-100 text-red-700' :
-                          announcement.priority === 'high' ? 'bg-orange-100 text-orange-700' :
-                          announcement.priority === 'normal' ? 'bg-blue-100 text-blue-700' :
-                          'bg-gray-100 text-gray-700'
-                        }`}>
-                          {announcement.priority}
+                        <span className={`px-2 py-1 rounded text-xs font-semibold ${PRIORITY_CLASSES[announcement.priority]}`}>
+                          {PRIORITY_LABELS[announcement.priority]}
                         </span>
-                        <span className="px-2 py-1 rounded text-xs bg-purple-100 text-purple-700">
+                        <span className="px-2 py-1 rounded text-xs bg-indigo-100 text-indigo-700">
                           {announcement.target_audience === 'all' ? 'Tous' :
                            announcement.target_audience === 'students' ? 'Étudiants' : 'Enseignants'}
                         </span>
@@ -2237,7 +1795,7 @@ const filteredSubjects = subjects.filter(subject => {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                    className="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
                   >
                     {loading ? 'Affectation...' : 'Affecter'}
                   </button>
@@ -2249,7 +1807,7 @@ const filteredSubjects = subjects.filter(subject => {
 
         {/* TAB COMPTES ADMIN */}
         {activeTab === 'admins' && (
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-xl shadow p-6">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold">Comptes Admin</h2>
               <button
@@ -2257,7 +1815,7 @@ const filteredSubjects = subjects.filter(subject => {
                   setModalType('admin');
                   setShowModal(true);
                 }}
-                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2"
+                className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-2"
               >
                 <Plus className="w-5 h-5" />
                 Ajouter un admin
@@ -2293,7 +1851,7 @@ const filteredSubjects = subjects.filter(subject => {
                         </td>
                         <td className="px-4 py-3">{account.profiles?.email}</td>
                         <td className="px-4 py-3">
-                          <span className="px-2 py-1 rounded text-xs font-semibold bg-purple-100 text-purple-700">
+                          <span className="px-2 py-1 rounded text-xs font-semibold bg-indigo-100 text-indigo-700">
                             {ADMIN_ROLE_LABELS[account.role] || account.role}
                           </span>
                         </td>
@@ -2319,14 +1877,14 @@ const filteredSubjects = subjects.filter(subject => {
 
         {/* TAB AFFECTATION ENSEIGNANTS → MATIÈRES → NIVEAUX */}
             {activeTab === 'assign-teachers' && (
-              <div className="bg-white rounded-lg shadow p-6">
+              <div className="bg-white rounded-xl shadow p-6">
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-2xl font-bold">Affectation Enseignants → Matières → Niveaux</h2>
                   {/* Barre de recherche */}
 
                   <button
                     onClick={() => setShowAssignModal(true)}
-                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+                    className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-2"
                   >
                     <Plus className="w-5 h-5" />
                     Affecter un enseignant
@@ -2409,7 +1967,7 @@ const filteredSubjects = subjects.filter(subject => {
                             <td className="px-4 py-3">
                               {data.assignments.map((a: any, idx: number) => (
                                 <div key={idx} className="mb-1">
-                                  <span className="font-semibold text-purple-600">{a.subjects?.name}</span>
+                                  <span className="font-semibold text-indigo-600">{a.subjects?.name}</span>
                                 </div>
                               ))}
                             </td>                            
@@ -2446,7 +2004,6 @@ const filteredSubjects = subjects.filter(subject => {
                 )}
               </div>
             )}
-      </div>
 
       {/* MODAL */}
       {showModal && (
@@ -2456,7 +2013,7 @@ const filteredSubjects = subjects.filter(subject => {
               <h3 className="text-2xl font-bold">
                 {modalType === 'student' && 'Ajouter un étudiant'}
                 {modalType === 'teacher' && 'Ajouter un enseignant'}
-                {modalType === 'subject' && 'Créer une matière'}
+                {modalType === 'subject' && (editingSubject ? 'Modifier la matière' : 'Créer une matière')}
                 {modalType === 'schedule' && (editingSchedule ? 'Modifier le créneau' : 'Ajouter un créneau')}
                 {modalType === 'announcement' && 'Publier une annonce'}
                 {modalType === 'admin' && 'Ajouter un compte admin'}
@@ -2559,7 +2116,7 @@ const filteredSubjects = subjects.filter(subject => {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
+                    className="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
                   >
                     {loading ? 'Enregistrement...' : 'Enregistrer'}
                   </button>
@@ -2654,7 +2211,7 @@ const filteredSubjects = subjects.filter(subject => {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
+                    className="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
                   >
                     {loading ? 'Enregistrement...' : 'Enregistrer'}
                   </button>
@@ -2734,7 +2291,7 @@ const filteredSubjects = subjects.filter(subject => {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
+                    className="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
                   >
                     {loading ? (editingSubject ? 'Modification...' : 'Création...') : (editingSubject ? 'Modifier' : 'Créer')}
                   </button>
@@ -2866,7 +2423,7 @@ const filteredSubjects = subjects.filter(subject => {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
+                    className="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
                   >
                     {loading ? 'Enregistrement...' : editingSchedule ? 'Modifier' : 'Créer'}
                   </button>
@@ -2948,7 +2505,7 @@ const filteredSubjects = subjects.filter(subject => {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
+                    className="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
                   >
                     {loading ? 'Publication...' : 'Publier'}
                   </button>
@@ -2991,17 +2548,9 @@ const filteredSubjects = subjects.filter(subject => {
                     required
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Mot de passe temporaire *</label>
-                  <input
-                    type="text"
-                    value={adminForm.password}
-                    onChange={(e) => setAdminForm({...adminForm, password: e.target.value})}
-                    className="w-full border rounded px-3 py-2"
-                    minLength={6}
-                    required
-                  />
-                </div>
+                <p className="text-sm text-gray-600">
+                  Un mot de passe temporaire sera généré et affiché une seule fois après la création.
+                </p>
                 <div>
                   <label className="block text-sm font-medium mb-2">Rôle *</label>
                   <select
@@ -3026,7 +2575,7 @@ const filteredSubjects = subjects.filter(subject => {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
+                    className="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
                   >
                     {loading ? 'Enregistrement...' : 'Enregistrer'}
                   </button>
@@ -3038,126 +2587,10 @@ const filteredSubjects = subjects.filter(subject => {
       )}
 
 
-      {/* MODAL MODIFICATION NOTE - DÉPLACÉE ICI */}
-      {showGradeModal && editingGrade && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 w-full max-w-lg">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-bold">Modifier la note</h3>
-              <button 
-                onClick={() => {
-                  setShowGradeModal(false);
-                  setEditingGrade(null);
-                }} 
-                className="text-3xl hover:text-red-600"
-              >
-                ×
-              </button>
-            </div>
-
-            <form onSubmit={handleUpdateGrade} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Matière</label>
-                <input
-                  type="text"
-                  value={editingGrade.subjects?.name}
-                  disabled
-                  className="w-full border rounded px-3 py-2 bg-gray-100"
-                />
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Note /20 *</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="20"
-                    step="0.25"
-                    value={gradeForm.gradeValue}
-                    onChange={(e) => setGradeForm({...gradeForm, gradeValue: parseFloat(e.target.value)})}
-                    className="w-full border rounded px-3 py-2"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Coefficient (UF)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={gradeForm.coefficient}
-                    disabled
-                    title="Le coefficient est défini au niveau de l'Unité de Formation (onglet Matières)"
-                    className="w-full border rounded px-3 py-2 bg-gray-100 cursor-not-allowed"
-                  />
-                </div>
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Type *</label>
-                  <select
-                    value={gradeForm.gradeType}
-                    onChange={(e) => setGradeForm({...gradeForm, gradeType: e.target.value})}
-                    className="w-full border rounded px-3 py-2"
-                    required
-                  >
-                    <option value="CC1">CC1 (Contrôle Continu 1)</option>
-                    <option value="CC2">CC2 (Contrôle Continu 2)</option>
-                    <option value="CC3">CC3 (Contrôle Continu 3)</option>
-                    <option value="E.Théorique">Examen Théorique</option>
-                    <option value="E.Pratique">Examen Pratique</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Date</label>
-                  <input
-                    type="date"
-                    value={gradeForm.examDate}
-                    onChange={(e) => setGradeForm({...gradeForm, examDate: e.target.value})}
-                    className="w-full border rounded px-3 py-2"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Commentaire</label>
-                <textarea
-                  value={gradeForm.comment}
-                  onChange={(e) => setGradeForm({...gradeForm, comment: e.target.value})}
-                  className="w-full border rounded px-3 py-2"
-                  rows={3}
-                />
-              </div>
-
-              <div className="flex gap-3 justify-end pt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowGradeModal(false);
-                    setEditingGrade(null);
-                  }}
-                  className="px-6 py-2 border rounded hover:bg-gray-100"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
-                >
-                  {loading ? 'Modification...' : 'Modifier'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {levelToPrint && (
+        <StudentListPrint level={levelToPrint} students={students} onClose={() => setPrintLevelId('')} />
       )}
-
-    </div>
-    </div>
-    
+    </AppShell>
   );
 };
 

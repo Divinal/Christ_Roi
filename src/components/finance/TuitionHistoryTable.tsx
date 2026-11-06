@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { ACADEMIC_MONTHS, monthLabel, TuitionPayment } from './financeTypes';
 import { formatFCFA } from './financeUtils';
 import ReceiptPrintable from './ReceiptPrintable';
+import { confirmDialog, notify } from '../ui/feedback';
 
 interface TuitionHistoryTableProps {
   studentId: string;
@@ -67,11 +68,11 @@ const TuitionHistoryTable: React.FC<TuitionHistoryTableProps> = ({
       .select('id');
 
     if (error) {
-      alert(`❌ Erreur: ${error.message}`);
+      notify(`❌ Erreur: ${error.message}`);
       return;
     }
     if (!data?.length) {
-      alert("❌ Modification refusée : vous n'avez pas les droits nécessaires.");
+      notify("❌ Modification refusée : vous n'avez pas les droits nécessaires.");
       return;
     }
     setEditing(null);
@@ -83,7 +84,7 @@ const TuitionHistoryTable: React.FC<TuitionHistoryTableProps> = ({
   // plutôt qu'effacé, ce qui le retire de tous les totaux mais garde la trace.
   const handleDelete = async (payment: TuitionPayment) => {
     const label = `${formatFCFA(payment.amount)} — reçu ${payment.receipt_number}`;
-    if (!window.confirm(`⚠️ Supprimer ce paiement ?\n\n${label}\n\nIl sera retiré du solde et de tous les totaux.`)) return;
+    if (!await confirmDialog(`⚠️ Supprimer ce paiement ?\n\n${label}\n\nIl sera retiré du solde et de tous les totaux.`)) return;
 
     const { data, error } = await supabase
       .from('tuition_fee_payments')
@@ -92,11 +93,11 @@ const TuitionHistoryTable: React.FC<TuitionHistoryTableProps> = ({
       .select('id');
 
     if (error) {
-      alert(`❌ Erreur: ${error.message}`);
+      notify(`❌ Erreur: ${error.message}`);
       return;
     }
     if (!data?.length) {
-      alert("❌ Suppression refusée : vous n'avez pas les droits nécessaires.");
+      notify("❌ Suppression refusée : vous n'avez pas les droits nécessaires.");
       return;
     }
     await loadPayments();

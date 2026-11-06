@@ -1,1 +1,5 @@
 project_id = "qjdyxhcqfxrxgxjzbbth" 
+[functions.admin-users]
+# La session est vérifiée dans la fonction : la vérification de la passerelle
+# rejetterait les clés publiques non-JWT et casserait lors de la rotation des clés.
+verify_jwt = false

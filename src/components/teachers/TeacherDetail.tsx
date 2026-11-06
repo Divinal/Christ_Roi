@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, BookOpen, Calendar, DollarSign, MessageSquare, Plus, Send, Trash2, User as UserIcon } from 'lucide-react';
-import { supabase, supabaseAdmin } from '../../lib/supabaseClient';
+import { ArrowLeft, BookOpen, Calendar, DollarSign, KeyRound, MessageSquare, Plus, Send, Trash2, User as UserIcon } from 'lucide-react';
+import { supabase } from '../../lib/supabaseClient';
+import { callAdminUsers } from '../../lib/adminUsers';
+import { confirmDialog, infoDialog, notify } from '../ui/feedback';
 import { CURRENT_ACADEMIC_YEAR, Level, cycleLabel } from '../../lib/levels';
 import LevelSelect from '../levels/LevelSelect';
 import PayslipHistoryTable from '../finance/PayslipHistoryTable';
@@ -140,13 +142,9 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
       }
       if (!updated?.length) throw new Error("Modification refusée : vous n'avez pas les droits nécessaires.");
 
-      const email = form.email.trim();
+      const email = form.email.trim().toLowerCase();
       if (email !== teacher.profiles?.email) {
-        const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(teacher.user_id, {
-          email,
-          email_confirm: true,
-        });
-        if (authError) throw authError;
+        await callAdminUsers('update_teacher_email', { teacher_id: teacher.id, email });
       }
 
       const { error: profileError } = await supabase
@@ -155,15 +153,35 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
         .eq('user_id', teacher.user_id);
       if (profileError) throw profileError;
 
-      alert('✅ Enseignant modifié avec succès !');
+      notify('✅ Enseignant modifié avec succès !');
       onUpdated();
     } catch (error: any) {
-      alert(`❌ Erreur: ${error.message}`);
+      notify(`❌ Erreur: ${error.message}`);
     } finally {
       setSaving(false);
     }
   };
 
+  const handleResetPassword = async () => {
+    const confirmed = await confirmDialog(
+      `Générer un nouveau mot de passe temporaire pour ${fullName || teacher.teacher_number} ?\n\nSon mot de passe actuel ne fonctionnera plus.`
+    );
+    if (!confirmed) return;
+
+    try {
+      const { temporary_password } = await callAdminUsers<{ temporary_password: string }>(
+        'reset_teacher_password',
+        { teacher_id: teacher.id },
+      );
+      infoDialog({
+        title: `Nouveau mot de passe de ${fullName || teacher.teacher_number}`,
+        message: 'Mot de passe temporaire à lui transmettre. Il ne sera plus affiché, et devra être changé à la première connexion :',
+        secret: temporary_password,
+      });
+    } catch (error: any) {
+      notify(`❌ ${error.message}`);
+    }
+  };
   const handleAddAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
     const { error } = await supabase.from('teacher_levels').insert({
@@ -173,7 +191,7 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
     });
 
     if (error) {
-      alert(error.code === '23505' ? '⚠️ Cette affectation existe déjà.' : `❌ Erreur: ${error.message}`);
+      notify(error.code === '23505' ? '⚠️ Cette affectation existe déjà.' : `❌ Erreur: ${error.message}`);
       return;
     }
     setAssignForm({ subjectId: '', levelId: '' });
@@ -182,10 +200,10 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
   };
 
   const handleRemoveAssignment = async (assignmentId: string) => {
-    if (!window.confirm('⚠️ Retirer cette affectation ?')) return;
+    if (!await confirmDialog('⚠️ Retirer cette affectation ?')) return;
     const { error } = await supabase.from('teacher_levels').delete().eq('id', assignmentId);
     if (error) {
-      alert(`❌ Erreur: ${error.message}`);
+      notify(`❌ Erreur: ${error.message}`);
       return;
     }
     loadAssignments();
@@ -205,7 +223,7 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
     setSaving(false);
 
     if (error) {
-      alert(`❌ Erreur: ${error.message}`);
+      notify(`❌ Erreur: ${error.message}`);
       return;
     }
     setMessageForm({ subject: '', content: '' });
@@ -213,10 +231,10 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
   };
 
   const handleDeleteMessage = async (messageId: string) => {
-    if (!window.confirm('⚠️ Supprimer ce message ? Il disparaîtra aussi de la messagerie de l’enseignant.')) return;
+    if (!await confirmDialog('⚠️ Supprimer ce message ? Il disparaîtra aussi de la messagerie de l’enseignant.')) return;
     const { error } = await supabase.from('messages').delete().eq('id', messageId);
     if (error) {
-      alert(`❌ Erreur: ${error.message}`);
+      notify(`❌ Erreur: ${error.message}`);
       return;
     }
     loadMessages();
@@ -231,7 +249,7 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
   const fullName = `${teacher.profiles?.first_name || ''} ${teacher.profiles?.last_name || ''}`.trim();
 
   return (
-    <div className="bg-white rounded-lg shadow p-4 md:p-6">
+    <div className="bg-white rounded-xl shadow p-4 md:p-6">
       <button onClick={onBack} className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-700 mb-4">
         <ArrowLeft className="w-4 h-4" /> Retour à la liste des enseignants
       </button>
@@ -261,7 +279,7 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-4 py-2 font-medium whitespace-nowrap border-b-2 transition ${
                 activeTab === tab.id
-                  ? 'border-purple-600 text-purple-700'
+                  ? 'border-indigo-600 text-indigo-700'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
@@ -314,13 +332,22 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
               <input type="text" {...field('department')} />
             </div>
           </div>
-          <button
-            type="submit"
-            disabled={saving}
-            className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
-          >
-            {saving ? 'Enregistrement...' : 'Enregistrer les modifications'}
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="submit"
+              disabled={saving}
+              className="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {saving ? 'Enregistrement...' : 'Enregistrer les modifications'}
+            </button>
+            <button
+              type="button"
+              onClick={handleResetPassword}
+              className="flex items-center gap-2 px-4 py-2 border rounded hover:bg-gray-100"
+            >
+              <KeyRound className="w-4 h-4" /> Réinitialiser le mot de passe
+            </button>
+          </div>
         </form>
       )}
 
@@ -347,7 +374,7 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
               ariaLabel="Niveau"
               required
             />
-            <button type="submit" className="bg-purple-600 text-white py-2 rounded hover:bg-purple-700 flex items-center justify-center gap-2">
+            <button type="submit" className="bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700 flex items-center justify-center gap-2">
               <Plus className="w-4 h-4" /> Affecter
             </button>
           </form>
@@ -446,7 +473,7 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
             <button
               type="submit"
               disabled={saving}
-              className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+              className="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
             >
               <Send className="w-4 h-4" /> {saving ? 'Envoi...' : 'Envoyer'}
             </button>

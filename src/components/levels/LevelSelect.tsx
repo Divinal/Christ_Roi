@@ -12,6 +12,7 @@ interface LevelSelectProps {
   // Limite le choix à un cycle (filtre "Cycle" puis "Niveau").
   cycle?: SchoolCycle | 'all';
   ariaLabel?: string;
+  id?: string;
 }
 
 const LevelSelect: React.FC<LevelSelectProps> = ({
@@ -24,8 +25,10 @@ const LevelSelect: React.FC<LevelSelectProps> = ({
   className = 'w-full border rounded px-3 py-2',
   cycle = 'all',
   ariaLabel,
+  id,
 }) => (
   <select
+    id={id}
     value={value}
     onChange={(e) => onChange(e.target.value)}
     required={required}

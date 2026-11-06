@@ -2,12 +2,34 @@
 import React, { useState, useEffect } from 'react';
 import {
   Home, FileText, Calendar, GraduationCap,
-  Bell, Award, TrendingUp, LogOut, DollarSign
+  Bell, Award, DollarSign, Hash, Printer
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
-import { cycleLabel, SchoolCycle } from '../lib/levels';
+import { Announcement, PRIORITY_CLASSES, PRIORITY_LABELS, fetchActiveAnnouncements } from '../lib/announcements';
+import { GradeRow, formatGrade, gradeToneClass, weightedAverage } from '../lib/grades';
+import { CURRENT_ACADEMIC_YEAR, cycleLabel, SchoolCycle } from '../lib/levels';
 import { timeSlotOf, timeSlotsOf } from '../lib/schedule';
+import { useHashTab } from '../lib/useHashTab';
+import AppShell, { NavGroup } from '../components/ui/AppShell';
+import { EmptyState, Panel, StatTile } from '../components/ui/primitives';
+import AnnouncementList from '../components/announcements/AnnouncementList';
+import GradeReportPrint from '../components/grades/GradeReportPrint';
+import StudentGradesTable from '../components/grades/StudentGradesTable';
 import TuitionHistoryTable from '../components/finance/TuitionHistoryTable';
+
+const NAV_GROUPS: NavGroup[] = [
+  { label: 'Général', items: [{ id: 'dashboard', label: 'Tableau de bord', icon: Home }] },
+  {
+    label: 'Ma scolarité',
+    items: [
+      { id: 'grades', label: 'Mes notes', icon: FileText },
+      { id: 'schedule', label: 'Emploi du temps', icon: Calendar },
+      { id: 'payments', label: 'Mes paiements', icon: DollarSign },
+    ],
+  },
+  { label: 'Communication', items: [{ id: 'announcements', label: 'Annonces', icon: Bell }] },
+];
+const TABS = NAV_GROUPS.flatMap((group) => group.items.map((item) => item.id));
 
 interface User {
   id: string;
@@ -28,22 +50,6 @@ interface Student {
   annual_tuition_fee?: number | null;
 }
 
-interface Grade {
-  id: string;
-  student_id: string;
-  subject_id: string;
-  grade_value: number;
-  grade_type: string;
-  coefficient: number;
-  exam_date?: string;
-  comment?: string;
-  subjects?: {
-    name: string;
-    code: string;
-    coefficient?: number;
-  };
-}
-
 interface Schedule {
   id: string;
   day_of_week: number;
@@ -61,27 +67,19 @@ interface Schedule {
   };
 }
 
-interface Announcement {
-  id: string;
-  title: string;
-  content: string;
-  priority: string;
-  published_at: string;
-  expires_at?: string;
-}
-
 interface StudentDashboardProps {
   user: User | null;
   onLogout: () => void;
+  onChangePassword: () => void;
 }
 
-const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) => {
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
+const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout, onChangePassword }) => {
+  const [activeTab, setActiveTab] = useHashTab(TABS, 'dashboard');
   const [studentData, setStudentData] = useState<Student | null>(null);
-  const [grades, setGrades] = useState<Grade[]>([]);
+  const [grades, setGrades] = useState<GradeRow[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [printing, setPrinting] = useState<boolean>(false);
 
   useEffect(() => {
     if (user) {
@@ -90,7 +88,6 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
   }, [user]);
 
   const loadStudentData = async () => {
-    setLoading(true);
     try {
       // 1. Charger les infos de l'étudiant
       const { data: studentInfo, error: studentError } = await supabase
@@ -113,19 +110,17 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
         loadGrades(studentInfo.id);
 
         // 4. Charger les annonces
-        loadAnnouncements();
+        setAnnouncements(await fetchActiveAnnouncements('students'));
       }
     } catch (error) {
       console.error('Erreur:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
   const loadGrades = async (studentId: string) => {
     const { data, error } = await supabase
       .from('grades')
-      .select('*, subjects(name, code, coefficient)')
+      .select('*, subjects(name, code, coefficient), teachers(profiles(first_name, last_name))')
       .eq('student_id', studentId)
       .order('exam_date', { ascending: false });
 
@@ -154,87 +149,21 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
     }
   };
 
-  const loadAnnouncements = async () => {
-    const { data, error } = await supabase
-      .from('announcements')
-      .select('*')
-      .in('target_audience', ['students', 'all'])
-      .order('published_at', { ascending: false })
-      .limit(10);
-
-    if (error) {
-      console.error('Erreur chargement annonces:', error);
-    } else {
-      setAnnouncements(data || []);
-    }
-  };
-
-  // Le coefficient officiel est celui de la matière (Unité de Formation),
-  // le coefficient stocké sur la note peut être obsolète si la matière a été modifiée depuis
-  const getEffectiveCoefficient = (grade: Grade): number =>
-    grade.subjects?.coefficient || grade.coefficient;
-
-  // Calculer la moyenne générale
-  const calculateAverage = (): number => {
-    if (grades.length === 0) return 0;
-    const total = grades.reduce((sum, grade) => sum + (grade.grade_value * getEffectiveCoefficient(grade)), 0);
-    const totalCoef = grades.reduce((sum, grade) => sum + getEffectiveCoefficient(grade), 0);
-    return totalCoef > 0 ? total / totalCoef : 0;
-  };
-
-   const handleLogout = () => {
-      const confirmed = window.confirm("Voulez-vous vous déconnecter ?");
-      if (confirmed) {
-        onLogout();
-      }
-    };
+  const average = weightedAverage(grades);
 
   const dayNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* NAVBAR */}
-      <nav className="bg-blue-600 text-white p-4 shadow-lg">
-        <div className="container mx-auto flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Espace Étudiant</h1>
-          <div className="flex items-center gap-4">
-            <span className="text-sm">Bienvenue, {user?.first_name} {user?.last_name}</span>
-           <button
-             onClick={handleLogout}
-              className="bg-green-700 px-4 py-2 rounded hover:bg-green-800 flex items-center gap-2">
-              <LogOut className="w-4 h-4" />
-               Déconnexion
-            </button>
-          </div>
-        </div>
-      </nav>
-
-      {/* TABS */}
-      <div className="container mx-auto px-4 py-6">
-        <div className="flex gap-2 mb-6 overflow-x-auto">
-          {[
-            { id: 'dashboard', label: 'Tableau de bord', icon: Home },
-            { id: 'schedule', label: 'Emploi du temps', icon: Calendar },
-            { id: 'announcements', label: 'Annonces', icon: Bell },
-            { id: 'payments', label: 'Mes Paiements', icon: DollarSign },
-          ].map(tab => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                <Icon className="w-5 h-5" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+    <AppShell
+      spaceLabel="Espace étudiant"
+      groups={NAV_GROUPS}
+      activeId={activeTab}
+      onSelect={setActiveTab}
+      userName={`${user?.first_name || ''} ${user?.last_name || ''}`.trim()}
+      roleLabel={studentData?.levels ? `Étudiant • ${studentData.levels.name}` : 'Étudiant'}
+      onLogout={onLogout}
+      onChangePassword={onChangePassword}
+    >
 
         {/* DASHBOARD TAB */}
         {activeTab === 'dashboard' && (
@@ -251,50 +180,35 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
                     {studentData?.levels && ` • ${studentData.levels.name}`}
                   </p>
                 </div>
-                <div className="bg-white bg-opacity-20 rounded-lg p-4 backdrop-blur">
+                <div className="bg-white bg-opacity-20 rounded-lg p-4 backdrop-blur shrink-0">
                   <p className="text-sm text-blue-100">Moyenne générale</p>
-                  <p className="text-3xl font-bold">{calculateAverage().toFixed(2)}/20</p>
+                  <p className="text-3xl font-bold">{average === null ? '-' : `${formatGrade(average)}/20`}</p>
                 </div>
               </div>
             </div>
 
             {/* Statistiques */}
-            <div className="grid md:grid-cols-4 gap-6 mb-6">
-              <div className="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500">
-                <Award className="w-10 h-10 text-blue-600 mb-3" />
-                <p className="text-3xl font-bold text-blue-600">
-                  {calculateAverage().toFixed(2)}
-                </p>
-                <p className="text-gray-600">Moyenne générale</p>
-              </div>
-
-              <div className="bg-white rounded-lg shadow p-6 border-l-4 border-purple-500">
-                <GraduationCap className="w-10 h-10 text-purple-600 mb-3" />
-                <p className="text-3xl font-bold text-purple-600">{studentData?.levels?.name || 'À inscrire'}</p>
-                <p className="text-gray-600">
-                  {studentData?.levels ? cycleLabel(studentData.levels.cycle) : "Contactez l'administration"}
-                </p>
-              </div>
-
-              <div className="bg-white rounded-lg shadow p-6 border-l-4 border-orange-500">
-                <Bell className="w-10 h-10 text-orange-600 mb-3" />
-                <p className="text-3xl font-bold text-orange-600">{announcements.length}</p>
-                <p className="text-gray-600">Annonces</p>
-              </div>
-
-              <div className="bg-white rounded-lg shadow p-6 border-l-4 border-green-500">
-                <TrendingUp className="w-10 h-10 text-green-600 mb-3" />
-                <p className="text-3xl font-bold text-green-600">
-                  {calculateAverage() >= 10 ? '+' : '-'}
-                  {Math.abs(calculateAverage() - 10).toFixed(1)}
-                </p>
-                <p className="text-gray-600">Par rapport à 10/20</p>
-              </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4 md:mb-6">
+              <StatTile
+                icon={Award}
+                tone="blue"
+                label="Moyenne générale"
+                value={formatGrade(average)}
+                valueClassName={gradeToneClass(average)}
+              />
+              <StatTile
+                icon={GraduationCap}
+                tone="indigo"
+                label={studentData?.levels ? cycleLabel(studentData.levels.cycle) : "Contactez l'administration"}
+                value={studentData?.levels?.name || 'À inscrire'}
+              />
+              <StatTile icon={Hash} tone="green" label="Notes" value={grades.length} />
+              <StatTile icon={Bell} tone="orange" label="Annonces" value={announcements.length} />
             </div>
 
             {/* Dernières notes et annonces */}
             <div className="grid md:grid-cols-2 gap-6">
-              <div className="bg-white rounded-lg shadow p-6">
+              <div className="bg-white rounded-xl shadow p-6">
                 <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                   <FileText className="text-blue-600" />
                   Dernières notes
@@ -320,7 +234,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow p-6">
+              <div className="bg-white rounded-xl shadow p-6">
                 <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                   <Bell className="text-orange-600" />
                   Dernières annonces
@@ -330,12 +244,8 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
                     <div key={announcement.id} className="p-3 border-l-4 border-orange-500 bg-orange-50 rounded">
                       <div className="flex justify-between items-start mb-1">
                         <p className="font-semibold text-sm">{announcement.title}</p>
-                        <span className={`text-xs px-2 py-0.5 rounded ${
-                          announcement.priority === 'urgent' ? 'bg-red-100 text-red-700' :
-                          announcement.priority === 'high' ? 'bg-orange-100 text-orange-700' :
-                          'bg-blue-100 text-blue-700'
-                        }`}>
-                          {announcement.priority}
+                        <span className={`text-xs px-2 py-0.5 rounded ${PRIORITY_CLASSES[announcement.priority]}`}>
+                          {PRIORITY_LABELS[announcement.priority]}
                         </span>
                       </div>
                       <p className="text-xs text-gray-600 line-clamp-2">{announcement.content}</p>
@@ -356,9 +266,40 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
           </div>
         )}
 
+        {/* MES NOTES */}
+        {activeTab === 'grades' && (
+          <Panel
+            title="Mes notes"
+            description={`Moyenne générale : ${formatGrade(average)} / 20`}
+            actions={
+              <button
+                onClick={() => setPrinting(true)}
+                disabled={grades.length === 0}
+                className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Printer className="h-4 w-4" /> Imprimer mon relevé
+              </button>
+            }
+          >
+            {grades.length === 0 ? (
+              <EmptyState icon={FileText} title="Aucune note disponible" hint="Vos notes apparaîtront ici dès que vos enseignants les auront saisies." />
+            ) : (
+              <StudentGradesTable grades={grades} />
+            )}
+          </Panel>
+        )}
+        {printing && studentData && (
+          <GradeReportPrint
+            studentName={`${user?.first_name || ''} ${user?.last_name || ''}`.trim()}
+            studentNumber={studentData.student_number}
+            levelName={studentData.levels?.name}
+            grades={grades}
+            onClose={() => setPrinting(false)}
+          />
+        )}
         {/* SCHEDULE TAB - EMPLOI DU TEMPS */}
         {activeTab === 'schedule' && (
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-xl shadow p-6">
             <h2 className="text-2xl font-bold mb-6">Mon Emploi du Temps</h2>
             
             {schedules.length === 0 ? (
@@ -370,7 +311,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
                   <thead>
-                    <tr className="bg-gradient-to-r from-blue-100 to-indigo-100">
+                    <tr className="bg-gray-100">
                       <th className="border-2 px-4 py-3 font-bold">Heure</th>
                       {dayNames.map((day, idx) => (
                         <th key={idx} className="border-2 px-4 py-3 font-bold">{day}</th>
@@ -415,72 +356,22 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
           </div>
         )}
 
-        {/* ANNOUNCEMENTS TAB - ANNONCES */}
+        {/* ANNONCES */}
         {activeTab === 'announcements' && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-2xl font-bold mb-6">Annonces ({announcements.length})</h2>
-            
-            {loading ? (
-              <p className="text-center py-8">Chargement...</p>
-            ) : announcements.length === 0 ? (
-              <div className="text-center py-12">
-                <Bell className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <p className="text-xl text-gray-500">Aucune annonce</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {announcements.map((announcement) => (
-                  <div 
-                    key={announcement.id} 
-                    className="p-5 border-2 rounded-lg hover:shadow-lg transition"
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          announcement.priority === 'urgent' ? 'bg-red-600' :
-                          announcement.priority === 'high' ? 'bg-orange-600' :
-                          'bg-blue-600'
-                        }`}>
-                          <Bell className="w-5 h-5 text-white" />
-                        </div>
-                        <div>
-                          <p className="font-bold text-lg">{announcement.title}</p>
-                          <p className="text-xs text-gray-500">
-                            {new Date(announcement.published_at).toLocaleString()}
-                          </p>
-                        </div>
-                      </div>
-                      <span className={`text-xs px-3 py-1 rounded-full font-semibold ${
-                        announcement.priority === 'urgent' ? 'bg-red-100 text-red-700' :
-                        announcement.priority === 'high' ? 'bg-orange-100 text-orange-700' :
-                        announcement.priority === 'normal' ? 'bg-blue-100 text-blue-700' :
-                        'bg-gray-100 text-gray-700'
-                      }`}>
-                        {announcement.priority}
-                      </span>
-                    </div>
-                    <p className="text-gray-700 mb-2">{announcement.content}</p>
-                    {announcement.expires_at && (
-                      <p className="text-xs text-gray-500">
-                        Expire le {new Date(announcement.expires_at).toLocaleDateString()}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <Panel title={`Annonces (${announcements.length})`}>
+            <AnnouncementList announcements={announcements} />
+          </Panel>
         )}
 
         {/* MES PAIEMENTS - FRAIS DE SCOLARITÉ */}
         {activeTab === 'payments' && (
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-xl shadow p-6">
             <h2 className="text-2xl font-bold mb-6">Mes Paiements</h2>
             {studentData ? (
               <TuitionHistoryTable
                 studentId={studentData.id}
                 annualFee={studentData.annual_tuition_fee}
-                academicYear="2026-2027"
+                academicYear={CURRENT_ACADEMIC_YEAR}
                 showStudentName={false}
               />
             ) : (
@@ -488,8 +379,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
             )}
           </div>
         )}
-      </div>
-    </div>
+    </AppShell>
   );
 };
 

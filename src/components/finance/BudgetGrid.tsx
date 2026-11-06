@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { ACADEMIC_MONTHS, FinancialCategory, FinancialKind } from './financeTypes';
 import { formatFCFA } from './financeUtils';
+import { notify } from '../ui/feedback';
 
 interface BudgetGridProps {
   kind: FinancialKind;
@@ -49,7 +50,7 @@ const BudgetGrid: React.FC<BudgetGridProps> = ({ kind, academicYear, categories 
         { onConflict: 'category_id,month,academic_year' }
       );
     if (error) {
-      alert(`❌ Erreur d'enregistrement: ${error.message}`);
+      notify(`❌ Erreur d'enregistrement: ${error.message}`);
     }
   };
 

@@ -137,3 +137,170 @@
     display: none !important;
   }
 }
+
+/* ---------- Documents imprimables (liste de niveau, relevé de notes) ----------
+   Couleurs fixes : le document reste clair à l'écran comme sur papier, quel que
+   soit le thème de l'application. */
+.print-doc {
+  background: #fff;
+  color: #111827;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.print-doc table {
+  width: 100%;
+  margin-top: 12px;
+  border-collapse: collapse;
+}
+.print-doc th,
+.print-doc td {
+  padding: 6px 8px;
+  border: 1px solid #cbd5e1;
+  text-align: left;
+  vertical-align: top;
+}
+.print-doc th {
+  background: #f1f5f9;
+  font-weight: 600;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.print-doc .print-doc-narrow {
+  width: 2.5rem;
+  text-align: center;
+}
+.print-doc .print-doc-signature {
+  width: 8rem;
+}
+.print-doc .print-doc-subtotal td {
+  background: #f8fafc;
+  font-weight: 600;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.print-doc-school {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #111827;
+  font-size: 12px;
+}
+.print-doc-school img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+.print-doc-school strong {
+  font-size: 15px;
+}
+.print-doc-header h1 {
+  margin-top: 14px;
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+}
+.print-doc-subtitle {
+  font-size: 15px;
+  text-align: center;
+}
+.print-doc-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 20px;
+  margin-top: 10px;
+}
+.print-doc-meta div {
+  display: flex;
+  gap: 4px;
+}
+.print-doc-meta dt {
+  color: #4b5563;
+}
+.print-doc-meta dt::after {
+  content: ' :';
+}
+.print-doc-meta dd {
+  font-weight: 600;
+}
+.print-doc-empty {
+  padding: 24px 0;
+  text-align: center;
+}
+.print-doc-total {
+  margin-top: 12px;
+  font-size: 15px;
+  text-align: right;
+}
+.print-doc-sign {
+  margin-top: 40px;
+  text-align: right;
+}
+
+@media screen {
+  #print-root {
+    display: none;
+  }
+}
+
+@media print {
+  html,
+  html.dark {
+    background: #fff;
+    color-scheme: light;
+  }
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+  body:has(#print-root) {
+    background: #fff;
+  }
+  /* L'application disparaît de la mise en page : la liste peut couvrir plusieurs pages. */
+  body:has(#print-root) #root {
+    display: none;
+  }
+  #print-root,
+  #print-root * {
+    visibility: visible;
+  }
+  #print-root thead {
+    display: table-header-group;
+  }
+  #print-root tr {
+    break-inside: avoid;
+  }
+}
+
+@media print {
+  body {
+    background: #fff !important;
+  }
+  /* Reçus, bulletins et bons : ils s'affichent dans une fenêtre fixe, que le
+     navigateur répéterait sur chaque page. Tout le reste quitte la mise en page,
+     pour un seul exemplaire en haut de la feuille. */
+  body:has(#printable-area) #root *:not(:has(#printable-area)):not(#printable-area):not(#printable-area *) {
+    display: none !important;
+  }
+  #root *:has(#printable-area) {
+    display: block !important;
+    position: static !important;
+    width: auto !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: none !important;
+    transform: none !important;
+  }
+  #root #printable-area {
+    position: static;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+}

@@ -1,16 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://qjdyxhcqfxrxgxjzbbth.supabase.co'
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFqZHl4aGNxZnhyeGd4anpiYnRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxOTIwMjksImV4cCI6MjA5Nzc2ODAyOX0.lTYgKsdEIr6HODEGz-cKow-mJ-tf9ZCv88kqvM2X4N8'
-const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFqZHl4aGNxZnhyeGd4anpiYnRoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjE5MjAyOSwiZXhwIjoyMDk3NzY4MDI5fQ.TlGA717GXUORsU6ZCNGKCl7C-V_F73pfLjJO3tFxNMc'; // ← AJOUTER
+// Seule une clé publique a sa place ici : tout ce qui est dans ce fichier est
+// envoyé aux visiteurs. Les opérations qui exigent une clé secrète passent par
+// la fonction serveur admin-users (voir src/lib/adminUsers.ts).
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabasePublicKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-// Client normal (avec anon key)
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+if (!supabaseUrl || !supabasePublicKey) {
+  throw new Error('VITE_SUPABASE_URL et VITE_SUPABASE_PUBLISHABLE_KEY doivent être définies dans .env');
+}
 
-// Client admin (avec service role key) - POUR CRÉER DES UTILISATEURS
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
-  }
-});
+export const supabase = createClient(supabaseUrl, supabasePublicKey);

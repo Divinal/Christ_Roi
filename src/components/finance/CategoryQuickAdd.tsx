@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { FinancialCategory, FinancialKind } from './financeTypes';
+import { confirmDialog, notify } from '../ui/feedback';
 
 interface CategoryQuickAddProps {
   kind: FinancialKind;
@@ -25,7 +26,7 @@ const CategoryQuickAdd: React.FC<CategoryQuickAddProps> = ({ kind, categories, o
     });
 
     if (error) {
-      alert(`❌ Erreur: ${error.message}`);
+      notify(`❌ Erreur: ${error.message}`);
     } else {
       setName('');
       onChanged();
@@ -33,13 +34,13 @@ const CategoryQuickAdd: React.FC<CategoryQuickAddProps> = ({ kind, categories, o
   };
 
   const handleDeactivate = async (categoryId: string) => {
-    if (!window.confirm('Masquer cette catégorie ? Son historique sera conservé.')) return;
+    if (!await confirmDialog('Masquer cette catégorie ? Son historique sera conservé.')) return;
     const { error } = await supabase
       .from('financial_categories')
       .update({ is_active: false })
       .eq('id', categoryId);
 
-    if (error) alert(`❌ Erreur: ${error.message}`);
+    if (error) notify(`❌ Erreur: ${error.message}`);
     else onChanged();
   };
 
@@ -56,7 +57,7 @@ const CategoryQuickAdd: React.FC<CategoryQuickAddProps> = ({ kind, categories, o
           />
           <button
             type="submit"
-            className="bg-purple-600 text-white px-3 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-1 text-sm"
+            className="bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-1 text-sm"
           >
             <Plus className="w-4 h-4" />
             Ajouter

@@ -52,7 +52,7 @@ const FinanceManagement: React.FC = () => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow p-4 md:p-6">
+    <div className="bg-white rounded-xl shadow p-4 md:p-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
         <h2 className="text-xl md:text-2xl font-bold">Gestion Financière</h2>
         <select
@@ -78,7 +78,7 @@ const FinanceManagement: React.FC = () => {
             onClick={() => setFinanceSubTab(tab.id as typeof financeSubTab)}
             className={`px-4 py-2 font-medium whitespace-nowrap border-b-2 transition ${
               financeSubTab === tab.id
-                ? 'border-purple-600 text-purple-700'
+                ? 'border-indigo-600 text-indigo-700'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >

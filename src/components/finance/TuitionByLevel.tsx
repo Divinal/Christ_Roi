@@ -6,6 +6,8 @@ import { ACADEMIC_MONTHS, TuitionPayment } from './financeTypes';
 import { formatFCFA, generateReceiptNumber } from './financeUtils';
 import ReceiptPrintable from './ReceiptPrintable';
 import TuitionHistoryTable from './TuitionHistoryTable';
+import { confirmDialog, notify } from '../ui/feedback';
+import { fetchAllRows } from '../../lib/fetchAll';
 
 type PaymentStatus = 'paid' | 'partial' | 'unpaid' | 'no_fee';
 
@@ -33,19 +35,6 @@ interface TuitionByLevelProps {
 }
 
 const UNENROLLED = 'unenrolled';
-const PAGE_SIZE = 1000;
-
-// PostgREST plafonne chaque réponse (1000 lignes par défaut) : sans pagination,
-// les totaux seraient faux sans aucune erreur dès que l'école dépasse ce seuil.
-const fetchAllRows = async (build: (from: number, to: number) => PromiseLike<{ data: any[] | null; error: any }>) => {
-  const rows: any[] = [];
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await build(from, from + PAGE_SIZE - 1);
-    if (error) throw error;
-    rows.push(...(data || []));
-    if (!data || data.length < PAGE_SIZE) return rows;
-  }
-};
 
 const todayISO = (): string => new Date().toISOString().slice(0, 10);
 
@@ -179,11 +168,11 @@ const TuitionByLevel: React.FC<TuitionByLevelProps> = ({ academicYear }) => {
       .select('id');
 
     if (error) {
-      alert(`❌ Erreur: ${error.message}`);
+      notify(`❌ Erreur: ${error.message}`);
       return;
     }
     if (!data?.length) {
-      alert("❌ Modification refusée : vous n'avez pas les droits nécessaires.");
+      notify("❌ Modification refusée : vous n'avez pas les droits nécessaires.");
       return;
     }
     setFeeEdit(null);
@@ -201,7 +190,7 @@ const TuitionByLevel: React.FC<TuitionByLevelProps> = ({ academicYear }) => {
 
     const fee = Number(collecting.annual_tuition_fee) || 0;
     if (fee > 0 && paymentForm.amount > collecting.remaining) {
-      const proceed = window.confirm(
+      const proceed = await confirmDialog(
         `⚠️ Ce montant dépasse le reste à payer (${formatFCFA(collecting.remaining)}). Enregistrer quand même ?`
       );
       if (!proceed) return;
@@ -223,7 +212,7 @@ const TuitionByLevel: React.FC<TuitionByLevelProps> = ({ academicYear }) => {
     setSubmitting(false);
 
     if (error) {
-      alert(`❌ Erreur: ${error.message}`);
+      notify(`❌ Erreur: ${error.message}`);
       return;
     }
     setReceipt({ payment: data as TuitionPayment, cumulativePaid: collecting.paid + Number(paymentForm.amount), fee });
@@ -268,7 +257,7 @@ const TuitionByLevel: React.FC<TuitionByLevelProps> = ({ academicYear }) => {
                           aria-label={`Frais annuel de ${fullName}`}
                           className="border rounded px-2 py-1 w-28 text-right"
                         />
-                        <button onClick={handleSaveFee} className="bg-purple-600 text-white rounded px-2 text-xs hover:bg-purple-700">OK</button>
+                        <button onClick={handleSaveFee} className="bg-indigo-600 text-white rounded px-2 text-xs hover:bg-indigo-700">OK</button>
                         <button onClick={() => setFeeEdit(null)} className="border rounded px-2 text-xs hover:bg-gray-100">×</button>
                       </div>
                     ) : row.annual_tuition_fee ? (
@@ -513,7 +502,7 @@ const TuitionByLevel: React.FC<TuitionByLevelProps> = ({ academicYear }) => {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                className="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
               >
                 {submitting ? 'Enregistrement...' : 'Enregistrer et générer le reçu'}
               </button>

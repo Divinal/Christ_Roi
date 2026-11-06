@@ -55,6 +55,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLogin }) => {
           lastName: profileData.last_name,
           first_name: profileData.first_name,
           last_name: profileData.last_name,
+          mustChangePassword: authData.user.user_metadata?.must_change_password === true,
         };
         onLogin(user);
       }
@@ -129,10 +130,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLogin }) => {
         </form>
 
         <p className="text-center text-sm text-gray-600 mt-4">
-          Mot de passe oublié ?{' '}
-          <a href="#" className="text-blue-600 hover:underline font-medium">
-            Contactez l'administrateur
-          </a>
+          Mot de passe oublié ? Contactez l'administration de l'établissement.
         </p>
       </div>
     </div>

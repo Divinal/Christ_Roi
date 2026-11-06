@@ -1,11 +1,19 @@
 // src/pages/TeacherDashboard.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
-  Home, BookOpen, FileText, Calendar, MessageSquare,
-  Save, LogOut, DollarSign
+  Bell, BookOpen, Calendar, CheckCircle2, ClipboardList, DollarSign, FileText, Home,
+  MessageSquare, Save
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { Announcement, fetchActiveAnnouncements } from '../lib/announcements';
+import { CURRENT_ACADEMIC_YEAR, Level, SchoolCycle } from '../lib/levels';
 import { timeSlotOf, timeSlotsOf } from '../lib/schedule';
+import { useHashTab } from '../lib/useHashTab';
+import AppShell, { NavGroup } from '../components/ui/AppShell';
+import { confirmDialog, notify } from '../components/ui/feedback';
+import { Panel, StatTile } from '../components/ui/primitives';
+import AnnouncementList from '../components/announcements/AnnouncementList';
+import GradesManagement from '../components/grades/GradesManagement';
 import PayslipHistoryTable from '../components/finance/PayslipHistoryTable';
 
 interface User {
@@ -19,11 +27,14 @@ interface User {
 interface TeacherDashboardProps {
   user: User | null;
   onLogout: () => void;
+  onChangePassword: () => void;
 }
 
 interface TeacherLevel {
   id: string;
   name: string;
+  cycle: SchoolCycle;
+  position: number;
   subject_name: string;
   subject_id: string;
   subject_coefficient: number;
@@ -36,6 +47,7 @@ interface StudentGrade {
   last_name: string;
   grade_value?: number;
   comment?: string;
+  saved?: boolean;
 }
 
 interface Schedule {
@@ -57,8 +69,10 @@ interface Message {
   is_read: boolean;
 }
 
-const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) => {
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
+const TABS = ['dashboard', 'grades', 'my-grades', 'schedule', 'announcements', 'messages', 'payslips'];
+
+const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onChangePassword }) => {
+  const [activeTab, setActiveTab] = useHashTab(TABS, 'dashboard');
   const [teacherId, setTeacherId] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
 
@@ -66,6 +80,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
   const [myLevels, setMyLevels] = useState<TeacherLevel[]>([]);
   const [mySchedule, setMySchedule] = useState<Schedule[]>([]);
   const [myMessages, setMyMessages] = useState<Message[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
 
   // États pour la saisie de notes
   const [selectedLevel, setSelectedLevel] = useState<string>('');
@@ -75,9 +90,6 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
   const [examDate, setExamDate] = useState<string>('');
   const [studentsGrades, setStudentsGrades] = useState<StudentGrade[]>([]);
 
-    // États pour visualiser les notes saisies
-  const [selectedStudentForView, setSelectedStudentForView] = useState<string>('');
-  const [viewStudentGrades, setViewStudentGrades] = useState<any[]>([]);
 
   useEffect(() => {
     if (user) {
@@ -117,7 +129,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
         .single();
 
       if (!teacherData) {
-        alert('Profil enseignant non trouvé');
+        notify('Profil enseignant non trouvé');
         return;
       }
 
@@ -130,7 +142,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
           id,
           level_id,
           subject_id,
-          levels (id, name),
+          levels (id, name, cycle, position),
           subjects (id, name, code, coefficient)
         `)
         .eq('teacher_id', teacherData.id);
@@ -139,6 +151,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
         const formattedLevels = levelsData.map((item: any) => ({
           id: item.level_id,
           name: item.levels.name,
+          cycle: item.levels.cycle,
+          position: item.levels.position,
           subject_id: item.subject_id,
           subject_name: item.subjects.name,
           subject_coefficient: item.subjects.coefficient || 1
@@ -207,7 +221,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
           is_read: m.recipient_type !== 'individual' || Boolean(m.is_read)
         })));
       }
-
+      setAnnouncements(await fetchActiveAnnouncements('teachers'));
     } catch (error) {
       console.error('Error loading teacher data:', error);
     } finally {
@@ -215,17 +229,11 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
     }
   };
 
-      const handleLogout = () => {
-      const confirmed = window.confirm("Voulez-vous vous déconnecter ?");
-      if (confirmed) {
-        onLogout();
-      }
-    };
 
   // ==================== CHARGEMENT ÉTUDIANTS POUR SAISIE NOTES ====================
   const loadStudentsForGrading = async () => {
     if (!selectedLevel || !selectedSubject) {
-      alert('Veuillez sélectionner un niveau et une matière');
+      notify('Veuillez sélectionner un niveau et une matière');
       return;
     }
 
@@ -250,126 +258,119 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
           grade_value: undefined,
           comment: ''
         }));
-        setStudentsGrades(formattedStudents);
+        setStudentsGrades(
+          formattedStudents.sort((a, b) =>
+            `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`, 'fr'),
+          ),
+        );
       }
     } catch (error) {
       console.error('Error loading students:', error);
-      alert('Erreur lors du chargement des étudiants');
+      notify('Erreur lors du chargement des étudiants');
     } finally {
       setLoading(false);
     }
   };
 
   // ==================== SAISIE DES NOTES ====================
-  const updateGrade = (studentId: string, field: 'grade_value' | 'comment', value: any) => {
+  const updateGrade = (studentId: string, field: 'grade_value' | 'comment', value: string) => {
+    const parsed = field === 'grade_value' ? (value === '' ? undefined : parseFloat(value)) : value;
     setStudentsGrades(prev =>
       prev.map(s =>
-        s.student_id === studentId ? { ...s, [field]: value } : s
+        s.student_id === studentId ? { ...s, [field]: parsed, saved: false } : s
       )
     );
   };
 
+  const isValidGrade = (value?: number): value is number =>
+    value !== undefined && !Number.isNaN(value) && value >= 0 && value <= 20;
+
+  const gradeRowFor = (student: StudentGrade) => ({
+    student_id: student.student_id,
+    subject_id: selectedSubject,
+    teacher_id: teacherId,
+    level_id: selectedLevel,
+    grade_value: student.grade_value,
+    grade_type: gradeType,
+    coefficient: coefficient,
+    exam_date: examDate || null,
+    comment: student.comment || null
+  });
+
   const saveGrade = async (studentId: string) => {
     const student = studentsGrades.find(s => s.student_id === studentId);
-    if (!student || student.grade_value === undefined) {
-      alert('Veuillez saisir une note');
+    if (!student || !isValidGrade(student.grade_value)) {
+      notify('⚠️ Saisissez une note comprise entre 0 et 20.');
       return;
     }
 
-    try {
-      const { error } = await supabase.from('grades').insert({
-        student_id: studentId,
-        subject_id: selectedSubject,
-        teacher_id: teacherId,
-        level_id: selectedLevel,
-        grade_value: student.grade_value,
-        grade_type: gradeType,
-        coefficient: coefficient,
-        exam_date: examDate || null,
-        comment: student.comment || null
-      });
-
-      if (error) throw error;
-      alert('✅ Note enregistrée avec succès');
-    } catch (error: any) {
-      alert(`❌ Erreur: ${error.message}`);
+    const { error } = await supabase.from('grades').insert(gradeRowFor(student));
+    if (error) {
+      notify(`❌ Erreur: ${error.message}`);
+      return;
     }
+    // Marquée enregistrée : "Enregistrer toutes" ne doit pas la créer une seconde fois.
+    setStudentsGrades(prev => prev.map(s => (s.student_id === studentId ? { ...s, saved: true } : s)));
+    notify('✅ Note enregistrée');
   };
 
   const saveAllGrades = async () => {
-    const gradesToSave = studentsGrades.filter(s => s.grade_value !== undefined);
-    
+    const gradesToSave = studentsGrades.filter(s => s.grade_value !== undefined && !s.saved);
+
     if (gradesToSave.length === 0) {
-      alert('Aucune note à enregistrer');
+      notify('Aucune nouvelle note à enregistrer');
+      return;
+    }
+    if (!gradesToSave.every(s => isValidGrade(s.grade_value))) {
+      notify('⚠️ Toutes les notes doivent être comprises entre 0 et 20.');
       return;
     }
 
-    if (!window.confirm(`Enregistrer ${gradesToSave.length} note(s) ?`)) return;
+    if (!(await confirmDialog(`Enregistrer ${gradesToSave.length} note(s) ?`, { confirmLabel: 'Enregistrer' }))) return;
 
     setLoading(true);
     try {
-      const gradesData = gradesToSave.map(s => ({
-        student_id: s.student_id,
-        subject_id: selectedSubject,
-        teacher_id: teacherId,
-        level_id: selectedLevel,
-        grade_value: s.grade_value,
-        grade_type: gradeType,
-        coefficient: coefficient,
-        exam_date: examDate || null,
-        comment: s.comment || null
-      }));
-
-      const { error } = await supabase.from('grades').insert(gradesData);
+      const { error } = await supabase.from('grades').insert(gradesToSave.map(gradeRowFor));
       if (error) throw error;
 
-      alert(`✅ ${gradesToSave.length} note(s) enregistrée(s) avec succès !`);
+      notify(`✅ ${gradesToSave.length} note(s) enregistrée(s)`);
       setStudentsGrades([]);
       setSelectedLevel('');
       setSelectedSubject('');
     } catch (error: any) {
-      alert(`❌ Erreur: ${error.message}`);
+      notify(`❌ Erreur: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-    // ==================== VISUALISATION DES NOTES SAISIES ====================
-    const loadGradesForStudent = async (studentId: string) => {
-      if (!studentId) {
-        setViewStudentGrades([]);
-        return;
-      }
 
-      setLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('grades')
-          .select(`
-            *,
-            subjects (name, code, coefficient)
-          `)
-          .eq('student_id', studentId)
-          .eq('teacher_id', teacherId)
-          .order('exam_date', { ascending: false });
-
-        if (error) throw error;
-        setViewStudentGrades(data || []);
-      } catch (error: any) {
-        console.error('Erreur chargement notes:', error);
-        alert(`❌ Erreur: ${error.message}`);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-  const tabs = [
-    { id: 'dashboard', label: 'Tableau de bord', icon: Home },
-    { id: 'grades', label: 'Saisie notes', icon: FileText },
-    { id: 'schedule', label: 'Emploi du temps', icon: Calendar },
-    { id: 'messages', label: unreadCount > 0 ? `Messages (${unreadCount})` : 'Messages', icon: MessageSquare },
-    { id: 'payslips', label: 'Mes Bulletins de Paie', icon: DollarSign }
+  const navGroups: NavGroup[] = [
+    { label: 'Général', items: [{ id: 'dashboard', label: 'Tableau de bord', icon: Home }] },
+    {
+      label: 'Enseignement',
+      items: [
+        { id: 'grades', label: 'Saisie des notes', icon: ClipboardList },
+        { id: 'my-grades', label: 'Notes saisies', icon: FileText },
+        { id: 'schedule', label: 'Emploi du temps', icon: Calendar },
+      ],
+    },
+    {
+      label: 'Communication',
+      items: [
+        { id: 'announcements', label: 'Annonces', icon: Bell },
+        { id: 'messages', label: 'Messages', icon: MessageSquare, badge: unreadCount },
+      ],
+    },
+    { label: 'Mon compte', items: [{ id: 'payslips', label: 'Bulletins de paie', icon: DollarSign }] },
   ];
+
+  // Niveaux affectés, sans doublon si plusieurs matières sur un même niveau.
+  const assignedLevels = useMemo<Level[]>(() => {
+    const unique = new Map<string, Level>();
+    myLevels.forEach(({ id, name, cycle, position }) => unique.set(id, { id, name, cycle, position }));
+    return Array.from(unique.values());
+  }, [myLevels]);
 
   const getDayName = (day: number) => {
     const days = ['', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
@@ -378,71 +379,29 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
 
   // ==================== RENDUS ====================
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* NAVBAR */}
-      <nav className="bg-green-600 text-white p-4 shadow-lg">
-        <div className="container mx-auto flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Espace Enseignant</h1>
-          <div className="flex items-center gap-4">
-            <span className="text-xs md:text-sm hidden sm:inline">Prof : 👤 {user?.first_name} {user?.last_name}</span>
-          <button
-            onClick={handleLogout}
-            className="bg-green-700 px-4 py-2 rounded hover:bg-green-800 flex items-center gap-2"
-          >
-            <LogOut className="w-4 h-4" />
-            Déconnexion
-          </button>
-
-          </div>
-        </div>
-      </nav>
-      
-      <div className="container mx-auto px-4 py-8">
-        {/* TABS */}
-        <div className="flex gap-2 mb-6 overflow-x-auto">
-          {tabs.map(tab => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'bg-green-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                <Icon className="w-5 h-5" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+    <AppShell
+      spaceLabel="Espace enseignant"
+      groups={navGroups}
+      activeId={activeTab}
+      onSelect={setActiveTab}
+      userName={`${user?.first_name || ''} ${user?.last_name || ''}`.trim()}
+      roleLabel="Enseignant"
+      onLogout={onLogout}
+      onChangePassword={onChangePassword}
+    >
 
         {/* TABLEAU DE BORD */}
         {activeTab === 'dashboard' && (
           <>
-            <div className="grid md:grid-cols-4 gap-6 mb-8">
-              <div className="bg-blue-50 p-6 rounded-lg">
-                <p className="text-4xl font-bold text-blue-600">{new Set(myLevels.map(l => l.id)).size}</p>
-                <p className="text-gray-600">Niveaux assignés</p>
-              </div>
-              <div className="bg-green-50 p-6 rounded-lg">
-                <p className="text-4xl font-bold text-green-600">{new Set(myLevels.map(l => l.subject_id)).size}</p>
-                <p className="text-gray-600">Matières enseignées</p>
-              </div>
-              <div className="bg-purple-50 p-6 rounded-lg">
-                <p className="text-4xl font-bold text-purple-600">{mySchedule.length}</p>
-                <p className="text-gray-600">Créneaux par semaine</p>
-              </div>
-              <div className="bg-orange-50 p-6 rounded-lg">
-                <p className="text-4xl font-bold text-orange-600">{unreadCount}</p>
-                <p className="text-gray-600">Messages non lus</p>
-              </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4 md:mb-6">
+              <StatTile icon={BookOpen} tone="blue" label="Niveaux assignés" value={assignedLevels.length} />
+              <StatTile icon={FileText} tone="green" label="Matières enseignées" value={new Set(myLevels.map(l => l.subject_id)).size} />
+              <StatTile icon={Calendar} tone="indigo" label="Créneaux par semaine" value={mySchedule.length} />
+              <StatTile icon={MessageSquare} tone="orange" label="Messages non lus" value={unreadCount} />
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">
-              <div className="bg-white rounded-lg shadow p-6">
+              <div className="bg-white rounded-xl shadow p-6">
                 <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                   <BookOpen className="w-5 h-5" /> Mes Niveaux
                 </h3>
@@ -460,12 +419,12 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
                 )}
               </div>
 
-              <div className="bg-white rounded-lg shadow p-6">
+              <div className="bg-white rounded-xl shadow p-6">
                 <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                  <Calendar className="w-5 h-5" /> Prochains cours
+                  <Calendar className="w-5 h-5" /> Prochains créneaux
                 </h3>
                 {mySchedule.length === 0 ? (
-                  <p className="text-gray-500 text-center">Aucun cours planifié</p>
+                  <p className="text-gray-500 text-center">Aucun créneau planifié</p>
                 ) : (
                   <div className="space-y-2">
                     {mySchedule.slice(0, 5).map((sch) => (
@@ -486,12 +445,12 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
 
        {/* SAISIE DES NOTES */}
         {activeTab === 'grades' && (
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-xl shadow p-6">
             <h2 className="text-2xl font-bold mb-6">Saisie des notes</h2>
 
             {/* SAISIE */}
             <div className="mb-8">
-              <h3 className="text-lg font-bold mb-4 text-green-700">➕ Saisir de nouvelles notes</h3>
+              <h3 className="text-lg font-bold mb-4 text-indigo-700">➕ Saisir de nouvelles notes</h3>
               
               <div className="grid md:grid-cols-4 gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
                 <div>
@@ -577,7 +536,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
                   <button
                     onClick={loadStudentsForGrading}
                     disabled={!selectedLevel || !selectedSubject}
-                    className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Charger les étudiants
                   </button>
@@ -608,8 +567,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
                                 min="0"
                                 max="20"
                                 step="0.25"
-                                value={student.grade_value || ''}
-                                onChange={(e) => updateGrade(student.student_id, 'grade_value', parseFloat(e.target.value))}
+                                value={student.grade_value ?? ''}
+                                onChange={(e) => updateGrade(student.student_id, 'grade_value', e.target.value)}
                                 className="w-24 border rounded px-2 py-1"
                                 placeholder="0-20"
                               />
@@ -624,14 +583,21 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
                               />
                             </td>
                             <td className="px-4 py-3">
-                              <button
-                                onClick={() => saveGrade(student.student_id)}
-                                disabled={student.grade_value === undefined}
-                                className="text-green-600 hover:underline flex items-center gap-1 disabled:opacity-50"
-                              >
-                                <Save className="w-4 h-4" />
-                                Enregistrer
-                              </button>
+                              {student.saved ? (
+                                <span className="text-green-600 flex items-center gap-1">
+                                  <CheckCircle2 className="w-4 h-4" />
+                                  Enregistrée
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => saveGrade(student.student_id)}
+                                  disabled={student.grade_value === undefined}
+                                  className="text-indigo-600 hover:underline flex items-center gap-1 disabled:opacity-50"
+                                >
+                                  <Save className="w-4 h-4" />
+                                  Enregistrer
+                                </button>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -649,7 +615,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
                     <button
                       onClick={saveAllGrades}
                       disabled={loading}
-                      className="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 disabled:opacity-50"
+                      className="bg-indigo-600 text-white px-6 py-2 rounded hover:bg-indigo-700 disabled:opacity-50"
                     >
                       {loading ? 'Enregistrement...' : 'Enregistrer toutes les notes'}
                     </button>
@@ -658,102 +624,32 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
               )}
             </div>
 
-            {/* SÉPARATEUR */}
-            <div className="border-t-2 border-gray-300 my-8"></div>
-
-            {/* VISUALISATION */}
-            <div>
-              <h3 className="text-lg font-bold mb-4 text-blue-700">👁️ Consulter les notes saisies</h3>
-              
-              <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-                <label className="block text-sm font-medium mb-2">
-                  Sélectionner un étudiant pour voir ses notes
-                </label>
-                <select
-                  value={selectedStudentForView}
-                  onChange={(e) => {
-                    setSelectedStudentForView(e.target.value);
-                    loadGradesForStudent(e.target.value);
-                  }}
-                  className="w-full border rounded-lg px-3 py-2"
-                >
-                  <option value="">-- Choisir un étudiant --</option>
-                  {studentsGrades.map(s => (
-                    <option key={s.student_id} value={s.student_id}>
-                      {s.student_number} - {s.first_name} {s.last_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {selectedStudentForView ? (
-                loading ? (
-                  <p className="text-center py-8">Chargement...</p>
-                ) : viewStudentGrades.length === 0 ? (
-                  <p className="text-center py-8 text-gray-500">Aucune note saisie pour cet étudiant</p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-100">
-                        <tr>
-                          <th className="px-4 py-3 text-left">Matière</th>
-                          <th className="px-4 py-3 text-left">Type</th>
-                          <th className="px-4 py-3 text-center">Note /20</th>
-                          <th className="px-4 py-3 text-center">Coef.</th>
-                          <th className="px-4 py-3 text-left">Date</th>
-                          <th className="px-4 py-3 text-left">Commentaire</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {viewStudentGrades.map((grade) => (
-                          <tr key={grade.id} className="border-b hover:bg-gray-50">
-                            <td className="px-4 py-3 font-semibold">{grade.subjects?.name}</td>
-                            <td className="px-4 py-3">{grade.grade_type}</td>
-                            <td className="px-4 py-3 text-center">
-                              <span className={`text-xl font-bold ${
-                                grade.grade_value >= 15 ? 'text-green-600' :
-                                grade.grade_value >= 10 ? 'text-blue-600' : 'text-red-600'
-                              }`}>
-                                {grade.grade_value.toFixed(2)}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded">
-                                {grade.subjects?.coefficient || grade.coefficient}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3">
-                              {grade.exam_date ? new Date(grade.exam_date).toLocaleDateString() : '-'}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-600">
-                              {grade.comment || '-'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )
-              ) : (
-                <p className="text-center py-8 text-gray-500">
-                  Sélectionnez un étudiant pour voir ses notes
-                </p>
-              )}
-            </div>
           </div>
+        )}
+
+        {/* NOTES SAISIES */}
+        {activeTab === 'my-grades' && teacherId && (
+          <GradesManagement levels={assignedLevels} canEdit teacherId={teacherId} />
+        )}
+
+        {/* ANNONCES */}
+        {activeTab === 'announcements' && (
+          <Panel title="Annonces">
+            <AnnouncementList announcements={announcements} />
+          </Panel>
         )}
         {/* EMPLOI DU TEMPS */}
         {activeTab === 'schedule' && (
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-xl shadow p-6">
             <h2 className="text-2xl font-bold mb-6">Mon Emploi du Temps</h2>
             
             {mySchedule.length === 0 ? (
-              <p className="text-center text-gray-500 py-12">Aucun cours planifié</p>
+              <p className="text-center text-gray-500 py-12">Aucun créneau planifié</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
                   <thead>
-                    <tr className="bg-gradient-to-r from-green-100 to-teal-100">
+                    <tr className="bg-gray-100">
                       <th className="border-2 px-4 py-3 font-bold">Heure</th>
                       {['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'].map((day, idx) => (
                         <th key={idx} className="border-2 px-4 py-3 font-bold">{day}</th>
@@ -771,9 +667,9 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
                           return (
                             <td key={day} className="border-2 px-2 py-2">
                               {daySchedules.map(schedule => (
-                                <div key={schedule.id} className="bg-green-100 p-3 rounded-lg hover:bg-green-200 transition mb-1">
-                                  <p className="font-semibold text-green-800">{schedule.subject_name}</p>
-                                  <p className="text-xs text-green-600">{schedule.level_name}</p>
+                                <div key={schedule.id} className="bg-indigo-100 p-3 rounded-lg hover:bg-indigo-200 transition mb-1">
+                                  <p className="font-semibold text-indigo-800">{schedule.subject_name}</p>
+                                  <p className="text-xs text-indigo-600">{schedule.level_name}</p>
                                   {schedule.room && <p className="text-xs text-gray-600">Salle {schedule.room}</p>}
                                 </div>
                               ))}
@@ -787,9 +683,9 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
               </div>
             )}
 
-            <div className="mt-6 bg-green-50 border-l-4 border-green-500 p-4 rounded">
-              <p className="font-semibold text-green-800 mb-1">📌 Note</p>
-              <p className="text-sm text-green-700">
+            <div className="mt-6 bg-indigo-50 border-l-4 border-indigo-500 p-4 rounded">
+              <p className="font-semibold text-indigo-800 mb-1">📌 Note</p>
+              <p className="text-sm text-indigo-700">
                 Votre emploi du temps pour le semestre en cours. Contactez l'administration pour toute modification.
               </p>
             </div>
@@ -798,7 +694,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
 
         {/* MESSAGES */}
         {activeTab === 'messages' && (
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-xl shadow p-6">
             <h2 className="text-2xl font-bold mb-6">Mes Messages ({myMessages.length})</h2>
             
             {myMessages.length === 0 ? (
@@ -830,17 +726,16 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
 
         {/* BULLETINS DE PAIE */}
         {activeTab === 'payslips' && (
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-xl shadow p-6">
             <h2 className="text-2xl font-bold mb-6">Mes Bulletins de Paie</h2>
             {teacherId ? (
-              <PayslipHistoryTable teacherId={teacherId} academicYear="2026-2027" showTeacherName={false} />
+              <PayslipHistoryTable teacherId={teacherId} academicYear={CURRENT_ACADEMIC_YEAR} showTeacherName={false} />
             ) : (
               <p className="text-center text-gray-500 py-12">Chargement...</p>
             )}
           </div>
         )}
-      </div>
-    </div>
+    </AppShell>
   );
 };
 

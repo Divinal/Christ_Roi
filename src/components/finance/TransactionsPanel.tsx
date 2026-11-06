@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { ACADEMIC_MONTHS, FinancialCategory, FinancialKind, FinancialTransaction, monthLabel } from './financeTypes';
 import { formatFCFA } from './financeUtils';
 import VoucherPrintable from './VoucherPrintable';
+import { confirmDialog, notify } from '../ui/feedback';
 
 interface TransactionsPanelProps {
   kind: FinancialKind;
@@ -51,7 +52,7 @@ const TransactionsPanel: React.FC<TransactionsPanelProps> = ({ kind, academicYea
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!categoryId || !amount) {
-      alert('Veuillez sélectionner une catégorie et un montant');
+      notify('Veuillez sélectionner une catégorie et un montant');
       return;
     }
 
@@ -65,7 +66,7 @@ const TransactionsPanel: React.FC<TransactionsPanelProps> = ({ kind, academicYea
     });
 
     if (error) {
-      alert(`❌ Erreur: ${error.message}`);
+      notify(`❌ Erreur: ${error.message}`);
     } else {
       setAmount('');
       setDescription('');
@@ -74,9 +75,9 @@ const TransactionsPanel: React.FC<TransactionsPanelProps> = ({ kind, academicYea
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Supprimer cette opération ?')) return;
+    if (!await confirmDialog('Supprimer cette opération ?')) return;
     const { error } = await supabase.from('financial_transactions').delete().eq('id', id);
-    if (error) alert(`❌ Erreur: ${error.message}`);
+    if (error) notify(`❌ Erreur: ${error.message}`);
     else loadTransactions();
   };
 
@@ -124,7 +125,7 @@ const TransactionsPanel: React.FC<TransactionsPanelProps> = ({ kind, academicYea
           onChange={(e) => setDescription(e.target.value)}
           className="border rounded px-3 py-2"
         />
-        <button type="submit" className="md:col-span-5 bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700">
+        <button type="submit" className="md:col-span-5 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700">
           Enregistrer
         </button>
       </form>
