@@ -3,6 +3,7 @@ import { KeyRound, LogOut, LucideIcon, Menu, X } from 'lucide-react';
 import { siteConfig } from '../../config/site.config';
 import { CURRENT_ACADEMIC_YEAR } from '../../lib/levels';
 import { confirmDialog } from './feedback';
+import NotificationBell from './NotificationBell';
 
 export interface NavItem {
   id: string;
@@ -18,6 +19,7 @@ export interface NavGroup {
 
 interface AppShellProps {
   spaceLabel: string;
+  userId?: string;
   groups: NavGroup[];
   activeId: string;
   onSelect: (id: string) => void;
@@ -35,6 +37,7 @@ const initialsOf = (name: string): string =>
 // même barre supérieure, même comportement sur mobile.
 const AppShell: React.FC<AppShellProps> = ({
   spaceLabel,
+  userId,
   groups,
   activeId,
   onSelect,
@@ -170,6 +173,14 @@ const AppShell: React.FC<AppShellProps> = ({
             {activeGroup && <p className="truncate text-xs text-gray-500">{activeGroup.label}</p>}
             <h1 className="truncate text-base font-semibold text-gray-900">{activeItem?.label}</h1>
           </div>
+          <NotificationBell
+            userId={userId}
+            activeTab={activeId}
+            onNavigate={(tab) => {
+              // Un lien vers une rubrique que ce rôle n'a pas ne doit rien afficher de vide.
+              if (visibleGroups.some((group) => group.items.some((item) => item.id === tab))) onSelect(tab);
+            }}
+          />
           <span className="hidden whitespace-nowrap rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600 sm:inline">
             Année {CURRENT_ACADEMIC_YEAR}
           </span>

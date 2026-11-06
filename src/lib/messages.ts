@@ -65,6 +65,15 @@ export const useInbox = (userId: string | undefined, audience: 'students' | 'tea
     // Rouvrir la messagerie affiche aussi ce qui est arrivé entre-temps.
   }, [load, active]);
 
+  // Un message arrivé pendant qu'on regarde l'écran apparaît sans recharger la page.
+  useEffect(() => {
+    const onNotification = (event: Event) => {
+      if ((event as CustomEvent<{ types: string[] }>).detail.types.includes('message')) load();
+    };
+    window.addEventListener('app:notification', onNotification);
+    return () => window.removeEventListener('app:notification', onNotification);
+  }, [load]);
+
   useEffect(() => {
     if (!active || !userId) return;
     const unreadIds = messages.filter((m) => !m.is_read && !seenIds.has(m.id)).map((m) => m.id);

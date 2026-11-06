@@ -325,6 +325,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
   return (
     <AppShell
       spaceLabel="Espace enseignant"
+      userId={user?.id}
       groups={navGroups}
       activeId={activeTab}
       onSelect={setActiveTab}

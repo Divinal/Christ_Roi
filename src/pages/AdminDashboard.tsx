@@ -1031,6 +1031,7 @@ const filteredSubjects = subjects.filter(subject => {
   return (
     <AppShell
       spaceLabel="Administration"
+      userId={user?.id}
       groups={NAV_GROUPS.map(group => ({
         ...group,
         items: group.items

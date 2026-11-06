@@ -165,6 +165,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout, onC
   return (
     <AppShell
       spaceLabel="Espace étudiant"
+      userId={user?.id}
       groups={NAV_GROUPS.map((group) => ({
         ...group,
         items: group.items.map((item) => (item.id === 'messages' ? { ...item, badge: unreadCount } : item)),
