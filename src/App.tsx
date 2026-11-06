@@ -81,7 +81,9 @@ const App: React.FC = () => {
         // Ne pas déconnecter si c'est un utilisateur démo
         if (!user?.id?.startsWith('demo-')) {
           setUser(null);
-          setCurrentPage('home');
+          // Supabase signale aussi l'absence de session à chaque chargement : un
+          // visiteur arrivé sur /contact doit y rester. Seul un espace connecté est quitté.
+          setCurrentPage((page) => (page.endsWith('-dashboard') ? 'home' : page));
         }
       }
     });
