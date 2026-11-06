@@ -12,7 +12,7 @@ const sections = [
   {
     title: '1. Données collectées',
     body:
-      "Lors de votre inscription et de votre utilisation de la plateforme, nous collectons : votre nom, prénom, adresse email, numéro de téléphone, ainsi que les données pédagogiques liées à votre scolarité (notes, emploi du temps, cours, présences).",
+      "Lors de votre inscription et de votre utilisation de la plateforme, nous collectons : votre nom, prénom, adresse email, numéro de téléphone, ainsi que les données pédagogiques liées à votre scolarité (notes, emploi du temps, présences).",
   },
   {
     title: '2. Utilisation des données',

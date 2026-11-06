@@ -40,7 +40,7 @@ export interface TuitionPayment {
   students?: {
     student_number: string;
     profiles?: { first_name: string; last_name: string };
-    classes?: { name: string };
+    levels?: { name: string };
   };
 }
 

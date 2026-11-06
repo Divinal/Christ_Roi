@@ -4,15 +4,13 @@ import { FinancialCategory } from './financeTypes';
 import BudgetGrid from './BudgetGrid';
 import CategoryQuickAdd from './CategoryQuickAdd';
 import TransactionsPanel from './TransactionsPanel';
-import TuitionPaymentFlow from './TuitionPaymentFlow';
+import TuitionByLevel from './TuitionByLevel';
 import PayrollFlow from './PayrollFlow';
 import MonthlyComparisonTable from './MonthlyComparisonTable';
+import { CURRENT_ACADEMIC_YEAR } from '../../lib/levels';
 
-interface ClassOption {
-  id: string;
-  name: string;
-  academic_year: string;
-}
+// Les années précédentes restent consultables.
+const ACADEMIC_YEARS = ['2025-2026', CURRENT_ACADEMIC_YEAR, '2027-2028'];
 
 interface TeacherOption {
   id: string;
@@ -24,13 +22,11 @@ interface TeacherOption {
 const FinanceManagement: React.FC = () => {
   const [financialCategories, setFinancialCategories] = useState<FinancialCategory[]>([]);
   const [financeSubTab, setFinanceSubTab] = useState<'budget' | 'revenue' | 'expense' | 'comparison'>('budget');
-  const [financeAcademicYear, setFinanceAcademicYear] = useState<string>('2026-2027');
-  const [classes, setClasses] = useState<ClassOption[]>([]);
+  const [financeAcademicYear, setFinanceAcademicYear] = useState<string>(CURRENT_ACADEMIC_YEAR);
   const [teachers, setTeachers] = useState<TeacherOption[]>([]);
 
   useEffect(() => {
     loadFinancialCategories();
-    loadClasses();
     loadTeachers();
   }, []);
 
@@ -43,16 +39,6 @@ const FinanceManagement: React.FC = () => {
 
     if (error) console.error('Erreur chargement catégories financières:', error);
     else setFinancialCategories(data || []);
-  };
-
-  const loadClasses = async () => {
-    const { data, error } = await supabase
-      .from('classes')
-      .select('id, name, academic_year')
-      .order('name', { ascending: true });
-
-    if (error) console.error('Erreur chargement classes:', error);
-    else setClasses(data || []);
   };
 
   const loadTeachers = async () => {
@@ -74,7 +60,7 @@ const FinanceManagement: React.FC = () => {
           onChange={(e) => setFinanceAcademicYear(e.target.value)}
           className="border rounded px-3 py-2"
         >
-          {Array.from(new Set([...classes.map((c) => c.academic_year), '2026-2027'])).map((year) => (
+          {ACADEMIC_YEARS.map((year) => (
             <option key={year} value={year}>{year}</option>
           ))}
         </select>
@@ -119,8 +105,8 @@ const FinanceManagement: React.FC = () => {
       {financeSubTab === 'revenue' && (
         <div className="space-y-8">
           <div>
-            <h3 className="text-lg font-bold mb-3">Frais de scolarité</h3>
-            <TuitionPaymentFlow classes={classes} academicYear={financeAcademicYear} />
+            <h3 className="text-lg font-bold mb-3">Frais de scolarité par niveau</h3>
+            <TuitionByLevel academicYear={financeAcademicYear} />
           </div>
           <div>
             <h3 className="text-lg font-bold mb-3">Autres recettes (subventions, etc.)</h3>

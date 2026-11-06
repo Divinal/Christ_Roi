@@ -39,34 +39,12 @@ export interface Subject {
   coefficient: number;
 }
 
-export interface Class {
-  id: string;
-  name: string;
-  level: string;
-  academicYear: string;
-  maxStudents: number;
-}
-
-export interface Course {
-  id: string;
-  title: string;
-  description?: string;
-  subjectId: string;
-  teacherId?: string;
-  classId: string;
-  fileUrl?: string;
-  fileType?: string;
-  fileSize?: number;
-  uploadedAt: string;
-  isPublished: boolean;
-}
-
 export interface Grade {
   id: string;
   studentId: string;
   subjectId: string;
   teacherId?: string;
-  classId: string;
+  levelId?: string;
   gradeValue: number;
   gradeType: string;
   coefficient: number;
@@ -99,7 +77,7 @@ export interface Announcement {
 
 export interface Schedule {
   id: string;
-  classId: string;
+  levelId: string;
   subjectId: string;
   teacherId?: string;
   dayOfWeek: number;

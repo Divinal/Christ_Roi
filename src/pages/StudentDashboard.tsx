@@ -1,10 +1,12 @@
 // src/pages/StudentDashboard.tsx
 import React, { useState, useEffect } from 'react';
 import {
-  Home, BookOpen, FileText, Calendar, Download,
+  Home, FileText, Calendar, GraduationCap,
   Bell, Award, TrendingUp, LogOut, DollarSign
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { cycleLabel, SchoolCycle } from '../lib/levels';
+import { timeSlotOf, timeSlotsOf } from '../lib/schedule';
 import TuitionHistoryTable from '../components/finance/TuitionHistoryTable';
 
 interface User {
@@ -19,6 +21,8 @@ interface Student {
   id: string;
   user_id: string;
   student_number: string;
+  level_id?: string | null;
+  levels?: { name: string; cycle: SchoolCycle } | null;
   date_of_birth?: string;
   status: string;
   annual_tuition_fee?: number | null;
@@ -37,18 +41,6 @@ interface Grade {
     name: string;
     code: string;
     coefficient?: number;
-  };
-}
-
-interface Course {
-  id: string;
-  title: string;
-  description?: string;
-  file_url: string;
-  uploaded_at: string;
-  subject_id: string;
-  subjects?: {
-    name: string;
   };
 }
 
@@ -87,7 +79,6 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [studentData, setStudentData] = useState<Student | null>(null);
   const [grades, setGrades] = useState<Grade[]>([]);
-  const [courses, setCourses] = useState<Course[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -104,7 +95,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
       // 1. Charger les infos de l'étudiant
       const { data: studentInfo, error: studentError } = await supabase
         .from('students')
-        .select('*')
+        .select('*, levels(name, cycle)')
         .eq('user_id', user?.id)
         .single();
 
@@ -113,18 +104,15 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
       } else {
         setStudentData(studentInfo);
 
-        // 2. Charger l'emploi du temps de la classe de l'étudiant
-        if (studentInfo.class_id) {
-          loadSchedules(studentInfo.class_id);
+        // 2. Charger l'emploi du temps du niveau de l'étudiant
+        if (studentInfo.level_id) {
+          loadSchedules(studentInfo.level_id);
         }
 
-        // 4. Charger les notes
+        // 3. Charger les notes
         loadGrades(studentInfo.id);
 
-        // 5. Charger les cours
-        loadCourses();
-
-        // 6. Charger les annonces
+        // 4. Charger les annonces
         loadAnnouncements();
       }
     } catch (error) {
@@ -148,21 +136,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
     }
   };
 
-  const loadCourses = async () => {
-    const { data, error } = await supabase
-      .from('courses')
-      .select('*, subjects(name)')
-      .eq('is_approved', true)
-      .order('uploaded_at', { ascending: false });
-
-    if (error) {
-      console.error('Erreur chargement cours:', error);
-    } else {
-      setCourses(data || []);
-    }
-  };
-
-  const loadSchedules = async (classId: string) => {
+  const loadSchedules = async (levelId: string) => {
     const { data, error } = await supabase
       .from('schedules')
       .select(`
@@ -170,7 +144,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
         subjects(name),
         teachers(profiles(first_name, last_name))
       `)
-      .eq('class_id', classId)
+      .eq('level_id', levelId)
       .order('day_of_week', { ascending: true });
 
     if (error) {
@@ -215,7 +189,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
       }
     };
 
-  const dayNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
+  const dayNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -240,7 +214,6 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
         <div className="flex gap-2 mb-6 overflow-x-auto">
           {[
             { id: 'dashboard', label: 'Tableau de bord', icon: Home },
-            { id: 'courses', label: 'Mes Cours', icon: BookOpen },
             { id: 'schedule', label: 'Emploi du temps', icon: Calendar },
             { id: 'announcements', label: 'Annonces', icon: Bell },
             { id: 'payments', label: 'Mes Paiements', icon: DollarSign },
@@ -274,7 +247,8 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
                     Bienvenue, {user?.first_name} {user?.last_name} 👋
                   </h2>
                   <p className="text-blue-100">
-                    Matricule: {studentData?.student_number} 
+                    Matricule: {studentData?.student_number}
+                    {studentData?.levels && ` • ${studentData.levels.name}`}
                   </p>
                 </div>
                 <div className="bg-white bg-opacity-20 rounded-lg p-4 backdrop-blur">
@@ -295,9 +269,11 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
               </div>
 
               <div className="bg-white rounded-lg shadow p-6 border-l-4 border-purple-500">
-                <BookOpen className="w-10 h-10 text-purple-600 mb-3" />
-                <p className="text-3xl font-bold text-purple-600">{courses.length}</p>
-                <p className="text-gray-600">Cours disponibles</p>
+                <GraduationCap className="w-10 h-10 text-purple-600 mb-3" />
+                <p className="text-3xl font-bold text-purple-600">{studentData?.levels?.name || 'À inscrire'}</p>
+                <p className="text-gray-600">
+                  {studentData?.levels ? cycleLabel(studentData.levels.cycle) : "Contactez l'administration"}
+                </p>
               </div>
 
               <div className="bg-white rounded-lg shadow p-6 border-l-4 border-orange-500">
@@ -380,56 +356,6 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
           </div>
         )}
 
-        {/* COURSES TAB - MES COURS */}
-        {activeTab === 'courses' && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-2xl font-bold mb-6">Mes Cours</h2>
-            
-            {loading ? (
-              <p className="text-center py-8">Chargement...</p>
-            ) : courses.length === 0 ? (
-              <div className="text-center py-12">
-                <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <p className="text-xl text-gray-500">Aucun cours disponible</p>
-              </div>
-            ) : (
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {courses.map((course) => (
-                  <div key={course.id} className="border-2 rounded-lg p-5 hover:shadow-xl transition">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="bg-purple-100 p-3 rounded-lg">
-                        <FileText className="w-8 h-8 text-purple-600" />
-                      </div>
-                      <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-semibold">
-                        PDF
-                      </span>
-                    </div>
-                    <h3 className="font-bold text-lg mb-2">{course.title}</h3>
-                    <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-                      {course.description}
-                    </p>
-                    <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
-                      <span>📖 {course.subjects?.name}</span>
-                      <span>{new Date(course.uploaded_at).toLocaleDateString()}</span>
-                    </div>
-                    {course.file_url && (
-                      <a 
-                        href={course.file_url} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-2 rounded-lg hover:shadow-lg transition flex items-center justify-center gap-2 font-semibold"
-                      >
-                        <Download className="w-4 h-4" />
-                        Télécharger
-                      </a>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
         {/* SCHEDULE TAB - EMPLOI DU TEMPS */}
         {activeTab === 'schedule' && (
           <div className="bg-white rounded-lg shadow p-6">
@@ -452,12 +378,11 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout }) =
                     </tr>
                   </thead>
                   <tbody>
-                    {['09:00-10:30', '10:30-12:00', '14:30-16:00', '16:00-17:30'].map((timeSlot) => (                      <tr key={timeSlot}>
+                    {timeSlotsOf(schedules).map((timeSlot) => (                      <tr key={timeSlot}>
                         <td className="border-2 px-4 py-3 font-bold bg-gray-50">{timeSlot}</td>
-                        {[1, 2, 3, 4, 5].map((day) => {
-                          const daySchedules = schedules.filter(s => 
-                            s.day_of_week === day && 
-                            `${s.start_time.substring(0, 5)}-${s.end_time.substring(0, 5)}` === timeSlot
+                        {[1, 2, 3, 4, 5, 6].map((day) => {
+                          const daySchedules = schedules.filter(s =>
+                            s.day_of_week === day && timeSlotOf(s) === timeSlot
                           );
                           
                           return (

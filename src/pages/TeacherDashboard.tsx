@@ -1,10 +1,11 @@
 // src/pages/TeacherDashboard.tsx
 import React, { useState, useEffect } from 'react';
 import {
-  Home, BookOpen, FileText, Upload, Calendar, MessageSquare,
-  Save, Eye, Trash2, LogOut, DollarSign
+  Home, BookOpen, FileText, Calendar, MessageSquare,
+  Save, LogOut, DollarSign
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { timeSlotOf, timeSlotsOf } from '../lib/schedule';
 import PayslipHistoryTable from '../components/finance/PayslipHistoryTable';
 
 interface User {
@@ -20,10 +21,9 @@ interface TeacherDashboardProps {
   onLogout: () => void;
 }
 
-interface TeacherClass {
+interface TeacherLevel {
   id: string;
   name: string;
-  level: string;
   subject_name: string;
   subject_id: string;
   subject_coefficient: number;
@@ -38,23 +38,13 @@ interface StudentGrade {
   comment?: string;
 }
 
-interface Course {
-  id: string;
-  title: string;
-  description?: string;
-  file_url: string;
-  uploaded_at: string;
-  is_approved: boolean;
-  subject_name?: string;
-}
-
 interface Schedule {
   id: string;
   day_of_week: number;
   start_time: string;
   end_time: string;
   subject_name: string;
-  class_name: string;
+  level_name: string;
   room?: string;
 }
 
@@ -73,25 +63,18 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
   const [loading, setLoading] = useState<boolean>(false);
 
   // États pour les données
-  const [myClasses, setMyClasses] = useState<TeacherClass[]>([]);
-  const [myCourses, setMyCourses] = useState<Course[]>([]);
+  const [myLevels, setMyLevels] = useState<TeacherLevel[]>([]);
   const [mySchedule, setMySchedule] = useState<Schedule[]>([]);
   const [myMessages, setMyMessages] = useState<Message[]>([]);
 
   // États pour la saisie de notes
-  const [selectedClass, setSelectedClass] = useState<string>('');
+  const [selectedLevel, setSelectedLevel] = useState<string>('');
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [gradeType, setGradeType] = useState<string>('CC1');
   const [coefficient, setCoefficient] = useState<number>(1);
   const [examDate, setExamDate] = useState<string>('');
   const [studentsGrades, setStudentsGrades] = useState<StudentGrade[]>([]);
 
-  // États pour l'upload de cours
-  const [courseTitle, setCourseTitle] = useState<string>('');
-  const [courseDescription, setCourseDescription] = useState<string>('');
-  const [courseSubject, setCourseSubject] = useState<string>('');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState<boolean>(false);
     // États pour visualiser les notes saisies
   const [selectedStudentForView, setSelectedStudentForView] = useState<string>('');
   const [viewStudentGrades, setViewStudentGrades] = useState<any[]>([]);
@@ -101,6 +84,27 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
       loadTeacherData();
     }
   }, [user]);
+
+  // À l'ouverture de la messagerie, les messages personnels passent à "lu"
+  // (les messages collectifs n'ont pas de statut par destinataire).
+  const [messagesSeen, setMessagesSeen] = useState<boolean>(false);
+  const unreadCount = messagesSeen ? 0 : myMessages.filter(m => !m.is_read).length;
+
+  useEffect(() => {
+    if (activeTab !== 'messages' || messagesSeen || !user) return;
+    const unreadIds = myMessages.filter(m => !m.is_read).map(m => m.id);
+    if (unreadIds.length === 0) return;
+
+    setMessagesSeen(true);
+    supabase
+      .from('messages')
+      .update({ is_read: true })
+      .in('id', unreadIds)
+      .eq('recipient_id', user.id)
+      .then(({ error }) => {
+        if (error) console.error('Erreur marquage messages lus:', error);
+      });
+  }, [activeTab, messagesSeen, myMessages, user]);
 
   const loadTeacherData = async () => {
     setLoading(true);
@@ -119,59 +123,30 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
 
       setTeacherId(teacherData.id);
 
-      // 2. Charger les classes assignées avec matières
-      const { data: classesData } = await supabase
-        .from('teacher_classes')
+      // 2. Charger les niveaux assignés avec matières
+      const { data: levelsData } = await supabase
+        .from('teacher_levels')
         .select(`
           id,
-          class_id,
+          level_id,
           subject_id,
-          classes (id, name, level),
+          levels (id, name),
           subjects (id, name, code, coefficient)
         `)
         .eq('teacher_id', teacherData.id);
 
-      if (classesData) {
-        const formattedClasses = classesData.map((item: any) => ({
-          id: item.class_id,
-          name: item.classes.name,
-          level: item.classes.level,
+      if (levelsData) {
+        const formattedLevels = levelsData.map((item: any) => ({
+          id: item.level_id,
+          name: item.levels.name,
           subject_id: item.subject_id,
           subject_name: item.subjects.name,
           subject_coefficient: item.subjects.coefficient || 1
         }));
-        setMyClasses(formattedClasses);
+        setMyLevels(formattedLevels);
       }
 
-      // 3. Charger les cours uploadés
-      const { data: coursesData } = await supabase
-        .from('courses')
-        .select(`
-          id,
-          title,
-          description,
-          file_url,
-          uploaded_at,
-          is_approved,
-          subjects (name)
-        `)
-        .eq('teacher_id', teacherData.id)
-        .order('uploaded_at', { ascending: false });
-
-      if (coursesData) {
-        const formattedCourses = coursesData.map((c: any) => ({
-          id: c.id,
-          title: c.title,
-          description: c.description,
-          file_url: c.file_url,
-          uploaded_at: c.uploaded_at,
-          is_approved: c.is_approved,
-          subject_name: c.subjects?.name
-        }));
-        setMyCourses(formattedCourses);
-      }
-
-      // 4. Charger l'emploi du temps
+      // 3. Charger l'emploi du temps
       const { data: scheduleData } = await supabase
         .from('schedules')
         .select(`
@@ -180,7 +155,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
           start_time,
           end_time,
           room,
-          classes (name),
+          levels (name),
           subjects (name)
         `)
         .eq('teacher_id', teacherData.id)
@@ -194,37 +169,43 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
           start_time: s.start_time,
           end_time: s.end_time,
           room: s.room,
-          class_name: s.classes?.name,
+          level_name: s.levels?.name,
           subject_name: s.subjects?.name
         }));
         setMySchedule(formattedSchedule);
       }
 
-      // 5. Charger les messages reçus
-      const { data: messagesData } = await supabase
+      // 4. Charger les messages reçus. L'expéditeur est lu à part : messages
+      // référence auth.users, qui n'est pas exposée par l'API (pas de jointure).
+      const { data: messagesData, error: messagesError } = await supabase
         .from('messages')
-        .select(`
-          id,
-          subject,
-          content,
-          sent_at,
-          sender_id,
-          users!messages_sender_id_fkey (first_name, last_name)
-        `)
+        .select('id, subject, content, sent_at, sender_id, is_read, recipient_type')
         .or(`recipient_type.eq.all_teachers,recipient_type.eq.all,and(recipient_type.eq.individual,recipient_id.eq.${user?.id})`)
         .order('sent_at', { ascending: false })
         .limit(20);
 
-      if (messagesData) {
-        const formattedMessages = messagesData.map((m: any) => ({
+      if (messagesError) {
+        console.error('Erreur chargement messages:', messagesError);
+      } else if (messagesData) {
+        const senderIds = Array.from(new Set(messagesData.map((m) => m.sender_id)));
+        const { data: senders } = await supabase
+          .from('profiles')
+          .select('user_id, first_name, last_name')
+          .in('user_id', senderIds);
+
+        const senderName = (id: string) => {
+          const sender = senders?.find((s) => s.user_id === id);
+          return sender ? `${sender.first_name} ${sender.last_name}`.trim() : 'Administration';
+        };
+
+        setMyMessages(messagesData.map((m) => ({
           id: m.id,
           subject: m.subject,
           content: m.content,
           sent_at: m.sent_at,
-          sender_name: m.users ? `${m.users.first_name} ${m.users.last_name}` : 'Système',
-          is_read: false
-        }));
-        setMyMessages(formattedMessages);
+          sender_name: senderName(m.sender_id),
+          is_read: m.recipient_type !== 'individual' || Boolean(m.is_read)
+        })));
       }
 
     } catch (error) {
@@ -243,14 +224,14 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
 
   // ==================== CHARGEMENT ÉTUDIANTS POUR SAISIE NOTES ====================
   const loadStudentsForGrading = async () => {
-    if (!selectedClass || !selectedSubject) {
-      alert('Veuillez sélectionner une classe et une matière');
+    if (!selectedLevel || !selectedSubject) {
+      alert('Veuillez sélectionner un niveau et une matière');
       return;
     }
 
     setLoading(true);
     try {
-      // Récupérer les étudiants de la classe sélectionnée
+      // Récupérer les étudiants du niveau sélectionné
       const { data: studentsData } = await supabase
         .from('students')
         .select(`
@@ -258,7 +239,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
           student_number,
           profiles (first_name, last_name)
         `)
-        .eq('class_id', selectedClass);
+        .eq('level_id', selectedLevel);
 
       if (studentsData) {
         const formattedStudents = studentsData.map((item: any) => ({
@@ -300,7 +281,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
         student_id: studentId,
         subject_id: selectedSubject,
         teacher_id: teacherId,
-        class_id: selectedClass,
+        level_id: selectedLevel,
         grade_value: student.grade_value,
         grade_type: gradeType,
         coefficient: coefficient,
@@ -331,7 +312,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
         student_id: s.student_id,
         subject_id: selectedSubject,
         teacher_id: teacherId,
-        class_id: selectedClass,
+        level_id: selectedLevel,
         grade_value: s.grade_value,
         grade_type: gradeType,
         coefficient: coefficient,
@@ -344,7 +325,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
 
       alert(`✅ ${gradesToSave.length} note(s) enregistrée(s) avec succès !`);
       setStudentsGrades([]);
-      setSelectedClass('');
+      setSelectedLevel('');
       setSelectedSubject('');
     } catch (error: any) {
       alert(`❌ Erreur: ${error.message}`);
@@ -366,8 +347,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
           .from('grades')
           .select(`
             *,
-            subjects (name, code, coefficient),
-            classes (name)
+            subjects (name, code, coefficient)
           `)
           .eq('student_id', studentId)
           .eq('teacher_id', teacherId)
@@ -383,87 +363,11 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
       }
     };
 
-  // ==================== UPLOAD DE COURS ====================
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && file.type === 'application/pdf') {
-      setSelectedFile(file);
-    } else {
-      alert('⚠️ Veuillez sélectionner un fichier PDF');
-    }
-  };
-
-  const handleUploadCourse = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedFile || !courseTitle || !courseSubject) {
-      alert('⚠️ Veuillez remplir tous les champs et sélectionner un fichier');
-      return;
-    }
-
-    setUploading(true);
-    try {
-      // 1. Upload du fichier dans Supabase Storage
-      const fileExt = selectedFile.name.split('.').pop();
-      const fileName = `${Date.now()}_${teacherId}.${fileExt}`;
-      const filePath = `courses/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('courses')
-        .upload(filePath, selectedFile);
-
-      if (uploadError) throw uploadError;
-
-      // 2. Obtenir l'URL publique
-      const { data: urlData } = supabase.storage
-        .from('courses')
-        .getPublicUrl(filePath);
-
-      // 3. Créer l'enregistrement du cours (en attente d'approbation)
-      const { error: insertError } = await supabase.from('courses').insert({
-        title: courseTitle,
-        description: courseDescription,
-        subject_id: courseSubject,
-        teacher_id: teacherId,
-        file_url: urlData.publicUrl,
-        file_type: selectedFile.type,
-        file_size: selectedFile.size,
-        is_approved: false // En attente d'approbation par l'admin
-      });
-
-      if (insertError) throw insertError;
-
-      alert('✅ Cours envoyé avec succès ! En attente d\'approbation par l\'administration.');
-      setCourseTitle('');
-      setCourseDescription('');
-      setCourseSubject('');
-      setSelectedFile(null);
-      loadTeacherData();
-    } catch (error: any) {
-      alert(`❌ Erreur: ${error.message}`);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleDeleteCourse = async (courseId: string) => {
-    if (!window.confirm('⚠️ Supprimer ce cours ?')) return;
-
-    try {
-      const { error } = await supabase.from('courses').delete().eq('id', courseId);
-      if (error) throw error;
-      alert('✅ Cours supprimé');
-      loadTeacherData();
-    } catch (error: any) {
-      alert(`❌ Erreur: ${error.message}`);
-    }
-  };
-
   const tabs = [
     { id: 'dashboard', label: 'Tableau de bord', icon: Home },
     { id: 'grades', label: 'Saisie notes', icon: FileText },
-    { id: 'courses', label: 'Mes cours', icon: BookOpen },
     { id: 'schedule', label: 'Emploi du temps', icon: Calendar },
-    { id: 'messages', label: 'Messages', icon: MessageSquare },
+    { id: 'messages', label: unreadCount > 0 ? `Messages (${unreadCount})` : 'Messages', icon: MessageSquare },
     { id: 'payslips', label: 'Mes Bulletins de Paie', icon: DollarSign }
   ];
 
@@ -520,36 +424,36 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
           <>
             <div className="grid md:grid-cols-4 gap-6 mb-8">
               <div className="bg-blue-50 p-6 rounded-lg">
-                <p className="text-4xl font-bold text-blue-600">{myClasses.length}</p>
-                <p className="text-gray-600">Classes assignées</p>
+                <p className="text-4xl font-bold text-blue-600">{new Set(myLevels.map(l => l.id)).size}</p>
+                <p className="text-gray-600">Niveaux assignés</p>
               </div>
               <div className="bg-green-50 p-6 rounded-lg">
-                <p className="text-4xl font-bold text-green-600">{myCourses.length}</p>
-                <p className="text-gray-600">Cours uploadés</p>
+                <p className="text-4xl font-bold text-green-600">{new Set(myLevels.map(l => l.subject_id)).size}</p>
+                <p className="text-gray-600">Matières enseignées</p>
               </div>
               <div className="bg-purple-50 p-6 rounded-lg">
-                <p className="text-4xl font-bold text-purple-600">{myCourses.filter(c => c.is_approved).length}</p>
-                <p className="text-gray-600">Cours approuvés</p>
+                <p className="text-4xl font-bold text-purple-600">{mySchedule.length}</p>
+                <p className="text-gray-600">Créneaux par semaine</p>
               </div>
               <div className="bg-orange-50 p-6 rounded-lg">
-                <p className="text-4xl font-bold text-orange-600">{myMessages.length}</p>
-                <p className="text-gray-600">Messages reçus</p>
+                <p className="text-4xl font-bold text-orange-600">{unreadCount}</p>
+                <p className="text-gray-600">Messages non lus</p>
               </div>
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                  <BookOpen className="w-5 h-5" /> Mes Classes
+                  <BookOpen className="w-5 h-5" /> Mes Niveaux
                 </h3>
-                {myClasses.length === 0 ? (
-                  <p className="text-gray-500 text-center">Aucune classe assignée</p>
+                {myLevels.length === 0 ? (
+                  <p className="text-gray-500 text-center">Aucun niveau assigné</p>
                 ) : (
                   <div className="space-y-2">
-                    {myClasses.map((cls) => (
-                      <div key={cls.id} className="p-3 border rounded hover:bg-gray-50">
-                        <p className="font-semibold">{cls.name} - {cls.level}</p>
-                        <p className="text-sm text-gray-600">{cls.subject_name}</p>
+                    {myLevels.map((level) => (
+                      <div key={`${level.id}-${level.subject_id}`} className="p-3 border rounded hover:bg-gray-50">
+                        <p className="font-semibold">{level.name}</p>
+                        <p className="text-sm text-gray-600">{level.subject_name}</p>
                       </div>
                     ))}
                   </div>
@@ -568,7 +472,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
                       <div key={sch.id} className="p-3 border rounded">
                         <p className="font-semibold">{sch.subject_name}</p>
                         <p className="text-sm text-gray-600">
-                          {getDayName(sch.day_of_week)} • {sch.class_name} • {sch.start_time.slice(0, 5)} - {sch.end_time.slice(0, 5)}
+                          {getDayName(sch.day_of_week)} • {sch.level_name} • {sch.start_time.slice(0, 5)} - {sch.end_time.slice(0, 5)}
                           {sch.room && ` • Salle ${sch.room}`}
                         </p>
                       </div>
@@ -591,17 +495,19 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
               
               <div className="grid md:grid-cols-4 gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
                 <div>
-                  <label className="block text-sm font-medium mb-2">Classe *</label>
+                  <label htmlFor="grade-level" className="block text-sm font-medium mb-2">Niveau *</label>
                   <select
-                    value={selectedClass}
-                    onChange={(e) => setSelectedClass(e.target.value)}
+                    id="grade-level"
+                    value={selectedLevel}
+                    onChange={(e) => {
+                      setSelectedLevel(e.target.value);
+                      setSelectedSubject('');
+                    }}
                     className="w-full border rounded px-3 py-2"
                   >
                     <option value="">Sélectionner...</option>
-                    {myClasses.map((cls) => (
-                      <option key={cls.id} value={cls.id}>
-                        {cls.name} - {cls.subject_name}
-                      </option>
+                    {Array.from(new Map(myLevels.map((level) => [level.id, level.name]))).map(([id, name]) => (
+                      <option key={id} value={id}>{name}</option>
                     ))}
                   </select>
                 </div>
@@ -613,17 +519,17 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
                     onChange={(e) => {
                       const subjectId = e.target.value;
                       setSelectedSubject(subjectId);
-                      const cls = myClasses.find(c => c.id === selectedClass && c.subject_id === subjectId);
-                      setCoefficient(cls?.subject_coefficient || 1);
+                      const level = myLevels.find(l => l.id === selectedLevel && l.subject_id === subjectId);
+                      setCoefficient(level?.subject_coefficient || 1);
                     }}
                     className="w-full border rounded px-3 py-2"
                   >
                     <option value="">Sélectionner...</option>
-                    {myClasses
-                      .filter(c => c.id === selectedClass)
-                      .map((cls) => (
-                        <option key={cls.subject_id} value={cls.subject_id}>
-                          {cls.subject_name}
+                    {myLevels
+                      .filter(l => l.id === selectedLevel)
+                      .map((level) => (
+                        <option key={level.subject_id} value={level.subject_id}>
+                          {level.subject_name}
                         </option>
                       ))}
                   </select>
@@ -670,7 +576,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
                 <div className="md:col-span-2 flex items-end">
                   <button
                     onClick={loadStudentsForGrading}
-                    disabled={!selectedClass || !selectedSubject}
+                    disabled={!selectedLevel || !selectedSubject}
                     className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Charger les étudiants
@@ -772,15 +678,11 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
                   className="w-full border rounded-lg px-3 py-2"
                 >
                   <option value="">-- Choisir un étudiant --</option>
-                  {myClasses.flatMap(_cls =>
-                    studentsGrades
-                      .filter(s => s.student_id)
-                      .map(s => (
-                        <option key={s.student_id} value={s.student_id}>
-                          {s.student_number} - {s.first_name} {s.last_name}
-                        </option>
-                      ))
-                  )}
+                  {studentsGrades.map(s => (
+                    <option key={s.student_id} value={s.student_id}>
+                      {s.student_number} - {s.first_name} {s.last_name}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -840,138 +742,6 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
             </div>
           </div>
         )}
-        {/* MES COURS */}
-        {activeTab === 'courses' && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-2xl font-bold mb-6">Gestion des cours</h2>
-
-            {/* Formulaire d'upload */}
-            <form onSubmit={handleUploadCourse} className="mb-8 p-6 bg-gray-50 rounded-lg">
-              <h3 className="text-lg font-bold mb-4">📤 Télécharger un nouveau cours</h3>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Titre du cours *</label>
-                  <input
-                    type="text"
-                    value={courseTitle}
-                    onChange={(e) => setCourseTitle(e.target.value)}
-                    className="w-full border rounded px-3 py-2"
-                    placeholder="Ex: Chapitre 5 - Algèbre linéaire"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Matière *</label>
-                  <select
-                    value={courseSubject}
-                    onChange={(e) => setCourseSubject(e.target.value)}
-                    className="w-full border rounded px-3 py-2"
-                    required
-                  >
-                    <option value="">Sélectionner...</option>
-                    {Array.from(new Set(myClasses.map(c => c.subject_id))).map(subjectId => {
-                      const cls = myClasses.find(c => c.subject_id === subjectId);
-                      return (
-                        <option key={subjectId} value={subjectId}>
-                          {cls?.subject_name}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium mb-2">Description (optionnel)</label>
-                  <textarea
-                    value={courseDescription}
-                    onChange={(e) => setCourseDescription(e.target.value)}
-                    className="w-full border rounded px-3 py-2"
-                    placeholder="Description du cours..."
-                    rows={3}
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium mb-2">Fichier PDF *</label>
-                  <input
-                    type="file"
-                    accept=".pdf"
-                    onChange={handleFileChange}
-                    className="w-full border rounded px-3 py-2"
-                    required
-                  />
-                  {selectedFile && (
-                    <p className="text-sm text-green-600 mt-2">✓ {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)</p>
-                  )}
-                </div>
-                <div className="md:col-span-2">
-                  <button
-                    type="submit"
-                    disabled={uploading}
-                    className="w-full bg-green-600 text-white py-3 rounded hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    <Upload className="w-5 h-5" />
-                    {uploading ? 'Téléchargement en cours...' : 'Télécharger le cours'}
-                  </button>
-                  <p className="text-xs text-gray-500 mt-2 text-center">
-                    ℹ️ Le cours sera envoyé à l'administration pour approbation avant d'être visible par les étudiants
-                  </p>
-                </div>
-              </div>
-            </form>
-
-            {/* Liste des cours uploadés */}
-            <h3 className="text-lg font-bold mb-4">📚 Mes cours uploadés</h3>
-            {myCourses.length === 0 ? (
-              <p className="text-center text-gray-500 py-8">Aucun cours uploadé</p>
-            ) : (
-              <div className="space-y-4">
-                {myCourses.map((course) => (
-                  <div key={course.id} className="border rounded-lg p-4 hover:shadow-md transition">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h4 className="font-bold text-lg">{course.title}</h4>
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            course.is_approved 
-                              ? 'bg-green-100 text-green-700' 
-                              : 'bg-orange-100 text-orange-700'
-                          }`}>
-                            {course.is_approved ? '✓ Approuvé' : '⏳ En attente'}
-                          </span>
-                        </div>
-                        {course.description && (
-                          <p className="text-sm text-gray-600 mb-2">{course.description}</p>
-                        )}
-                        <div className="flex gap-4 text-sm text-gray-500">
-                          <span>📚 {course.subject_name}</span>
-                          <span>📅 {new Date(course.uploaded_at).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <a
-                          href={course.file_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:bg-blue-50 p-2 rounded"
-                          title="Voir"
-                        >
-                          <Eye className="w-5 h-5" />
-                        </a>
-                        <button
-                          onClick={() => handleDeleteCourse(course.id)}
-                          className="text-red-600 hover:bg-red-50 p-2 rounded"
-                          title="Supprimer"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
         {/* EMPLOI DU TEMPS */}
         {activeTab === 'schedule' && (
           <div className="bg-white rounded-lg shadow p-6">
@@ -985,18 +755,17 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
                   <thead>
                     <tr className="bg-gradient-to-r from-green-100 to-teal-100">
                       <th className="border-2 px-4 py-3 font-bold">Heure</th>
-                      {['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'].map((day, idx) => (
+                      {['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'].map((day, idx) => (
                         <th key={idx} className="border-2 px-4 py-3 font-bold">{day}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                  {['09:00-10:30', '10:30-12:00', '14:30-16:00', '16:00-17:30'].map((timeSlot) => (                      <tr key={timeSlot}>
+                  {timeSlotsOf(mySchedule).map((timeSlot) => (                      <tr key={timeSlot}>
                         <td className="border-2 px-4 py-3 font-bold bg-gray-50">{timeSlot}</td>
-                        {[1, 2, 3, 4, 5].map((day) => {
-                          const daySchedules = mySchedule.filter(s => 
-                            s.day_of_week === day && 
-                            `${s.start_time.substring(0, 5)}-${s.end_time.substring(0, 5)}` === timeSlot
+                        {[1, 2, 3, 4, 5, 6].map((day) => {
+                          const daySchedules = mySchedule.filter(s =>
+                            s.day_of_week === day && timeSlotOf(s) === timeSlot
                           );
                           
                           return (
@@ -1004,7 +773,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
                               {daySchedules.map(schedule => (
                                 <div key={schedule.id} className="bg-green-100 p-3 rounded-lg hover:bg-green-200 transition mb-1">
                                   <p className="font-semibold text-green-800">{schedule.subject_name}</p>
-                                  <p className="text-xs text-green-600">{schedule.class_name}</p>
+                                  <p className="text-xs text-green-600">{schedule.level_name}</p>
                                   {schedule.room && <p className="text-xs text-gray-600">Salle {schedule.room}</p>}
                                 </div>
                               ))}
@@ -1045,11 +814,13 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout }) =
                           De: {msg.sender_name} • {new Date(msg.sent_at).toLocaleString()}
                         </p>
                       </div>
-                      <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">
-                        Nouveau
-                      </span>
+                      {!msg.is_read && (
+                        <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">
+                          Nouveau
+                        </span>
+                      )}
                     </div>
-                    <p className="text-gray-700">{msg.content}</p>
+                    <p className="text-gray-700 whitespace-pre-wrap">{msg.content}</p>
                   </div>
                 ))}
               </div>

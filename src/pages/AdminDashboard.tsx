@@ -2,11 +2,16 @@
 import React, { useState, useEffect } from 'react';
 import {
   Home, Users, BookOpen, Plus, Edit, Trash2, Search,
-  Calendar, FileText, Bell, Clock,
+  FileText, Bell, Clock, Eye, MessageSquare, GraduationCap,
   ChevronLeft, ChevronRight, Filter, Menu, DollarSign, Shield
 } from 'lucide-react';
 import { supabase, supabaseAdmin } from '../lib/supabaseClient';
 import FinanceManagement from '../components/finance/FinanceManagement';
+import LevelSelect from '../components/levels/LevelSelect';
+import LevelsManagement from '../components/levels/LevelsManagement';
+import TeacherDetail, { TeacherRecord, TeacherTab } from '../components/teachers/TeacherDetail';
+import { CURRENT_ACADEMIC_YEAR, CYCLES, Level, SchoolCycle, fetchLevels } from '../lib/levels';
+import { timeSlotOf, timeSlotsOf } from '../lib/schedule';
 
 interface User {
   id: string;
@@ -21,7 +26,7 @@ interface Student {
   id: string;
   user_id: string;
   student_number: string;
-  class_id?: string | null;
+  level_id?: string | null;
   date_of_birth?: string;
   address?: string;
   status: string;
@@ -31,35 +36,14 @@ interface Student {
     last_name: string;
     email: string;
   };
-  classes?: {
+  levels?: {
     id: string;
     name: string;
-    level: string;
-    academic_year: string;
+    cycle: SchoolCycle;
   };
 }
 
-interface Teacher {
-  id: string;
-  user_id: string;
-  teacher_number: string;
-  specialization?: string;
-  department?: string;
-  hourly_rate?: number | null;
-  profiles?: {
-    first_name: string;
-    last_name: string;
-    email: string;
-  };
-}
-
-interface Class {
-  id: string;
-  name: string;
-  level: string;
-  academic_year: string;
-  max_students: number;
-}
+type Teacher = TeacherRecord;
 
 interface Subject {
   id: string;
@@ -68,20 +52,9 @@ interface Subject {
   coefficient: number;
 }
 
-interface Course {
-  id: string;
-  title: string;
-  description?: string;
-  file_url: string;
-  is_approved: boolean;
-  uploaded_at: string;
-  teacher_id: string;
-  subject_id: string;
-}
-
 interface Schedule {
   id: string;
-  class_id: string;
+  level_id: string | null;
   subject_id: string;
   teacher_id: string;
   day_of_week: number; // 1=Lundi, 2=Mardi, etc.
@@ -92,7 +65,7 @@ interface Schedule {
 }
 
 interface ScheduleDetailed extends Schedule {
-  classes?: { name: string };
+  levels?: { name: string };
   subjects?: { name: string };
   teachers?: { profiles?: { first_name: string; last_name: string } };
 }
@@ -111,10 +84,10 @@ interface Announcement {
 // Onglets visibles selon le rôle connecté (la vraie barrière reste les
 // policies RLS côté base ; ceci n'est qu'un filtrage d'affichage)
 const ROLE_TABS: Record<string, string[]> = {
-  admin: ['dashboard', 'students', 'teachers', 'classes', 'subjects', 'courses', 'schedules', 'announcements', 'assign-students', 'assign-teachers', 'grades', 'finance', 'admins'],
-  academic_admin: ['dashboard', 'students', 'teachers', 'classes', 'subjects', 'courses', 'schedules', 'announcements', 'assign-students', 'assign-teachers', 'grades'],
-  finance_admin: ['dashboard', 'students', 'teachers', 'assign-students', 'finance'],
-  admin_secretaire: ['dashboard', 'students', 'teachers', 'subjects', 'courses', 'schedules', 'assign-students', 'assign-teachers'],
+  admin: ['dashboard', 'students', 'teachers', 'levels', 'subjects', 'schedules', 'announcements', 'assign-teachers', 'grades', 'finance', 'admins'],
+  academic_admin: ['dashboard', 'students', 'teachers', 'levels', 'subjects', 'schedules', 'announcements', 'assign-teachers', 'grades'],
+  finance_admin: ['dashboard', 'students', 'teachers', 'levels', 'finance'],
+  admin_secretaire: ['dashboard', 'students', 'teachers', 'levels', 'subjects', 'schedules', 'assign-teachers'],
 };
 
 // Rôles gérables depuis l'onglet "Comptes Admin" (admin général uniquement)
@@ -134,27 +107,26 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [students, setStudents] = useState<Student[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [classes, setClasses] = useState<Class[]>([]);
+  const [levels, setLevels] = useState<Level[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [courses, setCourses] = useState<Course[]>([]);
   const [schedules, setSchedules] = useState<ScheduleDetailed[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [adminAccounts, setAdminAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [showModal, setShowModal] = useState<boolean>(false);
-  const [modalType, setModalType] = useState<'student' | 'teacher' | 'class' | 'subject' | 'schedule' | 'announcement' | 'admin'>('student');
+  const [modalType, setModalType] = useState<'student' | 'teacher' | 'subject' | 'schedule' | 'announcement' | 'admin'>('student');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
-  const [teacherClassAssignments, setTeacherClassAssignments] = useState<any[]>([]);
+  const [teacherAssignments, setTeacherAssignments] = useState<any[]>([]);
   const [showAssignModal, setShowAssignModal] = useState<boolean>(false);
-  const [assignModalType, setAssignModalType] = useState<'student' | 'teacher'>('student');
   // ==================== ÉTATS PAGINATION ET FILTRES ====================
   const [currentPageStudents, setCurrentPageStudents] = useState<number>(1);
   const [currentPageTeachers, setCurrentPageTeachers] = useState<number>(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(10);
-  const [classFilter, setClassFilter] = useState<string>('all');
+  const [cycleFilter, setCycleFilter] = useState<string>('all');
+  const [levelFilter, setLevelFilter] = useState<string>('');
   const [departmentFilter, setDepartmentFilter] = useState<string>('all');
-  const [selectedClassForSubjects, setSelectedClassForSubjects] = useState<string>('all');
+  const [selectedLevelForSubjects, setSelectedLevelForSubjects] = useState<string>('');
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
   // États pour la gestion des notes
     const [selectedStudentForGrades, setSelectedStudentForGrades] = useState<string>('');
@@ -169,23 +141,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
       comment: ''
     });
 
-  const [studentAssignForm, setStudentAssignForm] = useState({
-    studentId: '',
-    classId: '',
-    academicYear: '2026-2027'
-  });
-
   const [teacherAssignForm, setTeacherAssignForm] = useState({
     teacherId: '',
     subjectId: '',
-    classId: '',
-    academicYear: '2026-2027'
+    levelId: ''
   });
 
   // Formulaires
   const [studentForm, setStudentForm] = useState({
     firstName: '', lastName: '', email: '', phone: '',
-    studentNumber: '', dateOfBirth: '', address: ''
+    studentNumber: '', dateOfBirth: '', address: '', levelId: ''
   });
 
   const [teacherForm, setTeacherForm] = useState({
@@ -197,13 +162,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
     firstName: '', lastName: '', email: '', password: '', role: 'academic_admin'
   });
 
-  const [classForm, setClassForm] = useState({
-    name: '', level: '', academicYear: '2026-2027', maxStudents: 30
-  });
-
   const [subjectForm, setSubjectForm] = useState({
     name: '', code: '', coefficient: 1,
-     selectedClasses: [] as string[] 
+    selectedLevels: [] as string[]
   });
 
       const handleLogout = () => {
@@ -215,14 +176,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
 
 
   const [scheduleForm, setScheduleForm] = useState({
-    classId: '',
+    levelId: '',
     subjectId: '',
     teacherId: '',
     dayOfWeek: 1,
     startTime: '09:00',
     endTime: '10:30',
     room: '',
-    academicYear: '2026-2027'
+    academicYear: CURRENT_ACADEMIC_YEAR
   });
 
   const [announcementForm, setAnnouncementForm] = useState({
@@ -233,8 +194,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
     expiresAt: ''
   });
 
-  const [selectedClassForSchedule, setSelectedClassForSchedule] = useState<string>('');
+  const [selectedLevelForSchedule, setSelectedLevelForSchedule] = useState<string>('');
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
+  const [viewingTeacher, setViewingTeacher] = useState<{ id: string; tab: TeacherTab } | null>(null);
+
+  // La fiche enseignant (modifier, supprimer, messages...) est réservée à
+  // l'admin général, comme la suppression du compte de connexion associé.
+  const canManageTeachers = user?.role === 'admin';
+  // Mêmes rôles que la policy RLS d'écriture sur la table levels.
+  const canManageLevels = user?.role === 'admin' || user?.role === 'academic_admin';
 
   // ==================== CHARGEMENT DONNÉES ====================
   useEffect(() => {
@@ -247,13 +215,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
       await Promise.all([
         loadStudents(),
         loadTeachers(),
-        loadClasses(),
+        loadLevels(),
         loadSubjects(),
-        loadCourses(),
         loadSchedules(),
         loadAnnouncements(),
-        loadTeacherClassAssignments(),
-        loadSubjectClassLinks(),
+        loadTeacherAssignments(),
+        loadSubjectLevelLinks(),
         ...(user?.role === 'admin' ? [loadAdminAccounts()] : [])
       ]);
     } catch (error) {
@@ -263,25 +230,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
     }
   };
 
-const loadTeacherClassAssignments = async () => {
+const loadTeacherAssignments = async () => {
   const { data, error } = await supabase
-    .from('teacher_classes')
+    .from('teacher_levels')
     .select(`*, teachers(id, teacher_number, profiles(first_name, last_name, email)),
       subjects(id, name, code),
-      classes(id, name, level, academic_year)
+      levels(id, name, cycle)
     `);
 
   if (error) {
     console.error('Erreur chargement affectations enseignants:', error);
   } else {
-    setTeacherClassAssignments(data || []);
+    setTeacherAssignments(data || []);
   }
 };
 
   const loadStudents = async () => {
     const { data, error } = await supabase
       .from('students')
-      .select('*, profiles(first_name, last_name, email), classes(id, name, level, academic_year)')
+      .select('*, profiles(first_name, last_name, email), levels(id, name, cycle)')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -318,17 +285,8 @@ const loadTeacherClassAssignments = async () => {
     }
   };
 
-  const loadClasses = async () => {
-    const { data, error } = await supabase
-      .from('classes')
-      .select('*')
-      .order('level', { ascending: true });
-    
-    if (error) {
-      console.error('Erreur chargement classes:', error);
-    } else {
-      setClasses(data || []);
-    }
+  const loadLevels = async () => {
+    setLevels(await fetchLevels());
   };
 
   const loadSubjects = async () => {
@@ -344,38 +302,25 @@ const loadTeacherClassAssignments = async () => {
     }
   };
 
-  const [subjectClassLinks, setSubjectClassLinks] = useState<any[]>([]);
-    const loadSubjectClassLinks = async () => {
+  const [subjectLevelLinks, setSubjectLevelLinks] = useState<any[]>([]);
+    const loadSubjectLevelLinks = async () => {
       const { data, error } = await supabase
-        .from('subject_classes')
-        .select('class_id, subject_id');
-      
+        .from('subject_levels')
+        .select('level_id, subject_id');
+
       if (error) {
-        console.error('Erreur chargement liens matières-classes:', error);
+        console.error('Erreur chargement liens matières-niveaux:', error);
       } else {
-        setSubjectClassLinks(data || []);
+        setSubjectLevelLinks(data || []);
       }
     };
-
-  const loadCourses = async () => {
-    const { data, error } = await supabase
-      .from('courses')
-      .select('*')
-      .order('uploaded_at', { ascending: false });
-    
-    if (error) {
-      console.error('Erreur chargement cours:', error);
-    } else {
-      setCourses(data || []);
-    }
-  };
 
   const loadSchedules = async () => {
     const { data, error } = await supabase
       .from('schedules')
       .select(`
         *,
-        classes(name),
+        levels(name),
         subjects(name),
         teachers(profiles(first_name, last_name))
       `)
@@ -415,8 +360,7 @@ const loadTeacherClassAssignments = async () => {
           .select(`
             *,
             subjects (name, code, coefficient),
-            teachers (profiles(first_name, last_name)),
-            classes (name)
+            teachers (profiles(first_name, last_name))
           `)
           .eq('student_id', studentId)
           .order('exam_date', { ascending: false });
@@ -492,37 +436,26 @@ const loadTeacherClassAssignments = async () => {
       }
     };
       // ==================== GESTION FORMULAIRES ====================
-      const handleAssignStudentToClass = async (e: React.FormEvent) => {
-      e.preventDefault();
-      
-      if (!studentAssignForm.studentId || !studentAssignForm.classId) {
-        alert('⚠️ Veuillez sélectionner un étudiant et une classe');
-        return;
-      }
-
-      setLoading(true);
-      try {
-        const { error } = await supabase
+      const handleChangeStudentLevel = async (studentId: string, levelId: string) => {
+        const { data, error } = await supabase
           .from('students')
-          .update({ class_id: studentAssignForm.classId })
-          .eq('id', studentAssignForm.studentId);
+          .update({ level_id: levelId || null })
+          .eq('id', studentId)
+          .select('id');
 
-        if (error) throw error;
-        alert('✅ Étudiant affecté à la classe avec succès !');
-        setShowAssignModal(false);
-        setStudentAssignForm({ studentId: '', classId: '', academicYear: '2026-2027' });
-        loadStudents();
-      } catch (error: any) {
-        alert(`❌ Erreur: ${error.message}`);
-      } finally {
-        setLoading(false);
-      }
-    };
+        if (error) {
+          alert(`❌ Erreur: ${error.message}`);
+        } else if (!data?.length) {
+          alert("❌ Modification refusée : vous n'avez pas les droits nécessaires.");
+        } else {
+          loadStudents();
+        }
+      };
 
-const handleAssignTeacherToClass = async (e: React.FormEvent) => {
+const handleAssignTeacherToLevel = async (e: React.FormEvent) => {
   e.preventDefault();
-  
-  if (!teacherAssignForm.teacherId || !teacherAssignForm.subjectId || !teacherAssignForm.classId) {
+
+  if (!teacherAssignForm.teacherId || !teacherAssignForm.subjectId || !teacherAssignForm.levelId) {
     alert('⚠️ Veuillez remplir tous les champs');
     return;
   }
@@ -530,29 +463,24 @@ const handleAssignTeacherToClass = async (e: React.FormEvent) => {
   setLoading(true);
   try {
     const { error } = await supabase
-      .from('teacher_classes')
+      .from('teacher_levels')
       .insert({
         teacher_id: teacherAssignForm.teacherId,
         subject_id: teacherAssignForm.subjectId,
-        class_id: teacherAssignForm.classId
+        level_id: teacherAssignForm.levelId
       });
 
     if (error) {
       if (error.code === '23505') {
-        alert('⚠️ Cet enseignant est déjà affecté à cette matière pour cette classe');
+        alert('⚠️ Cet enseignant est déjà affecté à cette matière pour ce niveau');
       } else {
         throw error;
       }
     } else {
       alert('✅ Enseignant affecté avec succès !');
       setShowAssignModal(false);
-      setTeacherAssignForm({ 
-        teacherId: '', 
-        subjectId: '', 
-        classId: '', 
-        academicYear: '2026-2027'
-      });
-      loadTeacherClassAssignments();
+      setTeacherAssignForm({ teacherId: '', subjectId: '', levelId: '' });
+      loadTeacherAssignments();
     }
   } catch (error: any) {
     alert(`❌ Erreur: ${error.message}`);
@@ -561,35 +489,18 @@ const handleAssignTeacherToClass = async (e: React.FormEvent) => {
   }
 };
 
-const handleRemoveStudentFromClass = async (studentId: string) => {
-  if (!window.confirm('⚠️ Retirer cet étudiant de cette classe ?')) return;
-
-  try {
-    const { error } = await supabase
-      .from('students')
-      .update({ class_id: null })
-      .eq('id', studentId);
-
-    if (error) throw error;
-    alert('✅ Étudiant retiré de la classe');
-    loadStudents();
-  } catch (error: any) {
-    alert(`❌ Erreur: ${error.message}`);
-  }
-};
-
-const handleRemoveTeacherFromClass = async (assignmentId: string) => {
+const handleRemoveTeacherAssignment = async (assignmentId: string) => {
   if (!window.confirm('⚠️ Retirer cet enseignant de cette affectation ?')) return;
 
   try {
     const { error } = await supabase
-      .from('teacher_classes')
+      .from('teacher_levels')
       .delete()
       .eq('id', assignmentId);
 
     if (error) throw error;
     alert('✅ Enseignant retiré de l\'affectation');
-    loadTeacherClassAssignments();
+    loadTeacherAssignments();
   } catch (error: any) {
     alert(`❌ Erreur: ${error.message}`);
   }
@@ -632,6 +543,7 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
           .insert({
             user_id: userId,
             student_number: studentForm.studentNumber,
+            level_id: studentForm.levelId || null,
             date_of_birth: studentForm.dateOfBirth || null,
             address: studentForm.address || null,
             parent_phone: studentForm.phone || null,
@@ -717,6 +629,7 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
           .insert({
             user_id: userId,
             teacher_number: teacherForm.teacherNumber,
+            phone: teacherForm.phone || null,
             specialization: teacherForm.specialization || null,
             department: teacherForm.department || null
           });
@@ -834,34 +747,6 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
       }
     };
 
-  // ==================== AJOUT CLASSE ====================
-  const handleAddClass = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
-    try {
-      const { error } = await supabase
-        .from('classes')
-        .insert({
-          name: classForm.name,
-          level: classForm.level,
-          academic_year: classForm.academicYear,
-          max_students: classForm.maxStudents
-        });
-
-      if (error) throw error;
-
-      alert('✅ Classe créée avec succès !');
-      setShowModal(false);
-      resetClassForm();
-      loadClasses();
-    } catch (error: any) {
-      alert(`❌ Erreur: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // ==================== AJOUT MATIÈRE ====================
     // Ligne ~588 - Dans handleAddSubject
   const handleAddSubject = async (e: React.FormEvent) => {
@@ -882,16 +767,16 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
 
       if (subjectError) throw subjectError;
 
-      // 2. Associer les classes sélectionnées (si il y en a)
-      if (subjectForm.selectedClasses.length > 0) {
-        const subjectClassLinks = subjectForm.selectedClasses.map(classId => ({
+      // 2. Associer les niveaux sélectionnés (s'il y en a)
+      if (subjectForm.selectedLevels.length > 0) {
+        const links = subjectForm.selectedLevels.map(levelId => ({
           subject_id: newSubject.id,
-          class_id: classId
+          level_id: levelId
         }));
 
         const { error: linkError } = await supabase
-          .from('subject_classes')
-          .insert(subjectClassLinks);
+          .from('subject_levels')
+          .insert(links);
 
         if (linkError) throw linkError;
       }
@@ -900,7 +785,7 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
       setShowModal(false);
       resetSubjectForm();
       loadSubjects();
-      loadSubjectClassLinks();  // ← Recharger les liens
+      loadSubjectLevelLinks();
     } catch (error: any) {
       alert(`❌ Erreur: ${error.message}`);
     } finally {
@@ -915,7 +800,7 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
 
     try {
       const scheduleData = {
-        class_id: scheduleForm.classId,
+        level_id: scheduleForm.levelId,
         subject_id: scheduleForm.subjectId,
         teacher_id: scheduleForm.teacherId,
         day_of_week: scheduleForm.dayOfWeek,
@@ -958,7 +843,7 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
   const handleEditSchedule = (schedule: ScheduleDetailed) => {
     setEditingSchedule(schedule);
     setScheduleForm({
-      classId: schedule.class_id,
+      levelId: schedule.level_id || '',
       subjectId: schedule.subject_id,
       teacherId: schedule.teacher_id,
       dayOfWeek: schedule.day_of_week,
@@ -1053,84 +938,51 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
     }
   };
 
-  const handleDeleteTeacher = async (teacherId: string) => {
-    if (!window.confirm('⚠️ Êtes-vous sûr de vouloir supprimer cet enseignant ?')) return;
+  const handleDeleteTeacher = async (teacher: Teacher) => {
+    const name = `${teacher.profiles?.first_name || ''} ${teacher.profiles?.last_name || ''}`.trim() || teacher.teacher_number;
+
+    const { count: payslipCount } = await supabase
+      .from('teacher_payslips')
+      .select('id', { count: 'exact', head: true })
+      .eq('teacher_id', teacher.id);
+
+    const payslipWarning = payslipCount
+      ? `\n- ses ${payslipCount} bulletin(s) de paie, qui sortiront aussi du suivi financier`
+      : '';
+    const confirmed = window.confirm(
+      `⚠️ Supprimer définitivement ${name} ?\n\nSeront supprimés :\n- son compte de connexion\n- ses affectations${payslipWarning}\n\nSes notes et créneaux sont conservés, sans enseignant.`
+    );
+    if (!confirmed) return;
 
     try {
-      const { error } = await supabase
+      // .select() : sans droit de suppression, le RLS renvoie 0 ligne et aucune erreur.
+      const { data, error } = await supabase
         .from('teachers')
         .delete()
-        .eq('id', teacherId);
+        .eq('id', teacher.id)
+        .select('id');
 
       if (error) throw error;
-      alert('✅ Enseignant supprimé');
+      if (!data?.length) throw new Error("Suppression refusée : vous n'avez pas les droits nécessaires.");
+
+      // Sans cela, la personne pourrait toujours se connecter à un espace vide.
+      await supabase.from('user_roles').delete().eq('user_id', teacher.user_id);
+      const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(teacher.user_id);
+
+      if (authError) {
+        alert(`⚠️ La fiche est supprimée, mais pas le compte de connexion :\n${authError.message}`);
+      } else {
+        alert('✅ Enseignant supprimé');
+      }
+
+      setViewingTeacher(null);
       loadTeachers();
+      loadTeacherAssignments();
+      loadSchedules();
     } catch (error: any) {
       alert(`❌ Erreur: ${error.message}`);
     }
   };
-
-    const handleDeleteClass = async (classId: string) => {
-      if (!window.confirm('⚠️ Êtes-vous sûr de vouloir supprimer cette classe ?')) return;
-
-      try {
-        const { error } = await supabase
-          .from('classes')
-          .delete()
-          .eq('id', classId);
-
-        if (error) throw error;
-        alert('✅ Classe supprimée');
-        loadClasses();
-      } catch (error: any) {
-        alert(`❌ Erreur: ${error.message}`);
-      }
-    };
-
-        // ==================== MODIFICATION CLASSE ====================
-      const [editingClass, setEditingClass] = useState<Class | null>(null);
-
-      const handleEditClass = (cls: Class) => {
-        setEditingClass(cls);
-        setClassForm({
-          name: cls.name,
-          level: cls.level,
-          academicYear: cls.academic_year,
-          maxStudents: cls.max_students
-        });
-        setModalType('class');
-        setShowModal(true);
-      };
-
-    const handleUpdateClass = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!editingClass) return;
-
-      setLoading(true);
-      try {
-        const { error } = await supabase
-          .from('classes')
-          .update({
-            name: classForm.name,
-            level: classForm.level,
-            academic_year: classForm.academicYear,
-            max_students: classForm.maxStudents
-          })
-          .eq('id', editingClass.id);
-
-        if (error) throw error;
-
-        alert('✅ Classe modifiée avec succès !');
-        setShowModal(false);
-        setEditingClass(null);
-        resetClassForm();
-        loadClasses();
-      } catch (error: any) {
-        alert(`❌ Erreur: ${error.message}`);
-      } finally {
-        setLoading(false);
-      }
-    };
 
   const handleDeleteSubject = async (subjectId: string) => {
     if (!window.confirm('⚠️ Êtes-vous sûr de vouloir supprimer cette matière ?')) return;
@@ -1153,18 +1005,17 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
       const handleEditSubject = async (subject: Subject) => {
       setEditingSubject(subject);
       
-      // Charger les classes déjà associées
-      const { data: linkedClasses } = await supabase
-        .from('subject_classes')
-        .select('class_id')
+      // Charger les niveaux déjà associés
+      const { data: linkedLevels } = await supabase
+        .from('subject_levels')
+        .select('level_id')
         .eq('subject_id', subject.id);
 
-      const classIds = linkedClasses?.map(l => l.class_id) || [];
       setSubjectForm({
-        name: subject.name, 
-        code: subject.code, 
+        name: subject.name,
+        code: subject.code,
         coefficient: subject.coefficient,
-        selectedClasses: classIds  
+        selectedLevels: linkedLevels?.map(l => l.level_id) || []
       });
       
       setModalType('subject');
@@ -1190,22 +1041,22 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
         if (updateError) throw updateError;
 
         // 2. Mettre à jour les associations (supprimer puis recréer)
-        if (subjectForm.selectedClasses.length > 0) {
-          // Supprimer les anciennes associations
-          await supabase
-            .from('subject_classes')
-            .delete()
-            .eq('subject_id', editingSubject.id);
+        const { error: unlinkError } = await supabase
+          .from('subject_levels')
+          .delete()
+          .eq('subject_id', editingSubject.id);
 
-          // Créer les nouvelles associations
-          const subjectClassLinks = subjectForm.selectedClasses.map(classId => ({
+        if (unlinkError) throw unlinkError;
+
+        if (subjectForm.selectedLevels.length > 0) {
+          const links = subjectForm.selectedLevels.map(levelId => ({
             subject_id: editingSubject.id,
-            class_id: classId
+            level_id: levelId
           }));
 
           const { error: linkError } = await supabase
-            .from('subject_classes')
-            .insert(subjectClassLinks);
+            .from('subject_levels')
+            .insert(links);
 
           if (linkError) throw linkError;
         }
@@ -1215,7 +1066,7 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
         setEditingSubject(null);
         resetSubjectForm();
         loadSubjects();
-        loadSubjectClassLinks();  // ← Recharger les liens
+        loadSubjectLevelLinks();
       } catch (error: any) {
         alert(`❌ Erreur: ${error.message}`);
       } finally {
@@ -1223,31 +1074,11 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
       }
     };
 
-  // ==================== APPROBATION COURS ====================
-  const handleApproveCourse = async (courseId: string) => {
-    try {
-      const { error } = await supabase
-        .from('courses')
-        .update({ 
-          is_approved: true,
-          approved_by: user?.id,
-          approved_at: new Date().toISOString()
-        })
-        .eq('id', courseId);
-
-      if (error) throw error;
-      alert('✅ Cours approuvé !');
-      loadCourses();
-    } catch (error: any) {
-      alert(`❌ Erreur: ${error.message}`);
-    }
-  };
-
   // ==================== RESET FORMS ====================
   const resetStudentForm = () => {
     setStudentForm({
       firstName: '', lastName: '', email: '', phone: '',
-      studentNumber: '', dateOfBirth: '', address: ''
+      studentNumber: '', dateOfBirth: '', address: '', levelId: ''
     });
   };
 
@@ -1258,29 +1089,23 @@ const handleRemoveTeacherFromClass = async (assignmentId: string) => {
     });
   };
 
-  const resetClassForm = () => {
-    setClassForm({
-      name: '', level: '', academicYear: '2026-2027', maxStudents: 30
-    });
-  };
-
   const resetSubjectForm = () => {
     setSubjectForm({
       name: '', code: '', coefficient: 1,
-       selectedClasses: [] 
+       selectedLevels: []
     });
   };
 
   const resetScheduleForm = () => {
     setScheduleForm({
-      classId: '',
+      levelId: '',
       subjectId: '',
       teacherId: '',
       dayOfWeek: 1,
       startTime: '09:00',
       endTime: '10:30',
       room: '',
-      academicYear: '2026-2027'
+      academicYear: CURRENT_ACADEMIC_YEAR
     });
   };
 
@@ -1299,16 +1124,15 @@ const filteredSubjects = subjects.filter(subject => {
   const matchesSearch = subject.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                        subject.code.toLowerCase().includes(searchTerm.toLowerCase());
         
-        if (selectedClassForSubjects === 'all') {
+        if (!selectedLevelForSubjects) {
           return matchesSearch;
         }
-        
-        // Matière visible si assignée à la classe via teacher_classes
-        const isInSelectedClass = subjectClassLinks.some(
-          link => link.subject_id === subject.id && link.class_id === selectedClassForSubjects
+
+        const isInSelectedLevel = subjectLevelLinks.some(
+          link => link.subject_id === subject.id && link.level_id === selectedLevelForSubjects
         );
-        
-        return matchesSearch && isInSelectedClass;
+
+        return matchesSearch && isInSelectedLevel;
       });
     const filteredStudents = students.filter(s => {
       const matchesSearch = (s.student_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1316,10 +1140,13 @@ const filteredSubjects = subjects.filter(subject => {
                           (s.profiles?.last_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                           (s.profiles?.email || '').toLowerCase().includes(searchTerm.toLowerCase());
       
-      // Filtrer par classe
-      const matchesClass = classFilter === 'all' || s.class_id === classFilter;
+      // Filtrer par cycle et niveau ("none" : étudiants pas encore inscrits)
+      const matchesLevel =
+        cycleFilter === 'none' ? !s.level_id :
+        levelFilter ? s.level_id === levelFilter :
+        cycleFilter === 'all' || s.levels?.cycle === cycleFilter;
 
-      return matchesSearch && matchesClass;
+      return matchesSearch && matchesLevel;
     });
 
       // Pagination étudiants
@@ -1344,17 +1171,11 @@ const filteredSubjects = subjects.filter(subject => {
         const paginatedTeachers = filteredTeachers.slice(startIndexTeachers, startIndexTeachers + itemsPerPage);
 
         // Départements uniques
-                const uniqueDepartments = Array.from(new Set(teachers.map(t => t.department).filter(Boolean)));
+                const uniqueDepartments = Array.from(new Set(teachers.map(t => t.department).filter(Boolean))) as string[];
 
-        // Filtrer les classes par recherche
-            const filteredClasses = classes.filter(cls => 
-              cls.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              cls.level.toLowerCase().includes(searchTerm.toLowerCase())
-            );     
-                     
             const filteredSchedules = schedules.filter(schedule => {
-            // Filtre par classe
-            const matchesClass = !selectedClassForSchedule || schedule.class_id === selectedClassForSchedule;
+            // Filtre par niveau
+            const matchesClass = !selectedLevelForSchedule || schedule.level_id === selectedLevelForSchedule;
             
             // Filtre par recherche (enseignant, matière, salle)
             const matchesSearch = !searchTerm || 
@@ -1367,6 +1188,7 @@ const filteredSubjects = subjects.filter(subject => {
           });
 
           const dayNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+          const openedTeacher = viewingTeacher ? teachers.find(t => t.id === viewingTeacher.id) : undefined;
 
   // ==================== RENDER ====================
   return (
@@ -1421,9 +1243,8 @@ const filteredSubjects = subjects.filter(subject => {
           { id: 'dashboard', label: 'Dashboard', icon: Home },
           { id: 'students', label: 'Étudiants', icon: Users },
           { id: 'teachers', label: 'Enseignants', icon: BookOpen },
-          { id: 'classes', label: 'Classes', icon: Calendar },
+          { id: 'levels', label: 'Cycles & Niveaux', icon: GraduationCap },
           { id: 'subjects', label: 'Matières', icon: FileText },
-          { id: 'courses', label: 'Cours', icon: FileText },
           { id: 'schedules', label: 'Emplois du temps', icon: Clock },
           { id: 'announcements', label: 'Annonces', icon: Bell },
         ].filter(tab => (ROLE_TABS[user?.role || 'admin'] || ROLE_TABS.admin).includes(tab.id)).map(tab => {
@@ -1433,6 +1254,7 @@ const filteredSubjects = subjects.filter(subject => {
               key={tab.id}
               onClick={() => {
                 setActiveTab(tab.id);
+                setViewingTeacher(null);
                 setSidebarOpen(false);
               }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition text-left ${
@@ -1455,7 +1277,6 @@ const filteredSubjects = subjects.filter(subject => {
         <h2 className="text-xs font-semibold text-gray-500 uppercase mb-3">Gestion Avancée</h2>
         <nav className="space-y-1">
           {[
-            { id: 'assign-students', label: 'Affecter Étudiants', icon: Users },
             { id: 'assign-teachers', label: 'Affecter Enseignants', icon: BookOpen },
             { id: 'grades', label: 'Gestion des notes', icon: FileText },
             { id: 'finance', label: 'Gestion Financière', icon: DollarSign },
@@ -1467,6 +1288,7 @@ const filteredSubjects = subjects.filter(subject => {
                 key={tab.id}
                 onClick={() => {
                   setActiveTab(tab.id);
+                  setViewingTeacher(null);
                   setSidebarOpen(false);
                 }}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition text-left ${
@@ -1499,8 +1321,8 @@ const filteredSubjects = subjects.filter(subject => {
             <p className="text-2xl font-bold text-green-700">{teachers.length}</p>
           </div>
           <div className="bg-purple-50 p-3 rounded-lg">
-            <p className="text-xs text-purple-600">Classes</p>
-            <p className="text-2xl font-bold text-purple-700">{classes.length}</p>
+            <p className="text-xs text-purple-600">Niveaux</p>
+            <p className="text-2xl font-bold text-purple-700">{levels.length}</p>
           </div>
         </div>
       </div>
@@ -1508,7 +1330,7 @@ const filteredSubjects = subjects.filter(subject => {
   </aside>
 
   {/* CONTENU PRINCIPAL */}
-  <div className="flex-1 lg:ml-64 p-3 md:p-6">
+  <div className="flex-1 min-w-0 lg:ml-64 p-3 md:p-6">
 
         {/* DASHBOARD TAB */}
         {activeTab === 'dashboard' && (
@@ -1523,8 +1345,8 @@ const filteredSubjects = subjects.filter(subject => {
                 <p className="text-xs md:text-base text-gray-600">Enseignants</p>
               </div>
               <div className="bg-purple-50 p-4 md:p-6 rounded-lg">
-                <p className="text-2xl md:text-4xl font-bold text-purple-600">{classes.length}</p>
-                <p className="text-xs md:text-base text-gray-600">Classes</p>
+                <p className="text-2xl md:text-4xl font-bold text-purple-600">{levels.length}</p>
+                <p className="text-xs md:text-base text-gray-600">Niveaux</p>
               </div>
               <div className="bg-orange-50 p-4 md:p-6 rounded-lg">
                 <p className="text-2xl md:text-4xl font-bold text-orange-600">{subjects.length}</p>
@@ -1550,11 +1372,11 @@ const filteredSubjects = subjects.filter(subject => {
                   <span className="text-xs md:text-base">Ajouter enseignant</span>
                 </button>
                 <button
-                  onClick={() => { setModalType('class'); setShowModal(true); }}
+                  onClick={() => setActiveTab('levels')}
                   className="flex items-center gap-2 p-3 md:p-4 border rounded-lg hover:bg-purple-50"
                 >
-                  <Plus className="w-4 h-4 md:w-5 md:h-5 text-purple-600" />
-                  <span className="text-xs md:text-base">Créer classe</span>
+                  <GraduationCap className="w-4 h-4 md:w-5 md:h-5 text-purple-600" />
+                  <span className="text-xs md:text-base">Inscrire par niveau</span>
                 </button>
                 <button
                   onClick={() => { setModalType('subject'); setShowModal(true); }}
@@ -1732,7 +1554,7 @@ const filteredSubjects = subjects.filter(subject => {
           </div>
 
           {/* FILTRES ET RECHERCHE */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4 mb-6">
             <div className="sm:col-span-2">
               <label className="block text-sm font-medium mb-2">Rechercher</label>
               <div className="relative">
@@ -1748,20 +1570,43 @@ const filteredSubjects = subjects.filter(subject => {
             </div>
 
            <div>
-              <label className="block text-sm font-medium mb-2">
+              <label htmlFor="student-cycle-filter" className="block text-sm font-medium mb-2">
                 <Filter className="w-4 h-4 inline mr-1" />
-                Classe
+                Cycle
               </label>
-              <select 
-                value={classFilter} 
-                onChange={(e) => setClassFilter(e.target.value)} 
+              <select
+                id="student-cycle-filter"
+                value={cycleFilter}
+                onChange={(e) => {
+                  setCycleFilter(e.target.value);
+                  setLevelFilter('');
+                  setCurrentPageStudents(1);
+                }}
                 className="w-full border rounded-lg px-3 py-2 text-sm md:text-base"
               >
-                <option value="all">Toutes les classes</option>
-                {classes.map(cls => (
-                  <option key={cls.id} value={cls.id}>{cls.name}</option>
+                <option value="all">Tous les cycles</option>
+                {CYCLES.map(cycle => (
+                  <option key={cycle.id} value={cycle.id}>{cycle.label}</option>
                 ))}
+                <option value="none">Non inscrits</option>
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Niveau</label>
+              <LevelSelect
+                levels={levels}
+                value={levelFilter}
+                onChange={(levelId) => {
+                  setLevelFilter(levelId);
+                  setCurrentPageStudents(1);
+                }}
+                placeholder="Tous les niveaux"
+                cycle={cycleFilter === 'all' || cycleFilter === 'none' ? 'all' : (cycleFilter as SchoolCycle)}
+                disabled={cycleFilter === 'none'}
+                className="w-full border rounded-lg px-3 py-2 text-sm md:text-base disabled:opacity-50"
+                ariaLabel="Filtrer par niveau"
+              />
             </div>
 
             <div>
@@ -1796,6 +1641,7 @@ const filteredSubjects = subjects.filter(subject => {
                       <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm">Matricule</th>
                       <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm">Nom</th>
                       <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm hidden md:table-cell">Email</th>
+                      <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm">Niveau</th>
                       <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm">Statut</th>
                       <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm">Actions</th>
                     </tr>
@@ -1806,6 +1652,16 @@ const filteredSubjects = subjects.filter(subject => {
                         <td className="px-3 md:px-4 py-3 font-medium text-xs md:text-sm">{student.student_number}</td>
                         <td className="px-3 md:px-4 py-3 text-xs md:text-sm">{student.profiles?.first_name} {student.profiles?.last_name}</td>
                         <td className="px-3 md:px-4 py-3 text-xs md:text-sm hidden md:table-cell">{student.profiles?.email}</td>
+                        <td className="px-3 md:px-4 py-3">
+                          <LevelSelect
+                            levels={levels}
+                            value={student.level_id || ''}
+                            onChange={(levelId) => handleChangeStudentLevel(student.id, levelId)}
+                            placeholder="À inscrire..."
+                            className="border rounded px-2 py-1 text-xs md:text-sm max-w-[11rem]"
+                            ariaLabel={`Niveau de ${student.profiles?.first_name} ${student.profiles?.last_name}`}
+                          />
+                        </td>
                         <td className="px-3 md:px-4 py-3">
                           <span className={`px-2 py-1 rounded text-xs ${
                             student.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
@@ -1860,8 +1716,24 @@ const filteredSubjects = subjects.filter(subject => {
         </div>
       )}
 
+        {/* FICHE ENSEIGNANT */}
+        {activeTab === 'teachers' && openedTeacher && viewingTeacher && (
+          <TeacherDetail
+            key={openedTeacher.id}
+            teacher={openedTeacher}
+            levels={levels}
+            subjects={subjects}
+            currentUserId={user?.id}
+            initialTab={viewingTeacher.tab}
+            onBack={() => setViewingTeacher(null)}
+            onUpdated={loadTeachers}
+            onAssignmentsChanged={loadTeacherAssignments}
+            onDelete={handleDeleteTeacher}
+          />
+        )}
+
         {/* TEACHERS TAB */}
-        {activeTab === 'teachers' && (
+        {activeTab === 'teachers' && !openedTeacher && (
           <div className="bg-white rounded-lg shadow p-4 md:p-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
               <h2 className="text-xl md:text-2xl font-bold">Enseignants ({filteredTeachers.length})</h2>
@@ -1953,12 +1825,44 @@ const filteredSubjects = subjects.filter(subject => {
                           <td className="px-3 md:px-4 py-3 text-xs md:text-sm hidden lg:table-cell">{teacher.specialization || '-'}</td>
                           <td className="px-3 md:px-4 py-3 text-xs md:text-sm hidden lg:table-cell">{teacher.department || '-'}</td>
                           <td className="px-3 md:px-4 py-3">
-                            <button
-                              onClick={() => handleDeleteTeacher(teacher.id)}
-                              className="text-red-600 hover:bg-red-50 p-2 rounded"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            {canManageTeachers ? (
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={() => setViewingTeacher({ id: teacher.id, tab: 'assignments' })}
+                                  className="text-gray-700 hover:bg-gray-100 p-2 rounded"
+                                  title="Ouvrir la fiche"
+                                  aria-label={`Ouvrir la fiche de ${teacher.profiles?.first_name} ${teacher.profiles?.last_name}`}
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => setViewingTeacher({ id: teacher.id, tab: 'profile' })}
+                                  className="text-blue-600 hover:bg-blue-50 p-2 rounded"
+                                  title="Modifier"
+                                  aria-label={`Modifier ${teacher.profiles?.first_name} ${teacher.profiles?.last_name}`}
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => setViewingTeacher({ id: teacher.id, tab: 'messages' })}
+                                  className="text-green-600 hover:bg-green-50 p-2 rounded"
+                                  title="Envoyer un message"
+                                  aria-label={`Envoyer un message à ${teacher.profiles?.first_name} ${teacher.profiles?.last_name}`}
+                                >
+                                  <MessageSquare className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteTeacher(teacher)}
+                                  className="text-red-600 hover:bg-red-50 p-2 rounded"
+                                  title="Supprimer"
+                                  aria-label={`Supprimer ${teacher.profiles?.first_name} ${teacher.profiles?.last_name}`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-gray-500">-</span>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -1999,64 +1903,15 @@ const filteredSubjects = subjects.filter(subject => {
           </div>
         )}
 
-        {/* CLASSES TAB */}
-        {activeTab === 'classes' && (
-          <div className="bg-white rounded-lg shadow p-4 md:p-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
-              <h2 className="text-xl md:text-2xl font-bold">Classes ({classes.length})</h2>
-              <button
-                onClick={() => { setModalType('class'); setShowModal(true); }}
-                className="bg-purple-600 text-white px-3 py-2 md:px-4 rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm md:text-base w-full sm:w-auto justify-center"
-              >
-                <Plus className="w-4 h-4 md:w-5 md:h-5" />
-                Créer
-              </button>
-            </div>
-            {/* BARRE DE RECHERCHE */}
-                <div className="mb-6">
-                  <div className="relative">
-                    <Search className="w-5 h-5 absolute left-3 top-2.5 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Rechercher une classe..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full border rounded-lg px-3 py-2 pl-10"
-                    />
-                  </div>
-                </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-              {filteredClasses.map((cls) => (
-                <div key={cls.id} className="border rounded-lg p-3 md:p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h3 className="font-bold text-base md:text-lg">{cls.name}</h3>
-                      <p className="text-xs md:text-sm text-gray-600">{cls.level}</p>
-                      <p className="text-xs text-gray-500">{cls.academic_year}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleEditClass(cls)}
-                        className="text-blue-600 hover:bg-blue-50 p-2 rounded"
-                        title="Modifier"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteClass(cls.id)}
-                        className="text-red-600 hover:bg-red-50 p-2 rounded"
-                        title="Supprimer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                 </div>
-                  <p className="text-xs md:text-sm text-gray-600">Max: {cls.max_students} étudiants</p>
-                </div>
-              ))}
-            </div>
-          </div>
+        {/* CYCLES & NIVEAUX */}
+        {activeTab === 'levels' && (
+          <LevelsManagement
+            levels={levels}
+            students={students}
+            canManageLevels={canManageLevels}
+            onLevelsChanged={loadLevels}
+            onStudentsChanged={loadStudents}
+          />
         )}
 
         {/* SUBJECTS TAB */}
@@ -2080,22 +1935,20 @@ const filteredSubjects = subjects.filter(subject => {
 
               {/* FILTRES */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                {/* Filtre par classe */}
+                {/* Filtre par niveau */}
                 <div>
                   <label className="block text-sm font-medium mb-2">
                     <Filter className="w-4 h-4 inline mr-1" />
-                    Filtrer par classe
+                    Filtrer par niveau
                   </label>
-                  <select 
-                    value={selectedClassForSubjects}
-                    onChange={(e) => setSelectedClassForSubjects(e.target.value)}
+                  <LevelSelect
+                    levels={levels}
+                    value={selectedLevelForSubjects}
+                    onChange={setSelectedLevelForSubjects}
+                    placeholder="Tous les niveaux"
                     className="w-full border rounded-lg px-3 py-2"
-                  >
-                    <option value="all">Toutes les classes</option>
-                    {classes.map(cls => (
-                      <option key={cls.id} value={cls.id}>{cls.name}</option>
-                    ))}
-                  </select>
+                    ariaLabel="Filtrer les matières par niveau"
+                  />
                 </div>
 
                 {/* Barre de recherche */}
@@ -2151,61 +2004,20 @@ const filteredSubjects = subjects.filter(subject => {
             </div>
           )}
 
-        {/* COURSES TAB */}
-        {activeTab === 'courses' && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-2xl font-bold mb-6">Cours à approuver ({courses.filter(c => !c.is_approved).length})</h2>
-
-            <div className="space-y-4">
-              {courses.map((course) => (
-                <div key={course.id} className="border rounded-lg p-4">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-bold text-lg">{course.title}</h3>
-                      <p className="text-sm text-gray-600">{course.description}</p>
-                      <p className="text-xs text-gray-500 mt-2">
-                        {new Date(course.uploaded_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      {!course.is_approved && (
-                        <button
-                          onClick={() => handleApproveCourse(course.id)}
-                          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                        >
-                          Approuver
-                        </button>
-                      )}
-                      <span className={`px-3 py-1 rounded text-sm ${
-                        course.is_approved 
-                          ? 'bg-green-100 text-green-700' 
-                          : 'bg-orange-100 text-orange-700'
-                      }`}>
-                        {course.is_approved ? 'Approuvé' : 'En attente'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>)}
-
         {/* SCHEDULES TAB - EMPLOIS DU TEMPS */}
         {activeTab === 'schedules' && (
           <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-6">
               <h2 className="text-2xl font-bold">Emplois du temps</h2>
-              <div className="flex gap-3">
-                <select
-                  value={selectedClassForSchedule}
-                  onChange={(e) => setSelectedClassForSchedule(e.target.value)}
+              <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                <LevelSelect
+                  levels={levels}
+                  value={selectedLevelForSchedule}
+                  onChange={setSelectedLevelForSchedule}
+                  placeholder="Tous les niveaux"
                   className="border rounded-lg px-3 py-2"
-                >
-                  <option value="">Toutes les classes</option>
-                  {classes.map(cls => (
-                    <option key={cls.id} value={cls.id}>{cls.name}</option>
-                  ))}
-                </select>
+                  ariaLabel="Filtrer l'emploi du temps par niveau"
+                />
                 <button
                   onClick={() => { 
                     setEditingSchedule(null);
@@ -2246,12 +2058,11 @@ const filteredSubjects = subjects.filter(subject => {
                 </thead>
                 <tbody>
                   {/* Lignes de temps (simplifié) */}
-                    {['09:00-10:30', '10:30-12:00', '14:30-16:00', '16:00-17:30'].map((timeSlot) => (                    <tr key={timeSlot}>
+                    {timeSlotsOf(filteredSchedules).map((timeSlot) => (                    <tr key={timeSlot}>
                       <td className="border px-4 py-2 font-medium bg-gray-50">{timeSlot}</td>
                       {[1, 2, 3, 4, 5, 6].map((day) => {
-                        const daySchedules = filteredSchedules.filter(s => 
-                          s.day_of_week === day && 
-                          `${s.start_time.substring(0, 5)}-${s.end_time.substring(0, 5)}` === timeSlot
+                        const daySchedules = filteredSchedules.filter(s =>
+                          s.day_of_week === day && timeSlotOf(s) === timeSlot
                         );
                         
                         return (
@@ -2259,7 +2070,7 @@ const filteredSubjects = subjects.filter(subject => {
                             {daySchedules.map(schedule => (
                               <div key={schedule.id} className="bg-blue-100 p-2 rounded mb-1 text-sm">
                                 <p className="font-semibold">{schedule.subjects?.name}</p>
-                                <p className="text-xs text-gray-600">{schedule.classes?.name}</p>
+                                <p className="text-xs text-gray-600">{schedule.levels?.name || 'Sans niveau'}</p>
                                 <p className="text-xs text-gray-600">
                                   {schedule.teachers?.profiles?.first_name} {schedule.teachers?.profiles?.last_name}
                                 </p>
@@ -2353,162 +2164,85 @@ const filteredSubjects = subjects.filter(subject => {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-bold">
-                  {assignModalType === 'student' 
-                    ? 'Affecter un étudiant à une classe' 
-                    : 'Affecter un enseignant à une matière/classe'}
-                </h3>
-                <button 
-                  onClick={() => setShowAssignModal(false)} 
+                <h3 className="text-2xl font-bold">Affecter un enseignant à une matière et un niveau</h3>
+                <button
+                  onClick={() => setShowAssignModal(false)}
                   className="text-3xl hover:text-red-600"
+                  aria-label="Fermer"
                 >
                   ×
                 </button>
               </div>
 
-              {/* FORMULAIRE ÉTUDIANT */}
-              {assignModalType === 'student' && (
-                <form onSubmit={handleAssignStudentToClass} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Étudiant *</label>
-                    <select
-                      value={studentAssignForm.studentId}
-                      onChange={(e) => setStudentAssignForm({
-                        ...studentAssignForm, 
-                        studentId: e.target.value
-                      })}
-                      className="w-full border rounded px-3 py-2"
-                      required
-                    >
-                      <option value="">Sélectionner un étudiant...</option>
-                      {students.map((student) => (
-                        <option key={student.id} value={student.id}>
-                          {student.student_number} - {student.profiles?.first_name} {student.profiles?.last_name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+              <form onSubmit={handleAssignTeacherToLevel} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Enseignant *</label>
+                  <select
+                    value={teacherAssignForm.teacherId}
+                    onChange={(e) => setTeacherAssignForm({
+                      ...teacherAssignForm,
+                      teacherId: e.target.value
+                    })}
+                    className="w-full border rounded px-3 py-2"
+                    required
+                  >
+                    <option value="">Sélectionner un enseignant...</option>
+                    {teachers.map((teacher) => (
+                      <option key={teacher.id} value={teacher.id}>
+                        {teacher.teacher_number} - {teacher.profiles?.first_name} {teacher.profiles?.last_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Classe *</label>
-                    <select
-                      value={studentAssignForm.classId}
-                      onChange={(e) => setStudentAssignForm({
-                        ...studentAssignForm, 
-                        classId: e.target.value
-                      })}
-                      className="w-full border rounded px-3 py-2"
-                      required
-                    >
-                      <option value="">Sélectionner une classe...</option>
-                      {classes.map((cls) => (
-                        <option key={cls.id} value={cls.id}>
-                          {cls.name} ({cls.level}) - {cls.academic_year}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Matière *</label>
+                  <select
+                    value={teacherAssignForm.subjectId}
+                    onChange={(e) => setTeacherAssignForm({
+                      ...teacherAssignForm,
+                      subjectId: e.target.value
+                    })}
+                    className="w-full border rounded px-3 py-2"
+                    required
+                  >
+                    <option value="">Sélectionner une matière...</option>
+                    {subjects.map((subject) => (
+                      <option key={subject.id} value={subject.id}>
+                        {subject.code} - {subject.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                  <div className="flex gap-3 justify-end pt-4">
-                    <button
-                      type="button"
-                      onClick={() => setShowAssignModal(false)}
-                      className="px-6 py-2 border rounded hover:bg-gray-100"
-                    >
-                      Annuler
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      {loading ? 'Affectation...' : 'Affecter'}
-                    </button>
-                  </div>
-                </form>
-              )}
+                <div>
+                  <label className="block text-sm font-medium mb-2">Niveau *</label>
+                  <LevelSelect
+                    levels={levels}
+                    value={teacherAssignForm.levelId}
+                    onChange={(levelId) => setTeacherAssignForm({ ...teacherAssignForm, levelId })}
+                    ariaLabel="Niveau"
+                    required
+                  />
+                </div>
 
-              {/* FORMULAIRE ENSEIGNANT */}
-              {assignModalType === 'teacher' && (
-                <form onSubmit={handleAssignTeacherToClass} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Enseignant *</label>
-                    <select
-                      value={teacherAssignForm.teacherId}
-                      onChange={(e) => setTeacherAssignForm({
-                        ...teacherAssignForm, 
-                        teacherId: e.target.value
-                      })}
-                      className="w-full border rounded px-3 py-2"
-                      required
-                    >
-                      <option value="">Sélectionner un enseignant...</option>
-                      {teachers.map((teacher) => (
-                        <option key={teacher.id} value={teacher.id}>
-                          {teacher.teacher_number} - {teacher.profiles?.first_name} {teacher.profiles?.last_name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Matière *</label>
-                    <select
-                      value={teacherAssignForm.subjectId}
-                      onChange={(e) => setTeacherAssignForm({
-                        ...teacherAssignForm, 
-                        subjectId: e.target.value
-                      })}
-                      className="w-full border rounded px-3 py-2"
-                      required
-                    >
-                      <option value="">Sélectionner une matière...</option>
-                      {subjects.map((subject) => (
-                        <option key={subject.id} value={subject.id}>
-                          {subject.code} - {subject.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Classe *</label>
-                    <select
-                      value={teacherAssignForm.classId}
-                      onChange={(e) => setTeacherAssignForm({
-                        ...teacherAssignForm, 
-                        classId: e.target.value
-                      })}
-                      className="w-full border rounded px-3 py-2"
-                      required
-                    >
-                      <option value="">Sélectionner une classe...</option>
-                      {classes.map((cls) => (
-                        <option key={cls.id} value={cls.id}>
-                          {cls.name} ({cls.level}) - {cls.academic_year}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="flex gap-3 justify-end pt-4">
-                    <button
-                      type="button"
-                      onClick={() => setShowAssignModal(false)}
-                      className="px-6 py-2 border rounded hover:bg-gray-100"
-                    >
-                      Annuler
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
-                    >
-                      {loading ? 'Affectation...' : 'Affecter'}
-                    </button>
-                  </div>
-                </form>
-              )}
+                <div className="flex gap-3 justify-end pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowAssignModal(false)}
+                    className="px-6 py-2 border rounded hover:bg-gray-100"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                  >
+                    {loading ? 'Affectation...' : 'Affecter'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
@@ -2583,89 +2317,15 @@ const filteredSubjects = subjects.filter(subject => {
           </div>
         )}
 
-        {/* TAB AFFECTATION ÉTUDIANTS → CLASSES */}
-            {activeTab === 'assign-students' && (
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-bold">Affectation Étudiants → Classes</h2>
-                  <button
-                    onClick={() => {
-                      setAssignModalType('student');
-                      setShowAssignModal(true);
-                    }}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                  >
-                    <Plus className="w-5 h-5" />
-                    Affecter un étudiant
-                  </button>
-                </div>
-
-                {loading ? (
-                  <p className="text-center py-8">Chargement...</p>
-                ) : students.filter(s => s.class_id).length === 0 ? (
-                  <div className="text-center py-12">
-                    <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                    <p className="text-xl text-gray-500">Aucune affectation</p>
-                    <p className="text-sm text-gray-400 mt-2">
-                      Cliquez sur "Affecter un étudiant" pour commencer
-                    </p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-100">
-                        <tr>
-                          <th className="px-4 py-3 text-left">Matricule</th>
-                          <th className="px-4 py-3 text-left">Étudiant</th>
-                          <th className="px-4 py-3 text-left">Classe</th>
-                          <th className="px-4 py-3 text-left">Niveau</th>
-                          <th className="px-4 py-3 text-left">Année</th>
-                          <th className="px-4 py-3 text-left">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {students.filter(s => s.class_id).map((student) => (
-                          <tr key={student.id} className="border-b hover:bg-gray-50">
-                            <td className="px-4 py-3 font-medium">
-                              {student.student_number}
-                            </td>
-                            <td className="px-4 py-3">
-                              {student.profiles?.first_name} {student.profiles?.last_name}
-                            </td>
-                            <td className="px-4 py-3 font-semibold text-blue-600">
-                              {student.classes?.name}
-                            </td>
-                            <td className="px-4 py-3">{student.classes?.level}</td>
-                            <td className="px-4 py-3">{student.classes?.academic_year}</td>
-                            <td className="px-4 py-3">
-                              <button
-                                onClick={() => handleRemoveStudentFromClass(student.id)}
-                                className="text-red-600 hover:bg-red-50 p-2 rounded"
-                                title="Retirer"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
-        {/* TAB AFFECTATION ENSEIGNANTS → MATIÈRES → CLASSES */}
+        {/* TAB AFFECTATION ENSEIGNANTS → MATIÈRES → NIVEAUX */}
             {activeTab === 'assign-teachers' && (
               <div className="bg-white rounded-lg shadow p-6">
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-bold">Affectation Enseignants → Matières → Classes</h2>
+                  <h2 className="text-2xl font-bold">Affectation Enseignants → Matières → Niveaux</h2>
                   {/* Barre de recherche */}
 
                   <button
-                    onClick={() => {
-                      setAssignModalType('teacher');
-                      setShowAssignModal(true);
-                    }}
+                    onClick={() => setShowAssignModal(true)}
                     className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
                   >
                     <Plus className="w-5 h-5" />
@@ -2677,7 +2337,7 @@ const filteredSubjects = subjects.filter(subject => {
                         <Search className="w-5 h-5 absolute left-3 top-2.5 text-gray-400" />
                         <input
                           type="text"
-                          placeholder="Rechercher enseignant, matière, classe..."
+                          placeholder="Rechercher enseignant, matière, niveau..."
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
                           className="w-full border rounded-lg px-3 py-2 pl-10"
@@ -2686,7 +2346,7 @@ const filteredSubjects = subjects.filter(subject => {
                     </div>
                 {loading ? (
                   <p className="text-center py-8">Chargement...</p>
-                ) : teacherClassAssignments.length === 0 ? (
+                ) : teacherAssignments.length === 0 ? (
                   <div className="text-center py-12">
                     <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                     <p className="text-xl text-gray-500">Aucune affectation</p>
@@ -2702,15 +2362,14 @@ const filteredSubjects = subjects.filter(subject => {
                           <th className="px-4 py-3 text-left">Matricule</th>
                           <th className="px-4 py-3 text-left">Enseignant</th>
                           <th className="px-4 py-3 text-left">Matière</th>
-                          <th className="px-4 py-3 text-left">Classe</th>
-                          <th className="px-4 py-3 text-left">Année</th>
+                          <th className="px-4 py-3 text-left">Niveau</th>
                           <th className="px-4 py-3 text-left">Actions</th>
                         </tr>
                       </thead>
                         <tbody>
                        {Object.entries(
                         // Grouper par enseignant (avec filtre de recherche)
-                        teacherClassAssignments
+                        teacherAssignments
                           .filter(assignment => {
                             // Si pas de recherche, afficher tout
                             if (!searchTerm) return true;
@@ -2721,7 +2380,7 @@ const filteredSubjects = subjects.filter(subject => {
                               (assignment.teachers?.profiles?.first_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                               (assignment.teachers?.profiles?.last_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                               (assignment.subjects?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                              (assignment.classes?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
+                              (assignment.levels?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
                             
                             return matchesSearch;
                             })
@@ -2754,17 +2413,14 @@ const filteredSubjects = subjects.filter(subject => {
                                 </div>
                               ))}
                             </td>                            
-                            {/* Classes (liste) */}
+                            {/* Niveaux (liste) */}
                             <td className="px-4 py-3">
                               {data.assignments.map((a: any, idx: number) => (
                                 <div key={idx} className="mb-1">
-                                  <span className="font-semibold text-blue-600">{a.classes?.name}</span>
+                                  <span className="font-semibold text-blue-600">{a.levels?.name}</span>
                                 </div>
                               ))}
                             </td>
-                            
-                            {/* Année */}
-                            <td className="px-4 py-3">{data.assignments[0].classes?.academic_year}</td>
                             
                             {/* Actions (supprimer toutes les affectations de cet enseignant) */}
                             <td className="px-4 py-3">
@@ -2772,9 +2428,9 @@ const filteredSubjects = subjects.filter(subject => {
                                 {data.assignments.map((a: any) => (
                                   <button
                                     key={a.id}
-                                    onClick={() => handleRemoveTeacherFromClass(a.id)}
+                                    onClick={() => handleRemoveTeacherAssignment(a.id)}
                                     className="text-red-600 hover:bg-red-50 p-1 rounded text-xs"
-                                    title={`Retirer ${a.subjects?.name} - ${a.classes?.name}`}
+                                    title={`Retirer ${a.subjects?.name} - ${a.levels?.name}`}
                                   >
                                     <Trash2 className="w-3 h-3 inline mr-1" />
                                     {a.subjects?.code}
@@ -2800,7 +2456,6 @@ const filteredSubjects = subjects.filter(subject => {
               <h3 className="text-2xl font-bold">
                 {modalType === 'student' && 'Ajouter un étudiant'}
                 {modalType === 'teacher' && 'Ajouter un enseignant'}
-                {modalType === 'class' && 'Créer une classe'}
                 {modalType === 'subject' && 'Créer une matière'}
                 {modalType === 'schedule' && (editingSchedule ? 'Modifier le créneau' : 'Ajouter un créneau')}
                 {modalType === 'announcement' && 'Publier une annonce'}
@@ -2864,6 +2519,16 @@ const filteredSubjects = subjects.filter(subject => {
                       className="w-full border rounded px-3 py-2"
                     />
                   </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Niveau d'inscription *</label>
+                  <LevelSelect
+                    levels={levels}
+                    value={studentForm.levelId}
+                    onChange={(levelId) => setStudentForm({...studentForm, levelId})}
+                    ariaLabel="Niveau d'inscription"
+                    required
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">Date de naissance</label>
@@ -2997,80 +2662,6 @@ const filteredSubjects = subjects.filter(subject => {
               </form>
             )}
 
-            {/* CLASS FORM */}
-            {modalType === 'class' && (
-              <form onSubmit={editingClass ? handleUpdateClass : handleAddClass} className="space-y-4">
-                  <div>
-                  <label className="block text-sm font-medium mb-2">Nom de la classe *</label>
-                  <input
-                    type="text"
-                    value={classForm.name}
-                    onChange={(e) => setClassForm({...classForm, name: e.target.value})}
-                    className="w-full border rounded px-3 py-2"
-                    placeholder="Ex: Technicien Specialisé"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Niveau *</label>
-                  <select
-                    value={classForm.level}
-                    onChange={(e) => setClassForm({...classForm, level: e.target.value})}
-                    className="w-full border rounded px-3 py-2"
-                    required
-                  >
-                    <option value="">Sélectionner...</option>
-                    <option value="College">Collège</option>
-                    <option value="Lycee">Lycée</option>
-                    <option value="Technicien">Technicien</option>
-                    <option value="TS1">1ere Année</option>
-                    <option value="TS2">2eme Année</option>
-                    <option value="Bachelor">Bachelor</option>
-                    <option value="Master 1">Master 1</option>
-                    <option value="Master 2">Master 2</option>
-                  </select>
-                </div>
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Année académique *</label>
-                    <input
-                      type="text"
-                      value={classForm.academicYear}
-                      onChange={(e) => setClassForm({...classForm, academicYear: e.target.value})}
-                      className="w-full border rounded px-3 py-2"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Max étudiants</label>
-                    <input
-                      type="number"
-                      value={classForm.maxStudents}
-                      onChange={(e) => setClassForm({...classForm, maxStudents: parseInt(e.target.value)})}
-                      className="w-full border rounded px-3 py-2"
-                      min="1"
-                    />
-                  </div>
-                </div>
-                <div className="flex gap-3 justify-end pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowModal(false)}
-                    className="px-6 py-2 border rounded"
-                  >
-                    Annuler
-                  </button>
-                 <button
-                    type="submit"
-                    disabled={loading}
-                    className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
-                  >
-                    {loading ? (editingClass ? 'Modification...' : 'Création...') : (editingClass ? 'Modifier' : 'Créer')}
-                  </button>
-                </div>
-              </form>
-            )}
-
             {/* SUBJECT FORM */}
             {modalType === 'subject' && (
             <form onSubmit={editingSubject ? handleUpdateSubject : handleAddSubject} className="space-y-4">
@@ -3108,22 +2699,27 @@ const filteredSubjects = subjects.filter(subject => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Classes concernées (optionnel)</label>
+                    <label className="block text-sm font-medium mb-2">Niveaux concernés (optionnel)</label>
                     <select
                       multiple
-                      value={subjectForm.selectedClasses || []}
+                      value={subjectForm.selectedLevels}
                       onChange={(e) => {
                         const selected = Array.from(e.target.selectedOptions, option => option.value);
-                        setSubjectForm({...subjectForm, selectedClasses: selected});
+                        setSubjectForm({...subjectForm, selectedLevels: selected});
                       }}
+                      aria-label="Niveaux concernés"
                       className="w-full border rounded px-3 py-2 h-32"
                     >
-                      {classes.map(cls => (
-                        <option key={cls.id} value={cls.id}>{cls.name}</option>
+                      {CYCLES.map(cycle => (
+                        <optgroup key={cycle.id} label={cycle.label}>
+                          {levels.filter(level => level.cycle === cycle.id).map(level => (
+                            <option key={level.id} value={level.id}>{level.name}</option>
+                          ))}
+                        </optgroup>
                       ))}
                     </select>
                     <p className="text-xs text-gray-500 mt-1">
-                      Maintenez Ctrl (ou Cmd) pour sélectionner plusieurs classes
+                      Maintenez Ctrl (ou Cmd) pour sélectionner plusieurs niveaux
                     </p>
                   </div>
                 </div>
@@ -3151,18 +2747,14 @@ const filteredSubjects = subjects.filter(subject => {
               <form onSubmit={handleAddOrUpdateSchedule} className="space-y-4">
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Classe *</label>
-                    <select
-                      value={scheduleForm.classId}
-                      onChange={(e) => setScheduleForm({...scheduleForm, classId: e.target.value})}
-                      className="w-full border rounded px-3 py-2"
+                    <label className="block text-sm font-medium mb-2">Niveau *</label>
+                    <LevelSelect
+                      levels={levels}
+                      value={scheduleForm.levelId}
+                      onChange={(levelId) => setScheduleForm({...scheduleForm, levelId})}
+                      ariaLabel="Niveau"
                       required
-                    >
-                      <option value="">Sélectionner...</option>
-                      {classes.map(cls => (
-                        <option key={cls.id} value={cls.id}>{cls.name}</option>
-                      ))}
-                    </select>
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-2">Matière *</label>
@@ -3174,11 +2766,11 @@ const filteredSubjects = subjects.filter(subject => {
                     >
                       <option value="">Sélectionner...</option>
                      {subjects.filter(subject => {
-                          // Si aucune classe sélectionnée, afficher toutes les matières
-                          if (!scheduleForm.classId) return true;                          
-                          // Sinon, afficher uniquement les matières liées à la classe
-                          return subjectClassLinks.some(
-                            link => link.subject_id === subject.id && link.class_id === scheduleForm.classId
+                          // Si aucun niveau sélectionné, afficher toutes les matières
+                          if (!scheduleForm.levelId) return true;
+                          // Sinon, afficher uniquement les matières liées au niveau
+                          return subjectLevelLinks.some(
+                            link => link.subject_id === subject.id && link.level_id === scheduleForm.levelId
                           );})
                         .map(subject => (
                           <option key={subject.id} value={subject.id}>{subject.name}</option>

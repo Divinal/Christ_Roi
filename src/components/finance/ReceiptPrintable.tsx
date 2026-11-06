@@ -41,8 +41,8 @@ const ReceiptPrintable: React.FC<ReceiptPrintableProps> = ({
               <span className="font-medium">{payment.students?.student_number}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">Classe</span>
-              <span className="font-medium">{payment.students?.classes?.name || '-'}</span>
+              <span className="text-gray-600">Niveau</span>
+              <span className="font-medium">{payment.students?.levels?.name || '-'}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600">Mois payé</span>

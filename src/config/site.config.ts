@@ -11,7 +11,7 @@ export const siteConfig = {
   hero: {
     title: 'Votre parcours académique simplifié et connecté',
     description:
-      "Une plateforme moderne pour faciliter l'accès aux cours, examens et informations essentielles pour tous les membres de la communauté universitaire & scolaire.",
+      "Une plateforme moderne pour faciliter l'accès aux notes, emplois du temps et informations essentielles pour tous les membres de la communauté universitaire & scolaire.",
   },
   stats: [
     { value: '500+', label: 'Étudiants' },
