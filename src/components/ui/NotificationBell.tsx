@@ -49,8 +49,6 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ userId, activeTab, 
     };
   }, [open]);
 
-  if (!available) return null;
-
   const openItem = (item: AppNotification) => {
     if (!item.is_read) markRead([item.id]);
     if (item.link_tab) onNavigate(item.link_tab);
@@ -97,7 +95,11 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ userId, activeTab, 
           {items.length === 0 ? (
             <div className="px-4 py-10 text-center">
               <BellOff className="mx-auto mb-2 h-8 w-8 text-gray-400" />
-              <p className="text-sm text-gray-500">Aucune notification pour le moment</p>
+              <p className="text-sm text-gray-500">
+                {available
+                  ? 'Aucune notification pour le moment'
+                  : "Les notifications ne sont pas encore activées sur le serveur."}
+              </p>
             </div>
           ) : (
             <ul className="min-h-0 flex-1 divide-y overflow-y-auto">

@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Home, FileText, Calendar, GraduationCap,
-  Bell, Award, DollarSign, Hash, MessageSquare, Printer
+  Bell, Award, ClipboardCheck, DollarSign, Hash, MessageSquare, Printer
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { Announcement, PRIORITY_CLASSES, PRIORITY_LABELS, fetchActiveAnnouncements } from '../lib/announcements';
@@ -14,6 +14,7 @@ import { useHashTab } from '../lib/useHashTab';
 import AppShell, { NavGroup } from '../components/ui/AppShell';
 import { EmptyState, Panel, StatTile } from '../components/ui/primitives';
 import AnnouncementList from '../components/announcements/AnnouncementList';
+import MyFollowUp from '../components/followup/MyFollowUp';
 import GradeReportPrint from '../components/grades/GradeReportPrint';
 import StudentGradesTable from '../components/grades/StudentGradesTable';
 import MessageInbox from '../components/messages/MessageInbox';
@@ -25,6 +26,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Ma scolarité',
     items: [
       { id: 'grades', label: 'Mes notes', icon: FileText },
+      { id: 'followup', label: 'Mon suivi', icon: ClipboardCheck },
       { id: 'schedule', label: 'Emploi du temps', icon: Calendar },
       { id: 'payments', label: 'Mes paiements', icon: DollarSign },
     ],
@@ -367,6 +369,14 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout, onC
               </p>
             </div>
           </div>
+        )}
+
+        {/* MON SUIVI */}
+        {activeTab === 'followup' && studentData && (
+          <MyFollowUp
+            studentId={studentData.id}
+            studentName={`${user?.first_name || ''} ${user?.last_name || ''}`.trim()}
+          />
         )}
 
         {/* MESSAGES */}

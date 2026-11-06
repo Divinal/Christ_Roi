@@ -358,7 +358,7 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ levels, currentUserId
           ) : (
             <Panel
               title={`${selectedLevel?.name} — ${formatDate(date)}`}
-              description="Seules les lignes remplies sont enregistrées."
+              description="Seules les lignes remplies sont enregistrées. L'étudiant voit ces rapports dans son espace et en est prévenu."
               actions={
                 <>
                   <button
@@ -612,49 +612,54 @@ const StudentFollowUp: React.FC<StudentFollowUpProps> = ({ levels, currentUserId
   );
 };
 
-const ReportsTable: React.FC<{
+export const ReportsTable: React.FC<{
   reports: DailyReport[];
-  canDelete: (report: DailyReport) => boolean;
-  onDelete: (report: DailyReport) => void;
-}> = ({ reports, canDelete, onDelete }) => (
+  canDelete?: (report: DailyReport) => boolean;
+  onDelete?: (report: DailyReport) => void;
+  hideStudent?: boolean;
+}> = ({ reports, canDelete, onDelete, hideStudent }) => (
   <div className="overflow-x-auto">
     <table className="w-full min-w-[860px] text-sm">
       <thead className="bg-gray-100 text-left text-xs uppercase tracking-wide text-gray-600">
         <tr>
           <th className="px-3 py-2">Date</th>
-          <th className="px-3 py-2">Étudiant</th>
+          {!hideStudent && <th className="px-3 py-2">Étudiant</th>}
           <th className="px-3 py-2">Présence</th>
           <th className="px-3 py-2">Conduite</th>
           <th className="px-3 py-2">Activités</th>
           <th className="px-3 py-2">Observations</th>
           <th className="px-3 py-2">Auteur</th>
-          <th className="px-3 py-2"><span className="sr-only">Actions</span></th>
+          {onDelete && <th className="px-3 py-2"><span className="sr-only">Actions</span></th>}
         </tr>
       </thead>
       <tbody>
         {reports.map((report) => (
           <tr key={report.id} className="border-t align-top hover:bg-gray-50">
             <td className="whitespace-nowrap px-3 py-2">{formatDate(report.report_date)}</td>
-            <td className="px-3 py-2 font-medium">
-              {report.students?.profiles?.last_name} {report.students?.profiles?.first_name}
-            </td>
+            {!hideStudent && (
+              <td className="px-3 py-2 font-medium">
+                {report.students?.profiles?.last_name} {report.students?.profiles?.first_name}
+              </td>
+            )}
             <td className="px-3 py-2"><Badge value={report.attendance} labels={ATTENDANCE_LABELS} classes={ATTENDANCE_CLASSES} /></td>
             <td className="px-3 py-2"><Badge value={report.conduct} labels={CONDUCT_LABELS} classes={CONDUCT_CLASSES} /></td>
             <td className="whitespace-pre-wrap px-3 py-2 text-gray-700">{report.activities || '-'}</td>
             <td className="whitespace-pre-wrap px-3 py-2 text-gray-700">{report.observations || '-'}</td>
             <td className="px-3 py-2 text-gray-600">{report.author_name}</td>
-            <td className="px-3 py-2">
-              {canDelete(report) && (
-                <button
-                  onClick={() => onDelete(report)}
-                  title="Supprimer"
-                  aria-label={`Supprimer le rapport du ${formatDate(report.report_date)}`}
-                  className="rounded p-2 text-red-600 hover:bg-red-50"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              )}
-            </td>
+            {onDelete && (
+              <td className="px-3 py-2">
+                {canDelete?.(report) && (
+                  <button
+                    onClick={() => onDelete(report)}
+                    title="Supprimer"
+                    aria-label={`Supprimer le rapport du ${formatDate(report.report_date)}`}
+                    className="rounded p-2 text-red-600 hover:bg-red-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+              </td>
+            )}
           </tr>
         ))}
       </tbody>

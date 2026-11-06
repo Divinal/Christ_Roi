@@ -281,9 +281,17 @@ CREATE TRIGGER notify_on_schedule AFTER INSERT OR UPDATE OR DELETE ON public.sch
 FOR EACH ROW EXECUTE FUNCTION public.notify_on_schedule();
 
 -- ---------- Suivi des étudiants (comportement, absences) ----------
--- Réservé à l'administration : le suivi est interne, l'étudiant n'est pas notifié.
--- Absence, retard et conduite à surveiller : une alerte par étudiant.
--- Le reste du suivi : une seule alerte non lue par niveau et par jour.
+-- L'étudiant lit ses propres rapports : cela permet aux parents de suivre.
+DROP POLICY IF EXISTS "Students read their daily reports" ON public.student_daily_reports;
+CREATE POLICY "Students read their daily reports" ON public.student_daily_reports
+FOR SELECT TO authenticated USING (
+  student_id IN (SELECT id FROM public.students WHERE user_id = auth.uid())
+);
+
+-- Administration et étudiant sont prévenus.
+-- Absence, retard et conduite à surveiller : une alerte à chaque fois.
+-- Le reste du suivi : une seule alerte non lue (par niveau et par jour pour
+-- l'administration, par jour pour l'étudiant). "Présent" seul n'alerte personne.
 CREATE OR REPLACE FUNCTION public.notify_on_daily_report() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
@@ -291,39 +299,53 @@ DECLARE
   _level TEXT;
   _staff UUID[];
   _day TEXT;
+  _label TEXT;
   _previous_attendance TEXT;
   _previous_conduct TEXT;
   _previous_observations TEXT;
+  _previous_activities TEXT;
 BEGIN
   IF TG_OP = 'UPDATE' THEN
     _previous_attendance := OLD.attendance;
     _previous_conduct := OLD.conduct;
     _previous_observations := OLD.observations;
+    _previous_activities := OLD.activities;
   END IF;
 
   SELECT * INTO _student FROM public.notification_student(NEW.student_id);
   SELECT name INTO _level FROM public.levels WHERE id = NEW.level_id;
   _staff := public.notification_staff(ARRAY['admin', 'academic_admin', 'admin_secretaire']);
   _day := to_char(NEW.report_date, 'DD/MM/YYYY');
+  _label := _student.full_name || ' (' || COALESCE(_level, 'sans niveau') || ') — ' || _day;
 
   IF NEW.attendance IS DISTINCT FROM _previous_attendance AND NEW.attendance IN ('absent', 'late') THEN
     PERFORM public.notify_users(
       _staff, 'followup', CASE NEW.attendance WHEN 'absent' THEN 'Absence signalée' ELSE 'Retard signalé' END,
-      _student.full_name || ' (' || COALESCE(_level, 'sans niveau') || ') — ' || _day, 'followup'
+      _label, 'followup'
+    );
+    PERFORM public.notify_users(
+      ARRAY[_student.user_id], 'followup',
+      CASE NEW.attendance WHEN 'absent' THEN 'Absence enregistrée' ELSE 'Retard enregistré' END,
+      _day, 'followup'
     );
   END IF;
 
   IF NEW.conduct IS DISTINCT FROM _previous_conduct AND NEW.conduct = 'concern' THEN
-    PERFORM public.notify_users(
-      _staff, 'followup', 'Comportement à surveiller',
-      _student.full_name || ' (' || COALESCE(_level, 'sans niveau') || ') — ' || _day, 'followup'
-    );
-  ELSIF (NEW.conduct IS DISTINCT FROM _previous_conduct AND NEW.conduct IS NOT NULL)
-     OR (NEW.observations IS DISTINCT FROM _previous_observations AND NEW.observations IS NOT NULL) THEN
-    PERFORM public.notify_users(
-      _staff, 'followup', 'Suivi des comportements mis à jour',
-      COALESCE(_level, 'Sans niveau') || ' — ' || _day, 'followup', true
-    );
+    PERFORM public.notify_users(_staff, 'followup', 'Comportement à surveiller', _label, 'followup');
+    PERFORM public.notify_users(ARRAY[_student.user_id], 'followup', 'Comportement à surveiller', _day, 'followup');
+  ELSE
+    IF (NEW.conduct IS DISTINCT FROM _previous_conduct AND NEW.conduct IS NOT NULL)
+       OR (NEW.observations IS DISTINCT FROM _previous_observations AND NEW.observations IS NOT NULL) THEN
+      PERFORM public.notify_users(
+        _staff, 'followup', 'Suivi des comportements mis à jour',
+        COALESCE(_level, 'Sans niveau') || ' — ' || _day, 'followup', true
+      );
+    END IF;
+    IF (NEW.conduct IS DISTINCT FROM _previous_conduct AND NEW.conduct IS NOT NULL)
+       OR (NEW.observations IS DISTINCT FROM _previous_observations AND NEW.observations IS NOT NULL)
+       OR (NEW.activities IS DISTINCT FROM _previous_activities AND NEW.activities IS NOT NULL) THEN
+      PERFORM public.notify_users(ARRAY[_student.user_id], 'followup', 'Nouveau rapport de suivi', _day, 'followup', true);
+    END IF;
   END IF;
   RETURN NULL;
 EXCEPTION WHEN OTHERS THEN
