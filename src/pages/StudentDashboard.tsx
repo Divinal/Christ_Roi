@@ -2,12 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   Home, FileText, Calendar, GraduationCap,
-  Bell, Award, DollarSign, Hash, Printer
+  Bell, Award, DollarSign, Hash, MessageSquare, Printer
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { Announcement, PRIORITY_CLASSES, PRIORITY_LABELS, fetchActiveAnnouncements } from '../lib/announcements';
 import { GradeRow, formatGrade, gradeToneClass, weightedAverage } from '../lib/grades';
 import { CURRENT_ACADEMIC_YEAR, cycleLabel, SchoolCycle } from '../lib/levels';
+import { useInbox } from '../lib/messages';
 import { timeSlotOf, timeSlotsOf } from '../lib/schedule';
 import { useHashTab } from '../lib/useHashTab';
 import AppShell, { NavGroup } from '../components/ui/AppShell';
@@ -15,6 +16,7 @@ import { EmptyState, Panel, StatTile } from '../components/ui/primitives';
 import AnnouncementList from '../components/announcements/AnnouncementList';
 import GradeReportPrint from '../components/grades/GradeReportPrint';
 import StudentGradesTable from '../components/grades/StudentGradesTable';
+import MessageInbox from '../components/messages/MessageInbox';
 import TuitionHistoryTable from '../components/finance/TuitionHistoryTable';
 
 const NAV_GROUPS: NavGroup[] = [
@@ -27,7 +29,13 @@ const NAV_GROUPS: NavGroup[] = [
       { id: 'payments', label: 'Mes paiements', icon: DollarSign },
     ],
   },
-  { label: 'Communication', items: [{ id: 'announcements', label: 'Annonces', icon: Bell }] },
+  {
+    label: 'Communication',
+    items: [
+      { id: 'messages', label: 'Messages', icon: MessageSquare },
+      { id: 'announcements', label: 'Annonces', icon: Bell },
+    ],
+  },
 ];
 const TABS = NAV_GROUPS.flatMap((group) => group.items.map((item) => item.id));
 
@@ -80,6 +88,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout, onC
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [printing, setPrinting] = useState<boolean>(false);
+  const { messages, unreadCount, loading: loadingMessages } = useInbox(user?.id, 'students', activeTab === 'messages');
 
   useEffect(() => {
     if (user) {
@@ -156,7 +165,10 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout, onC
   return (
     <AppShell
       spaceLabel="Espace étudiant"
-      groups={NAV_GROUPS}
+      groups={NAV_GROUPS.map((group) => ({
+        ...group,
+        items: group.items.map((item) => (item.id === 'messages' ? { ...item, badge: unreadCount } : item)),
+      }))}
       activeId={activeTab}
       onSelect={setActiveTab}
       userName={`${user?.first_name || ''} ${user?.last_name || ''}`.trim()}
@@ -355,6 +367,9 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout, onC
             </div>
           </div>
         )}
+
+        {/* MESSAGES */}
+        {activeTab === 'messages' && <MessageInbox messages={messages} loading={loadingMessages} />}
 
         {/* ANNONCES */}
         {activeTab === 'announcements' && (

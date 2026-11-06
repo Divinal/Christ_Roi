@@ -4,7 +4,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchAllRows } from '../../lib/fetchAll';
-import { Level, SchoolCycle } from '../../lib/levels';
+import { Level } from '../../lib/levels';
+import { StudentOption, fetchStudentOptions, matchesStudent, studentFullName as fullName } from '../../lib/students';
 import {
   GRADE_TYPES,
   GradeRow,
@@ -19,14 +20,6 @@ import { EmptyState, Panel, StatTile } from '../ui/primitives';
 import StudentGradesTable from './StudentGradesTable';
 import GradeReportPrint from './GradeReportPrint';
 
-interface StudentOption {
-  id: string;
-  student_number: string;
-  level_id: string | null;
-  profiles?: { first_name: string; last_name: string; email?: string } | null;
-  levels?: { id: string; name: string; cycle: SchoolCycle } | null;
-}
-
 interface OverviewRow {
   count: number;
   average: number | null;
@@ -35,6 +28,8 @@ interface OverviewRow {
 interface GradesManagementProps {
   levels: Level[];
   canEdit: boolean;
+  // Le relevé imprimable est un document de l'administration et de l'étudiant.
+  canPrint?: boolean;
   // Renseigné pour un enseignant : seules ses propres notes sont affichées.
   teacherId?: string;
   initialStudentId?: string;
@@ -42,13 +37,7 @@ interface GradesManagementProps {
 
 const CHUNK_SIZE = 100; // garde l'URL de la requête .in() à une taille raisonnable
 
-const fullName = (student?: StudentOption | null): string =>
-  `${student?.profiles?.first_name || ''} ${student?.profiles?.last_name || ''}`.trim() || 'Sans nom';
-
-const normalize = (text: string): string =>
-  text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-
-const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, teacherId, initialStudentId }) => {
+const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, canPrint = true, teacherId, initialStudentId }) => {
   const [students, setStudents] = useState<StudentOption[]>([]);
   const [loadingStudents, setLoadingStudents] = useState(true);
   const [levelId, setLevelId] = useState('');
@@ -75,20 +64,8 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, te
     let cancelled = false;
     (async () => {
       try {
-        const rows = await fetchAllRows<StudentOption>((from, to) =>
-          supabase
-            .from('students')
-            .select('id, student_number, level_id, profiles(first_name, last_name, email), levels(id, name, cycle)')
-            .order('student_number', { ascending: true })
-            .range(from, to) as any,
-        );
+        const sorted = await fetchStudentOptions();
         if (cancelled) return;
-        const sorted = rows.sort((a, b) =>
-          `${a.profiles?.last_name} ${a.profiles?.first_name}`.localeCompare(
-            `${b.profiles?.last_name} ${b.profiles?.first_name}`,
-            'fr',
-          ),
-        );
         setStudents(sorted);
 
         const initial = sorted.find((student) => student.id === initialStudentId);
@@ -120,13 +97,8 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, te
   const selectedLevel = levels.find((level) => level.id === levelId);
 
   const searchResults = useMemo(() => {
-    const term = normalize(search.trim());
-    if (!term) return [];
-    return allowedStudents
-      .filter((student) =>
-        normalize(`${student.student_number} ${fullName(student)} ${student.profiles?.email || ''}`).includes(term),
-      )
-      .slice(0, 8);
+    if (!search.trim()) return [];
+    return allowedStudents.filter((student) => matchesStudent(student, search)).slice(0, 8);
   }, [search, allowedStudents]);
 
   const loadGrades = async (id: string) => {
@@ -472,13 +444,15 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, te
                     </button>
                   </div>
                 )}
-                <button
-                  onClick={() => setPrinting(true)}
-                  disabled={grades.length === 0}
-                  className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <Printer className="h-4 w-4" /> Imprimer le relevé
-                </button>
+                {canPrint && (
+                  <button
+                    onClick={() => setPrinting(true)}
+                    disabled={grades.length === 0}
+                    className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <Printer className="h-4 w-4" /> Imprimer le relevé
+                  </button>
+                )}
                 <button
                   onClick={() => setStudentId('')}
                   className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-gray-100"

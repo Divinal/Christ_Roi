@@ -4,14 +4,16 @@ import {
   Home, Users, BookOpen, Plus, Edit, Trash2, Search,
   FileText, Bell, Clock, Eye, MessageSquare, GraduationCap,
   ChevronLeft, ChevronRight, Filter, DollarSign, Shield,
-  KeyRound, Link2, Printer
+  ClipboardCheck, KeyRound, Link2, Printer
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { callAdminUsers } from '../lib/adminUsers';
 import AppShell, { NavGroup } from '../components/ui/AppShell';
 import { confirmDialog, infoDialog, notify } from '../components/ui/feedback';
 import AdminHome, { QuickAddType } from '../components/admin/AdminHome';
+import StudentFollowUp from '../components/followup/StudentFollowUp';
 import GradesManagement from '../components/grades/GradesManagement';
+import MessagesManagement, { MessageRecipientTarget } from '../components/messages/MessagesManagement';
 import FinanceManagement from '../components/finance/FinanceManagement';
 import LevelSelect from '../components/levels/LevelSelect';
 import LevelsManagement from '../components/levels/LevelsManagement';
@@ -82,10 +84,10 @@ interface ScheduleDetailed extends Schedule {
 // Onglets visibles selon le rôle connecté (la vraie barrière reste les
 // policies RLS côté base ; ceci n'est qu'un filtrage d'affichage)
 const ROLE_TABS: Record<string, string[]> = {
-  admin: ['dashboard', 'students', 'teachers', 'levels', 'subjects', 'schedules', 'announcements', 'assign-teachers', 'grades', 'finance', 'admins'],
-  academic_admin: ['dashboard', 'students', 'teachers', 'levels', 'subjects', 'schedules', 'announcements', 'assign-teachers', 'grades'],
-  finance_admin: ['dashboard', 'students', 'teachers', 'levels', 'finance'],
-  admin_secretaire: ['dashboard', 'students', 'teachers', 'levels', 'subjects', 'schedules', 'assign-teachers'],
+  admin: ['dashboard', 'students', 'teachers', 'levels', 'subjects', 'schedules', 'announcements', 'messages', 'assign-teachers', 'grades', 'followup', 'finance', 'admins'],
+  academic_admin: ['dashboard', 'students', 'teachers', 'levels', 'subjects', 'schedules', 'announcements', 'messages', 'assign-teachers', 'grades', 'followup'],
+  finance_admin: ['dashboard', 'students', 'teachers', 'levels', 'messages', 'finance'],
+  admin_secretaire: ['dashboard', 'students', 'teachers', 'levels', 'subjects', 'schedules', 'messages', 'assign-teachers', 'followup'],
 };
 // Une seule navigation pour tous les rôles admin : chacun n'en voit que ce que
 // ROLE_TABS lui autorise.
@@ -100,6 +102,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: 'students', label: 'Étudiants', icon: Users },
       { id: 'levels', label: 'Cycles & Niveaux', icon: GraduationCap },
       { id: 'grades', label: 'Notes', icon: FileText },
+      { id: 'followup', label: 'Suivi des étudiants', icon: ClipboardCheck },
     ],
   },
   {
@@ -113,7 +116,10 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: 'Communication',
-    items: [{ id: 'announcements', label: 'Annonces', icon: Bell }],
+    items: [
+      { id: 'messages', label: 'Messages', icon: MessageSquare },
+      { id: 'announcements', label: 'Annonces', icon: Bell },
+    ],
   },
   {
     label: 'Administration',
@@ -168,6 +174,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onChang
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
   const [gradesStudentId, setGradesStudentId] = useState<string>('');
   const [printLevelId, setPrintLevelId] = useState<string>('');
+  const [messageRecipient, setMessageRecipient] = useState<MessageRecipientTarget | null>(null);
 
   const [teacherAssignForm, setTeacherAssignForm] = useState({
     teacherId: '',
@@ -753,7 +760,7 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
   const handleDeleteStudent = async (student: Student) => {
     const name = fullNameOf(student) || student.student_number;
     const confirmed = await confirmDialog(
-      `⚠️ Supprimer définitivement ${name} ?\n\nSeront supprimés : son compte de connexion, ses notes et ses paiements de scolarité, qui sortiront des totaux financiers.`,
+      `⚠️ Supprimer définitivement ${name} ?\n\nSeront supprimés : son compte de connexion, ses notes, ses rapports de suivi et ses paiements de scolarité, qui sortiront des totaux financiers.`,
       { title: "Supprimer l'étudiant", confirmLabel: 'Supprimer' },
     );
     if (!confirmed) return;
@@ -1035,6 +1042,7 @@ const filteredSubjects = subjects.filter(subject => {
       activeId={activeTab}
       onSelect={(tab) => {
         setGradesStudentId('');
+        setMessageRecipient(null);
         handleSelectTab(tab);
       }}
       userName={`${user?.first_name || ''} ${user?.last_name || ''}`.trim()}
@@ -1060,6 +1068,24 @@ const filteredSubjects = subjects.filter(subject => {
         {/* NOTES */}
         {activeTab === 'grades' && (
           <GradesManagement levels={levels} canEdit initialStudentId={gradesStudentId || undefined} />
+        )}
+
+        {/* SUIVI DES ÉTUDIANTS */}
+        {activeTab === 'followup' && (
+          <StudentFollowUp levels={levels} currentUserId={user?.id} canDeleteAny={canDeleteStudents} />
+        )}
+
+        {/* MESSAGES */}
+        {activeTab === 'messages' && (
+          <MessagesManagement
+            key={messageRecipient?.userId || 'new'}
+            levels={levels}
+            students={students}
+            teachers={teachers}
+            currentUserId={user?.id}
+            canDeleteAny={canDeleteStudents}
+            initialRecipient={messageRecipient}
+          />
         )}
 
       {/* FINANCE TAB - GESTION FINANCIÈRE */}
@@ -1218,6 +1244,14 @@ const filteredSubjects = subjects.filter(subject => {
                                 <FileText className="w-4 h-4" />
                               </button>
                             )}
+                            <button
+                              onClick={() => { handleSelectTab('messages'); setMessageRecipient({ kind: 'student', userId: student.user_id }); }}
+                              className="text-green-600 hover:bg-green-50 p-2 rounded"
+                              title="Envoyer un message"
+                              aria-label={`Envoyer un message à ${fullNameOf(student)}`}
+                            >
+                              <MessageSquare className="w-4 h-4" />
+                            </button>
                             {canResetStudentPassword && (
                               <button
                                 onClick={() => handleResetStudentPassword(student)}

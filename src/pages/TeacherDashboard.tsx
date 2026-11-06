@@ -1,19 +1,22 @@
 // src/pages/TeacherDashboard.tsx
 import React, { useMemo, useState, useEffect } from 'react';
 import {
-  Bell, BookOpen, Calendar, CheckCircle2, ClipboardList, DollarSign, FileText, Home,
+  Bell, BookOpen, Calendar, CheckCircle2, ClipboardCheck, ClipboardList, DollarSign, FileText, Home,
   MessageSquare, Save
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { Announcement, fetchActiveAnnouncements } from '../lib/announcements';
 import { CURRENT_ACADEMIC_YEAR, Level, SchoolCycle } from '../lib/levels';
+import { useInbox } from '../lib/messages';
 import { timeSlotOf, timeSlotsOf } from '../lib/schedule';
 import { useHashTab } from '../lib/useHashTab';
 import AppShell, { NavGroup } from '../components/ui/AppShell';
 import { confirmDialog, notify } from '../components/ui/feedback';
 import { Panel, StatTile } from '../components/ui/primitives';
 import AnnouncementList from '../components/announcements/AnnouncementList';
+import StudentFollowUp from '../components/followup/StudentFollowUp';
 import GradesManagement from '../components/grades/GradesManagement';
+import MessageInbox from '../components/messages/MessageInbox';
 import PayslipHistoryTable from '../components/finance/PayslipHistoryTable';
 
 interface User {
@@ -60,16 +63,7 @@ interface Schedule {
   room?: string;
 }
 
-interface Message {
-  id: string;
-  subject: string;
-  content: string;
-  sent_at: string;
-  sender_name?: string;
-  is_read: boolean;
-}
-
-const TABS = ['dashboard', 'grades', 'my-grades', 'schedule', 'announcements', 'messages', 'payslips'];
+const TABS = ['dashboard', 'grades', 'my-grades', 'followup', 'schedule', 'announcements', 'messages', 'payslips'];
 
 const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onChangePassword }) => {
   const [activeTab, setActiveTab] = useHashTab(TABS, 'dashboard');
@@ -79,7 +73,6 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
   // États pour les données
   const [myLevels, setMyLevels] = useState<TeacherLevel[]>([]);
   const [mySchedule, setMySchedule] = useState<Schedule[]>([]);
-  const [myMessages, setMyMessages] = useState<Message[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
 
   // États pour la saisie de notes
@@ -97,26 +90,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
     }
   }, [user]);
 
-  // À l'ouverture de la messagerie, les messages personnels passent à "lu"
-  // (les messages collectifs n'ont pas de statut par destinataire).
-  const [messagesSeen, setMessagesSeen] = useState<boolean>(false);
-  const unreadCount = messagesSeen ? 0 : myMessages.filter(m => !m.is_read).length;
-
-  useEffect(() => {
-    if (activeTab !== 'messages' || messagesSeen || !user) return;
-    const unreadIds = myMessages.filter(m => !m.is_read).map(m => m.id);
-    if (unreadIds.length === 0) return;
-
-    setMessagesSeen(true);
-    supabase
-      .from('messages')
-      .update({ is_read: true })
-      .in('id', unreadIds)
-      .eq('recipient_id', user.id)
-      .then(({ error }) => {
-        if (error) console.error('Erreur marquage messages lus:', error);
-      });
-  }, [activeTab, messagesSeen, myMessages, user]);
+  const { messages: myMessages, unreadCount, loading: loadingMessages } = useInbox(user?.id, 'teachers', activeTab === 'messages');
 
   const loadTeacherData = async () => {
     setLoading(true);
@@ -189,38 +163,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
         setMySchedule(formattedSchedule);
       }
 
-      // 4. Charger les messages reçus. L'expéditeur est lu à part : messages
-      // référence auth.users, qui n'est pas exposée par l'API (pas de jointure).
-      const { data: messagesData, error: messagesError } = await supabase
-        .from('messages')
-        .select('id, subject, content, sent_at, sender_id, is_read, recipient_type')
-        .or(`recipient_type.eq.all_teachers,recipient_type.eq.all,and(recipient_type.eq.individual,recipient_id.eq.${user?.id})`)
-        .order('sent_at', { ascending: false })
-        .limit(20);
-
-      if (messagesError) {
-        console.error('Erreur chargement messages:', messagesError);
-      } else if (messagesData) {
-        const senderIds = Array.from(new Set(messagesData.map((m) => m.sender_id)));
-        const { data: senders } = await supabase
-          .from('profiles')
-          .select('user_id, first_name, last_name')
-          .in('user_id', senderIds);
-
-        const senderName = (id: string) => {
-          const sender = senders?.find((s) => s.user_id === id);
-          return sender ? `${sender.first_name} ${sender.last_name}`.trim() : 'Administration';
-        };
-
-        setMyMessages(messagesData.map((m) => ({
-          id: m.id,
-          subject: m.subject,
-          content: m.content,
-          sent_at: m.sent_at,
-          sender_name: senderName(m.sender_id),
-          is_read: m.recipient_type !== 'individual' || Boolean(m.is_read)
-        })));
-      }
+      // 4. Charger les annonces
       setAnnouncements(await fetchActiveAnnouncements('teachers'));
     } catch (error) {
       console.error('Error loading teacher data:', error);
@@ -352,6 +295,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
       items: [
         { id: 'grades', label: 'Saisie des notes', icon: ClipboardList },
         { id: 'my-grades', label: 'Notes saisies', icon: FileText },
+        { id: 'followup', label: 'Suivi des étudiants', icon: ClipboardCheck },
         { id: 'schedule', label: 'Emploi du temps', icon: Calendar },
       ],
     },
@@ -629,7 +573,12 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
 
         {/* NOTES SAISIES */}
         {activeTab === 'my-grades' && teacherId && (
-          <GradesManagement levels={assignedLevels} canEdit teacherId={teacherId} />
+          <GradesManagement levels={assignedLevels} canEdit canPrint={false} teacherId={teacherId} />
+        )}
+
+        {/* SUIVI DES ÉTUDIANTS */}
+        {activeTab === 'followup' && (
+          <StudentFollowUp levels={assignedLevels} currentUserId={user?.id} teacherMode canDeleteAny={false} />
         )}
 
         {/* ANNONCES */}
@@ -694,34 +643,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
 
         {/* MESSAGES */}
         {activeTab === 'messages' && (
-          <div className="bg-white rounded-xl shadow p-6">
-            <h2 className="text-2xl font-bold mb-6">Mes Messages ({myMessages.length})</h2>
-            
-            {myMessages.length === 0 ? (
-              <p className="text-center text-gray-500 py-12">Aucun message</p>
-            ) : (
-              <div className="space-y-4">
-                {myMessages.map((msg) => (
-                  <div key={msg.id} className="p-5 border-2 rounded-lg hover:shadow-md transition">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <p className="font-bold text-lg">{msg.subject}</p>
-                        <p className="text-sm text-gray-500">
-                          De: {msg.sender_name} • {new Date(msg.sent_at).toLocaleString()}
-                        </p>
-                      </div>
-                      {!msg.is_read && (
-                        <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">
-                          Nouveau
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-gray-700 whitespace-pre-wrap">{msg.content}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <MessageInbox messages={myMessages} loading={loadingMessages} />
         )}
 
         {/* BULLETINS DE PAIE */}
