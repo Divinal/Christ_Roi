@@ -3,7 +3,7 @@
 export const siteConfig = {
   // URL publique du site (sans slash final) : utilisée pour le SEO
   // (balises canonical/Open Graph, robots.txt, sitemap.xml).
-  siteUrl: 'https://rezoboutique.shop',
+  siteUrl: 'https://rezo-edu.vercel.app',
   schoolName: 'Complexe Rezo Edu',
   tagline: 'Plateforme E-Learning Scolaire',
   logoUrl: '../Images/RezoCampus.png',
