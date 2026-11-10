@@ -28,11 +28,34 @@ const PERMISSIONS = new Map<string, Role[]>([
   ['reset_teacher_password', ['admin']],
 ]);
 
+// supabase-js ajoute ses propres en-têtes (X-Supabase-Client-…) et la liste
+// évolue avec ses versions : un en-tête non autorisé fait échouer l'appel dans
+// le navigateur avant même qu'il parte. La liste sert de valeur par défaut.
+// La pré-requête renvoie, elle, les en-têtes demandés. C'est sans risque :
+// l'accès repose sur le jeton de session, pas sur des cookies.
+const ALLOWED_HEADERS = [
+  'authorization',
+  'apikey',
+  'content-type',
+  'x-client-info',
+  'x-region',
+  'x-supabase-client-platform',
+  'x-supabase-client-platform-version',
+  'x-supabase-client-runtime',
+  'x-supabase-client-runtime-version',
+].join(', ');
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': ALLOWED_HEADERS,
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
+
+const preflightHeaders = (req: Request) => ({
+  ...CORS_HEADERS,
+  'Access-Control-Allow-Headers': req.headers.get('Access-Control-Request-Headers') || ALLOWED_HEADERS,
+  'Access-Control-Max-Age': '86400',
+});
 
 class HttpError extends Error {
   constructor(public status: number, message: string) {
@@ -89,7 +112,7 @@ const authErrorMessage = (error: { code?: string; message?: string }): string =>
 // `admin` est un client Supabase initialisé avec une clé secrète : il
 // contourne le RLS. Le contrôle des droits repose donc entièrement sur ce code.
 export const handleRequest = async (req: Request, admin: any): Promise<Response> => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS });
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: preflightHeaders(req) });
   if (req.method !== 'POST') return json({ error: 'Méthode non autorisée.' }, 405);
 
   try {
