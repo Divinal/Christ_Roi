@@ -2,6 +2,7 @@ import React from 'react';
 import PrintPreview, { DocumentHeader } from '../print/PrintPreview';
 import { ATTENDANCE_LABELS, CONDUCT_LABELS, DailyReport } from '../../lib/followup';
 import { formatDate } from '../../lib/grades';
+import { t, isolate } from '../../i18n';
 
 interface FollowUpPrintProps {
   title: string;
@@ -12,21 +13,21 @@ interface FollowUpPrintProps {
 }
 
 const FollowUpPrint: React.FC<FollowUpPrintProps> = ({ title, subtitle, meta, reports, onClose }) => (
-  <PrintPreview title={`${title} — ${subtitle}`} onClose={onClose}>
+  <PrintPreview title={`${isolate(title)} — ${isolate(subtitle)}`} onClose={onClose}>
     <DocumentHeader title={title} subtitle={subtitle} meta={meta} />
     {reports.length === 0 ? (
-      <p className="print-doc-empty">Aucun rapport sur cette période.</p>
+      <p className="print-doc-empty">{t("Aucun rapport sur cette période.")}</p>
     ) : (
       <table>
         <thead>
           <tr>
-            <th>Date</th>
-            <th>Étudiant</th>
-            <th>Présence</th>
-            <th>Conduite</th>
-            <th>Activités</th>
-            <th>Observations</th>
-            <th>Auteur</th>
+            <th>{t("Date")}</th>
+            <th>{t("Étudiant")}</th>
+            <th>{t("Présence")}</th>
+            <th>{t("Conduite")}</th>
+            <th>{t("Activités")}</th>
+            <th>{t("Observations")}</th>
+            <th>{t("Auteur")}</th>
           </tr>
         </thead>
         <tbody>
@@ -46,7 +47,7 @@ const FollowUpPrint: React.FC<FollowUpPrintProps> = ({ title, subtitle, meta, re
         </tbody>
       </table>
     )}
-    <p className="print-doc-sign">Signature et cachet de l'établissement</p>
+    <p className="print-doc-sign">{t("Signature et cachet de l'établissement")}</p>
   </PrintPreview>
 );
 

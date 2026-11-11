@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { t } from '../i18n';
 
 export type SchoolCycle = 'prescolaire' | 'primaire' | 'college' | 'lycee' | 'superieur';
 
@@ -11,11 +12,11 @@ export interface Level {
 
 // Ordre d'affichage : du plus jeune au plus âgé.
 export const CYCLES: { id: SchoolCycle; label: string }[] = [
-  { id: 'prescolaire', label: 'Pré-scolaire' },
-  { id: 'primaire', label: 'Primaire' },
-  { id: 'college', label: 'Collège' },
-  { id: 'lycee', label: 'Lycée' },
-  { id: 'superieur', label: 'Supérieur' },
+  { id: 'prescolaire', label: t("Pré-scolaire") },
+  { id: 'primaire', label: t("Primaire") },
+  { id: 'college', label: t("Collège") },
+  { id: 'lycee', label: t("Lycée") },
+  { id: 'superieur', label: t("Supérieur") },
 ];
 
 export const CURRENT_ACADEMIC_YEAR = '2026-2027';

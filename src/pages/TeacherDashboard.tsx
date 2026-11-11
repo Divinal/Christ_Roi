@@ -18,6 +18,7 @@ import StudentFollowUp from '../components/followup/StudentFollowUp';
 import GradesManagement from '../components/grades/GradesManagement';
 import MessageInbox from '../components/messages/MessageInbox';
 import PayslipHistoryTable from '../components/finance/PayslipHistoryTable';
+import { t } from '../i18n';
 
 interface User {
   id: string;
@@ -103,7 +104,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
         .single();
 
       if (!teacherData) {
-        notify('Profil enseignant non trouvé');
+        notify(t("Profil enseignant non trouvé"));
         return;
       }
 
@@ -176,7 +177,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
   // ==================== CHARGEMENT ÉTUDIANTS POUR SAISIE NOTES ====================
   const loadStudentsForGrading = async () => {
     if (!selectedLevel || !selectedSubject) {
-      notify('Veuillez sélectionner un niveau et une matière');
+      notify(t("Veuillez sélectionner un niveau et une matière"));
       return;
     }
 
@@ -209,7 +210,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
       }
     } catch (error) {
       console.error('Error loading students:', error);
-      notify('Erreur lors du chargement des étudiants');
+      notify(t("Erreur lors du chargement des étudiants"));
     } finally {
       setLoading(false);
     }
@@ -243,7 +244,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
   const saveGrade = async (studentId: string) => {
     const student = studentsGrades.find(s => s.student_id === studentId);
     if (!student || !isValidGrade(student.grade_value)) {
-      notify('⚠️ Saisissez une note comprise entre 0 et 20.');
+      notify(t("⚠️ Saisissez une note comprise entre 0 et 20."));
       return;
     }
 
@@ -254,29 +255,29 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
     }
     // Marquée enregistrée : "Enregistrer toutes" ne doit pas la créer une seconde fois.
     setStudentsGrades(prev => prev.map(s => (s.student_id === studentId ? { ...s, saved: true } : s)));
-    notify('✅ Note enregistrée');
+    notify(t("✅ Note enregistrée"));
   };
 
   const saveAllGrades = async () => {
     const gradesToSave = studentsGrades.filter(s => s.grade_value !== undefined && !s.saved);
 
     if (gradesToSave.length === 0) {
-      notify('Aucune nouvelle note à enregistrer');
+      notify(t("Aucune nouvelle note à enregistrer"));
       return;
     }
     if (!gradesToSave.every(s => isValidGrade(s.grade_value))) {
-      notify('⚠️ Toutes les notes doivent être comprises entre 0 et 20.');
+      notify(t("⚠️ Toutes les notes doivent être comprises entre 0 et 20."));
       return;
     }
 
-    if (!(await confirmDialog(`Enregistrer ${gradesToSave.length} note(s) ?`, { confirmLabel: 'Enregistrer' }))) return;
+    if (!(await confirmDialog(t("Enregistrer {0} note(s) ?", [gradesToSave.length]), { confirmLabel: t("Enregistrer") }))) return;
 
     setLoading(true);
     try {
       const { error } = await supabase.from('grades').insert(gradesToSave.map(gradeRowFor));
       if (error) throw error;
 
-      notify(`✅ ${gradesToSave.length} note(s) enregistrée(s)`);
+      notify(t("✅ {0} note(s) enregistrée(s)", [gradesToSave.length]));
       setStudentsGrades([]);
       setSelectedLevel('');
       setSelectedSubject('');
@@ -289,24 +290,24 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
 
 
   const navGroups: NavGroup[] = [
-    { label: 'Général', items: [{ id: 'dashboard', label: 'Tableau de bord', icon: Home }] },
+    { label: t("Général"), items: [{ id: 'dashboard', label: t("Tableau de bord"), icon: Home }] },
     {
-      label: 'Enseignement',
+      label: t("Enseignement"),
       items: [
-        { id: 'grades', label: 'Saisie des notes', icon: ClipboardList },
-        { id: 'my-grades', label: 'Notes saisies', icon: FileText },
-        { id: 'followup', label: 'Suivi des étudiants', icon: ClipboardCheck },
-        { id: 'schedule', label: 'Emploi du temps', icon: Calendar },
+        { id: 'grades', label: t("Saisie des notes"), icon: ClipboardList },
+        { id: 'my-grades', label: t("Notes saisies"), icon: FileText },
+        { id: 'followup', label: t("Suivi des étudiants"), icon: ClipboardCheck },
+        { id: 'schedule', label: t("Emploi du temps"), icon: Calendar },
       ],
     },
     {
-      label: 'Communication',
+      label: t("Communication"),
       items: [
-        { id: 'announcements', label: 'Annonces', icon: Bell },
-        { id: 'messages', label: 'Messages', icon: MessageSquare, badge: unreadCount },
+        { id: 'announcements', label: t("Annonces"), icon: Bell },
+        { id: 'messages', label: t("Messages"), icon: MessageSquare, badge: unreadCount },
       ],
     },
-    { label: 'Mon compte', items: [{ id: 'payslips', label: 'Bulletins de paie', icon: DollarSign }] },
+    { label: t("Mon compte"), items: [{ id: 'payslips', label: t("Bulletins de paie"), icon: DollarSign }] },
   ];
 
   // Niveaux affectés, sans doublon si plusieurs matières sur un même niveau.
@@ -317,20 +318,20 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
   }, [myLevels]);
 
   const getDayName = (day: number) => {
-    const days = ['', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+    const days = ['', t("Lundi"), t("Mardi"), t("Mercredi"), t("Jeudi"), t("Vendredi"), t("Samedi"), t("Dimanche")];
     return days[day] || '';
   };
 
   // ==================== RENDUS ====================
   return (
     <AppShell
-      spaceLabel="Espace enseignant"
+      spaceLabel={t("Espace enseignant")}
       userId={user?.id}
       groups={navGroups}
       activeId={activeTab}
       onSelect={setActiveTab}
       userName={`${user?.first_name || ''} ${user?.last_name || ''}`.trim()}
-      roleLabel="Enseignant"
+      roleLabel={t("Enseignant")}
       onLogout={onLogout}
       onChangePassword={onChangePassword}
     >
@@ -339,19 +340,19 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
         {activeTab === 'dashboard' && (
           <>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4 md:mb-6">
-              <StatTile icon={BookOpen} tone="blue" label="Niveaux assignés" value={assignedLevels.length} />
-              <StatTile icon={FileText} tone="green" label="Matières enseignées" value={new Set(myLevels.map(l => l.subject_id)).size} />
-              <StatTile icon={Calendar} tone="indigo" label="Créneaux par semaine" value={mySchedule.length} />
-              <StatTile icon={MessageSquare} tone="orange" label="Messages non lus" value={unreadCount} />
+              <StatTile icon={BookOpen} tone="blue" label={t("Niveaux assignés")} value={assignedLevels.length} />
+              <StatTile icon={FileText} tone="green" label={t("Matières enseignées")} value={new Set(myLevels.map(l => l.subject_id)).size} />
+              <StatTile icon={Calendar} tone="indigo" label={t("Créneaux par semaine")} value={mySchedule.length} />
+              <StatTile icon={MessageSquare} tone="orange" label={t("Messages non lus")} value={unreadCount} />
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">
               <div className="bg-white rounded-xl shadow p-6">
                 <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                  <BookOpen className="w-5 h-5" /> Mes Niveaux
+                  <BookOpen className="w-5 h-5" /> {t("Mes Niveaux")}
                 </h3>
                 {myLevels.length === 0 ? (
-                  <p className="text-gray-500 text-center">Aucun niveau assigné</p>
+                  <p className="text-gray-500 text-center">{t("Aucun niveau assigné")}</p>
                 ) : (
                   <div className="space-y-2">
                     {myLevels.map((level) => (
@@ -366,10 +367,10 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
 
               <div className="bg-white rounded-xl shadow p-6">
                 <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                  <Calendar className="w-5 h-5" /> Prochains créneaux
+                  <Calendar className="w-5 h-5" /> {t("Prochains créneaux")}
                 </h3>
                 {mySchedule.length === 0 ? (
-                  <p className="text-gray-500 text-center">Aucun créneau planifié</p>
+                  <p className="text-gray-500 text-center">{t("Aucun créneau planifié")}</p>
                 ) : (
                   <div className="space-y-2">
                     {mySchedule.slice(0, 5).map((sch) => (
@@ -391,15 +392,15 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
        {/* SAISIE DES NOTES */}
         {activeTab === 'grades' && (
           <div className="bg-white rounded-xl shadow p-6">
-            <h2 className="text-2xl font-bold mb-6">Saisie des notes</h2>
+            <h2 className="text-2xl font-bold mb-6">{t("Saisie des notes")}</h2>
 
             {/* SAISIE */}
             <div className="mb-8">
-              <h3 className="text-lg font-bold mb-4 text-indigo-700">➕ Saisir de nouvelles notes</h3>
+              <h3 className="text-lg font-bold mb-4 text-indigo-700">{t("➕ Saisir de nouvelles notes")}</h3>
               
               <div className="grid md:grid-cols-4 gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
                 <div>
-                  <label htmlFor="grade-level" className="block text-sm font-medium mb-2">Niveau *</label>
+                  <label htmlFor="grade-level" className="block text-sm font-medium mb-2">{t("Niveau *")}</label>
                   <select
                     id="grade-level"
                     value={selectedLevel}
@@ -409,7 +410,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
                     }}
                     className="w-full border rounded px-3 py-2"
                   >
-                    <option value="">Sélectionner...</option>
+                    <option value="">{t("Sélectionner...")}</option>
                     {Array.from(new Map(myLevels.map((level) => [level.id, level.name]))).map(([id, name]) => (
                       <option key={id} value={id}>{name}</option>
                     ))}
@@ -417,7 +418,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">Matière *</label>
+                  <label className="block text-sm font-medium mb-2">{t("Matière *")}</label>
                   <select
                     value={selectedSubject}
                     onChange={(e) => {
@@ -428,7 +429,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
                     }}
                     className="w-full border rounded px-3 py-2"
                   >
-                    <option value="">Sélectionner...</option>
+                    <option value="">{t("Sélectionner...")}</option>
                     {myLevels
                       .filter(l => l.id === selectedLevel)
                       .map((level) => (
@@ -440,35 +441,35 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">Type d'évaluation *</label>
+                  <label className="block text-sm font-medium mb-2">{t("Type d'évaluation *")}</label>
                   <select
                     value={gradeType}
                     onChange={(e) => setGradeType(e.target.value)}
                     className="w-full border rounded px-3 py-2"
                   >
-                    <option value="CC1">CC1 (Contrôle Continu 1)</option>
-                    <option value="CC2">CC2 (Contrôle Continu 2)</option>
-                    <option value="CC3">CC3 (Contrôle Continu 3)</option>
-                    <option value="E.Théorique">Examen Théorique</option>
-                    <option value="E.Pratique">Examen Pratique</option>
+                    <option value="CC1">{t("CC1 (Contrôle Continu 1)")}</option>
+                    <option value="CC2">{t("CC2 (Contrôle Continu 2)")}</option>
+                    <option value="CC3">{t("CC3 (Contrôle Continu 3)")}</option>
+                    <option value="E.Théorique">{t("Examen Théorique")}</option>
+                    <option value="E.Pratique">{t("Examen Pratique")}</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">Coefficient (UF) *</label>
+                  <label className="block text-sm font-medium mb-2">{t("Coefficient (UF) *")}</label>
                   <input
                     type="number"
                     min="1"
                     max="10"
                     value={coefficient}
                     disabled
-                    title="Le coefficient est défini au niveau de l'Unité de Formation (onglet Matières)"
+                    title={t("Le coefficient est défini au niveau de l'Unité de Formation (onglet Matières)")}
                     className="w-full border rounded px-3 py-2 bg-gray-100 cursor-not-allowed"
                   />
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium mb-2">Date de l'examen</label>
+                  <label className="block text-sm font-medium mb-2">{t("Date de l'examen")}</label>
                   <input
                     type="date"
                     value={examDate}
@@ -483,7 +484,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
                     disabled={!selectedLevel || !selectedSubject}
                     className="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Charger les étudiants
+                    {t("Charger les étudiants")}
                   </button>
                 </div>
               </div>
@@ -494,11 +495,11 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
                     <table className="w-full">
                       <thead className="bg-gray-100">
                         <tr>
-                          <th className="px-4 py-3 text-left">Matricule</th>
-                          <th className="px-4 py-3 text-left">Nom complet</th>
-                          <th className="px-4 py-3 text-left">Note /20</th>
-                          <th className="px-4 py-3 text-left">Commentaire</th>
-                          <th className="px-4 py-3 text-left">Action</th>
+                          <th className="px-4 py-3 text-start">{t("Matricule")}</th>
+                          <th className="px-4 py-3 text-start">{t("Nom complet")}</th>
+                          <th className="px-4 py-3 text-start">{t("Note /20")}</th>
+                          <th className="px-4 py-3 text-start">{t("Commentaire")}</th>
+                          <th className="px-4 py-3 text-start">{t("Action")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -524,14 +525,14 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
                                 value={student.comment || ''}
                                 onChange={(e) => updateGrade(student.student_id, 'comment', e.target.value)}
                                 className="w-full border rounded px-2 py-1"
-                                placeholder="Optionnel"
+                                placeholder={t("Optionnel")}
                               />
                             </td>
                             <td className="px-4 py-3">
                               {student.saved ? (
                                 <span className="text-green-600 flex items-center gap-1">
                                   <CheckCircle2 className="w-4 h-4" />
-                                  Enregistrée
+                                  {t("Enregistrée")}
                                 </span>
                               ) : (
                                 <button
@@ -540,7 +541,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
                                   className="text-indigo-600 hover:underline flex items-center gap-1 disabled:opacity-50"
                                 >
                                   <Save className="w-4 h-4" />
-                                  Enregistrer
+                                  {t("Enregistrer")}
                                 </button>
                               )}
                             </td>
@@ -555,14 +556,14 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
                       onClick={() => setStudentsGrades([])}
                       className="px-6 py-2 border rounded hover:bg-gray-100"
                     >
-                      Annuler
+                      {t("Annuler")}
                     </button>
                     <button
                       onClick={saveAllGrades}
                       disabled={loading}
                       className="bg-indigo-600 text-white px-6 py-2 rounded hover:bg-indigo-700 disabled:opacity-50"
                     >
-                      {loading ? 'Enregistrement...' : 'Enregistrer toutes les notes'}
+                      {loading ? t("Enregistrement...") : t("Enregistrer toutes les notes")}
                     </button>
                   </div>
                 </>
@@ -584,24 +585,24 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
 
         {/* ANNONCES */}
         {activeTab === 'announcements' && (
-          <Panel title="Annonces">
+          <Panel title={t("Annonces")}>
             <AnnouncementList announcements={announcements} />
           </Panel>
         )}
         {/* EMPLOI DU TEMPS */}
         {activeTab === 'schedule' && (
           <div className="bg-white rounded-xl shadow p-6">
-            <h2 className="text-2xl font-bold mb-6">Mon Emploi du Temps</h2>
+            <h2 className="text-2xl font-bold mb-6">{t("Mon Emploi du Temps")}</h2>
             
             {mySchedule.length === 0 ? (
-              <p className="text-center text-gray-500 py-12">Aucun créneau planifié</p>
+              <p className="text-center text-gray-500 py-12">{t("Aucun créneau planifié")}</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
                   <thead>
                     <tr className="bg-gray-100">
-                      <th className="border-2 px-4 py-3 font-bold">Heure</th>
-                      {['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'].map((day, idx) => (
+                      <th className="border-2 px-4 py-3 font-bold">{t("Heure")}</th>
+                      {[t("Lundi"), t("Mardi"), t("Mercredi"), t("Jeudi"), t("Vendredi"), t("Samedi")].map((day, idx) => (
                         <th key={idx} className="border-2 px-4 py-3 font-bold">{day}</th>
                       ))}
                     </tr>
@@ -620,7 +621,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
                                 <div key={schedule.id} className="bg-indigo-100 p-3 rounded-lg hover:bg-indigo-200 transition mb-1">
                                   <p className="font-semibold text-indigo-800">{schedule.subject_name}</p>
                                   <p className="text-xs text-indigo-600">{schedule.level_name}</p>
-                                  {schedule.room && <p className="text-xs text-gray-600">Salle {schedule.room}</p>}
+                                  {schedule.room && <p className="text-xs text-gray-600">{t("Salle")} {schedule.room}</p>}
                                 </div>
                               ))}
                             </td>
@@ -633,10 +634,10 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
               </div>
             )}
 
-            <div className="mt-6 bg-indigo-50 border-l-4 border-indigo-500 p-4 rounded">
-              <p className="font-semibold text-indigo-800 mb-1">📌 Note</p>
+            <div className="mt-6 bg-indigo-50 border-s-4 border-indigo-500 p-4 rounded">
+              <p className="font-semibold text-indigo-800 mb-1">{t("📌 Note")}</p>
               <p className="text-sm text-indigo-700">
-                Votre emploi du temps pour le semestre en cours. Contactez l'administration pour toute modification.
+                {t("Votre emploi du temps pour le semestre en cours. Contactez l'administration pour toute modification.")}
               </p>
             </div>
           </div>
@@ -650,11 +651,11 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
         {/* BULLETINS DE PAIE */}
         {activeTab === 'payslips' && (
           <div className="bg-white rounded-xl shadow p-6">
-            <h2 className="text-2xl font-bold mb-6">Mes Bulletins de Paie</h2>
+            <h2 className="text-2xl font-bold mb-6">{t("Mes Bulletins de Paie")}</h2>
             {teacherId ? (
               <PayslipHistoryTable teacherId={teacherId} academicYear={CURRENT_ACADEMIC_YEAR} showTeacherName={false} />
             ) : (
-              <p className="text-center text-gray-500 py-12">Chargement...</p>
+              <p className="text-center text-gray-500 py-12">{t("Chargement...")}</p>
             )}
           </div>
         )}

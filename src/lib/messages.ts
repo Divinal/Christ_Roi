@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
+import { t } from '../i18n';
 
 export interface InboxMessage {
   id: string;
@@ -54,7 +55,7 @@ export const useInbox = (userId: string | undefined, audience: 'students' | 'tea
         subject: message.subject,
         content: message.content,
         sent_at: message.sent_at,
-        sender_name: names.get(message.sender_id) || 'Administration',
+        sender_name: names.get(message.sender_id) || t("Administration"),
         is_read: message.recipient_type !== 'individual' || Boolean(message.is_read),
       })),
     );

@@ -5,6 +5,7 @@ import { ACADEMIC_MONTHS, monthLabel, TuitionPayment } from './financeTypes';
 import { formatFCFA } from './financeUtils';
 import ReceiptPrintable from './ReceiptPrintable';
 import { confirmDialog, notify } from '../ui/feedback';
+import { t, locale } from '../../i18n';
 
 interface TuitionHistoryTableProps {
   studentId: string;
@@ -72,7 +73,7 @@ const TuitionHistoryTable: React.FC<TuitionHistoryTableProps> = ({
       return;
     }
     if (!data?.length) {
-      notify("❌ Modification refusée : vous n'avez pas les droits nécessaires.");
+      notify(t("❌ Modification refusée : vous n'avez pas les droits nécessaires."));
       return;
     }
     setEditing(null);
@@ -83,8 +84,8 @@ const TuitionHistoryTable: React.FC<TuitionHistoryTableProps> = ({
   // Un reçu a pu être remis à la famille : le paiement est annulé (voided_at)
   // plutôt qu'effacé, ce qui le retire de tous les totaux mais garde la trace.
   const handleDelete = async (payment: TuitionPayment) => {
-    const label = `${formatFCFA(payment.amount)} — reçu ${payment.receipt_number}`;
-    if (!await confirmDialog(`⚠️ Supprimer ce paiement ?\n\n${label}\n\nIl sera retiré du solde et de tous les totaux.`)) return;
+    const label = t("{0} — reçu {1}", [formatFCFA(payment.amount), payment.receipt_number]);
+    if (!await confirmDialog(t("⚠️ Supprimer ce paiement ?\n\n{0}\n\nIl sera retiré du solde et de tous les totaux.", [label]))) return;
 
     const { data, error } = await supabase
       .from('tuition_fee_payments')
@@ -97,7 +98,7 @@ const TuitionHistoryTable: React.FC<TuitionHistoryTableProps> = ({
       return;
     }
     if (!data?.length) {
-      notify("❌ Suppression refusée : vous n'avez pas les droits nécessaires.");
+      notify(t("❌ Suppression refusée : vous n'avez pas les droits nécessaires."));
       return;
     }
     await loadPayments();
@@ -109,15 +110,15 @@ const TuitionHistoryTable: React.FC<TuitionHistoryTableProps> = ({
       {!canManage && (
         <div className="grid md:grid-cols-3 gap-4 mb-6">
           <div className="bg-blue-50 p-4 rounded-lg">
-            <p className="text-sm text-blue-800">Frais annuel</p>
+            <p className="text-sm text-blue-800">{t("Frais annuel")}</p>
             <p className="text-2xl font-bold text-blue-600">{formatFCFA(fee)}</p>
           </div>
           <div className="bg-green-50 p-4 rounded-lg">
-            <p className="text-sm text-green-800">Déjà payé</p>
+            <p className="text-sm text-green-800">{t("Déjà payé")}</p>
             <p className="text-2xl font-bold text-green-600">{formatFCFA(totalPaid)}</p>
           </div>
           <div className={`p-4 rounded-lg ${remaining > 0 ? 'bg-red-50' : 'bg-gray-50'}`}>
-            <p className={`text-sm ${remaining > 0 ? 'text-red-800' : 'text-gray-600'}`}>Reste à payer</p>
+            <p className={`text-sm ${remaining > 0 ? 'text-red-800' : 'text-gray-600'}`}>{t("Reste à payer")}</p>
             <p className={`text-2xl font-bold ${remaining > 0 ? 'text-red-600' : 'text-gray-600'}`}>
               {formatFCFA(Math.max(remaining, 0))}
             </p>
@@ -126,18 +127,18 @@ const TuitionHistoryTable: React.FC<TuitionHistoryTableProps> = ({
       )}
 
       {loading ? (
-        <p className="text-center py-8">Chargement...</p>
+        <p className="text-center py-8">{t("Chargement...")}</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-100">
               <tr>
-                {showStudentName && <th className="px-3 py-2 text-left">Étudiant</th>}
-                <th className="px-3 py-2 text-left">Mois payé</th>
-                <th className="px-3 py-2 text-left">Date</th>
-                <th className="px-3 py-2 text-left">N° Reçu</th>
-                <th className="px-3 py-2 text-right">Montant</th>
-                <th className="px-3 py-2 text-center">Actions</th>
+                {showStudentName && <th className="px-3 py-2 text-start">{t("Étudiant")}</th>}
+                <th className="px-3 py-2 text-start">{t("Mois payé")}</th>
+                <th className="px-3 py-2 text-start">{t("Date")}</th>
+                <th className="px-3 py-2 text-start">{t("N° Reçu")}</th>
+                <th className="px-3 py-2 text-end">{t("Montant")}</th>
+                <th className="px-3 py-2 text-center">{t("Actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -155,7 +156,7 @@ const TuitionHistoryTable: React.FC<TuitionHistoryTableProps> = ({
                         <select
                           value={editing.month}
                           onChange={(e) => setEditing({ ...editing, month: parseInt(e.target.value) })}
-                          aria-label="Mois payé"
+                          aria-label={t("Mois payé")}
                           className="border rounded px-2 py-1"
                         >
                           {ACADEMIC_MONTHS.map((m) => (
@@ -172,15 +173,15 @@ const TuitionHistoryTable: React.FC<TuitionHistoryTableProps> = ({
                           type="date"
                           value={editing.date}
                           onChange={(e) => setEditing({ ...editing, date: e.target.value })}
-                          aria-label="Date du paiement"
+                          aria-label={t("Date du paiement")}
                           className="border rounded px-2 py-1"
                         />
                       ) : (
-                        new Date(p.payment_date).toLocaleDateString('fr-FR')
+                        new Date(p.payment_date).toLocaleDateString(locale())
                       )}
                     </td>
                     <td className="px-3 py-2 text-gray-500">{p.receipt_number}</td>
-                    <td className="px-3 py-2 text-right font-semibold">
+                    <td className="px-3 py-2 text-end font-semibold">
                       {isEditing ? (
                         <input
                           type="number"
@@ -188,8 +189,8 @@ const TuitionHistoryTable: React.FC<TuitionHistoryTableProps> = ({
                           step="1"
                           value={editing.amount}
                           onChange={(e) => setEditing({ ...editing, amount: e.target.value === '' ? '' : Number(e.target.value) })}
-                          aria-label="Montant"
-                          className="border rounded px-2 py-1 w-28 text-right"
+                          aria-label={t("Montant")}
+                          className="border rounded px-2 py-1 w-28 text-end"
                         />
                       ) : (
                         formatFCFA(p.amount)
@@ -198,16 +199,16 @@ const TuitionHistoryTable: React.FC<TuitionHistoryTableProps> = ({
                     <td className="px-3 py-2 text-center whitespace-nowrap">
                       {isEditing ? (
                         <>
-                          <button onClick={handleSaveEdit} className="text-green-600 hover:bg-green-50 p-1 rounded" title="Enregistrer" aria-label="Enregistrer">
+                          <button onClick={handleSaveEdit} className="text-green-600 hover:bg-green-50 p-1 rounded" title={t("Enregistrer")} aria-label={t("Enregistrer")}>
                             <Check className="w-4 h-4" />
                           </button>
-                          <button onClick={() => setEditing(null)} className="text-gray-500 hover:bg-gray-100 p-1 rounded" title="Annuler" aria-label="Annuler">
+                          <button onClick={() => setEditing(null)} className="text-gray-500 hover:bg-gray-100 p-1 rounded" title={t("Annuler")} aria-label={t("Annuler")}>
                             <X className="w-4 h-4" />
                           </button>
                         </>
                       ) : (
                         <>
-                          <button onClick={() => handlePrint(idx)} className="text-blue-600 hover:bg-blue-50 p-1 rounded" title="Réimprimer" aria-label={`Réimprimer le reçu ${p.receipt_number}`}>
+                          <button onClick={() => handlePrint(idx)} className="text-blue-600 hover:bg-blue-50 p-1 rounded" title={t("Réimprimer")} aria-label={t("Réimprimer le reçu {0}", [p.receipt_number])}>
                             <Printer className="w-4 h-4" />
                           </button>
                           {canManage && (
@@ -215,16 +216,16 @@ const TuitionHistoryTable: React.FC<TuitionHistoryTableProps> = ({
                               <button
                                 onClick={() => setEditing({ id: p.id, month: p.month, amount: Number(p.amount), date: p.payment_date })}
                                 className="text-blue-600 hover:bg-blue-50 p-1 rounded"
-                                title="Modifier"
-                                aria-label={`Modifier le paiement ${p.receipt_number}`}
+                                title={t("Modifier")}
+                                aria-label={t("Modifier le paiement {0}", [p.receipt_number])}
                               >
                                 <Edit className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={() => handleDelete(p)}
                                 className="text-red-600 hover:bg-red-50 p-1 rounded"
-                                title="Supprimer"
-                                aria-label={`Supprimer le paiement ${p.receipt_number}`}
+                                title={t("Supprimer")}
+                                aria-label={t("Supprimer le paiement {0}", [p.receipt_number])}
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -239,7 +240,7 @@ const TuitionHistoryTable: React.FC<TuitionHistoryTableProps> = ({
               {payments.length === 0 && (
                 <tr>
                   <td colSpan={showStudentName ? 6 : 5} className="text-center text-gray-500 py-6">
-                    Aucun paiement enregistré
+                    {t("Aucun paiement enregistré")}
                   </td>
                 </tr>
               )}

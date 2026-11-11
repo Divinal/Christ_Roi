@@ -7,6 +7,7 @@ import { normalizeText } from '../../lib/students';
 import LevelSelect from '../levels/LevelSelect';
 import { confirmDialog, notify } from '../ui/feedback';
 import { EmptyState, Panel } from '../ui/primitives';
+import { t, locale } from '../../i18n';
 
 export type RecipientKind = 'student' | 'teacher';
 
@@ -44,7 +45,7 @@ interface MessagesManagementProps {
 }
 
 const nameOf = (person?: Person): string =>
-  `${person?.profiles?.first_name || ''} ${person?.profiles?.last_name || ''}`.trim() || 'Sans nom';
+  `${person?.profiles?.first_name || ''} ${person?.profiles?.last_name || ''}`.trim() || t("Sans nom");
 
 const numberOf = (person: Person): string => person.student_number || person.teacher_number || '';
 
@@ -129,7 +130,7 @@ const MessagesManagement: React.FC<MessagesManagementProps> = ({
   const send = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!recipient) {
-      notify('⚠️ Choisissez le destinataire du message.');
+      notify(t("⚠️ Choisissez le destinataire du message."));
       return;
     }
 
@@ -147,7 +148,7 @@ const MessagesManagement: React.FC<MessagesManagementProps> = ({
       notify(`❌ Erreur: ${error.message}`);
       return;
     }
-    notify(`✅ Message envoyé à ${nameOf(recipient)}`);
+    notify(t("✅ Message envoyé à {0}", [nameOf(recipient)]));
     setSubject('');
     setContent('');
     setRecipientId('');
@@ -156,8 +157,8 @@ const MessagesManagement: React.FC<MessagesManagementProps> = ({
 
   const remove = async (message: SentMessage) => {
     const confirmed = await confirmDialog(
-      `⚠️ Supprimer le message « ${message.subject} » ?\n\nIl disparaîtra aussi de la messagerie du destinataire.`,
-      { title: 'Supprimer le message', confirmLabel: 'Supprimer' },
+      t("⚠️ Supprimer le message « {0} » ?\n\nIl disparaîtra aussi de la messagerie du destinataire.", [message.subject]),
+      { title: t("Supprimer le message"), confirmLabel: t("Supprimer") },
     );
     if (!confirmed) return;
 
@@ -165,9 +166,9 @@ const MessagesManagement: React.FC<MessagesManagementProps> = ({
     if (error) {
       notify(`❌ Erreur: ${error.message}`);
     } else if (!data?.length) {
-      notify("❌ Suppression refusée : vous n'avez pas les droits nécessaires.");
+      notify(t("❌ Suppression refusée : vous n'avez pas les droits nécessaires."));
     } else {
-      notify('✅ Message supprimé');
+      notify(t("✅ Message supprimé"));
       loadSent();
     }
   };
@@ -184,14 +185,14 @@ const MessagesManagement: React.FC<MessagesManagementProps> = ({
     <div className="grid items-start gap-4 md:gap-6 xl:grid-cols-5">
       <Panel
         className="xl:col-span-2"
-        title="Nouveau message"
-        description="Le message est envoyé à une seule personne et apparaît dans sa messagerie."
+        title={t("Nouveau message")}
+        description={t("Le message est envoyé à une seule personne et apparaît dans sa messagerie.")}
       >
         <form onSubmit={send} className="space-y-4">
           <fieldset>
-            <legend className="mb-2 block text-sm font-medium">Destinataire</legend>
+            <legend className="mb-2 block text-sm font-medium">{t("Destinataire")}</legend>
             <div className="grid grid-cols-2 gap-2">
-              {([['student', 'Un étudiant'], ['teacher', 'Un enseignant']] as [RecipientKind, string][]).map(([value, label]) => (
+              {([['student', t("Un étudiant")], ['teacher', t("Un enseignant")]] as [RecipientKind, string][]).map(([value, label]) => (
                 <button
                   key={value}
                   type="button"
@@ -214,36 +215,36 @@ const MessagesManagement: React.FC<MessagesManagementProps> = ({
 
           {kind === 'student' && (
             <div>
-              <label htmlFor="message-level" className="mb-2 block text-sm font-medium">Niveau (facultatif)</label>
+              <label htmlFor="message-level" className="mb-2 block text-sm font-medium">{t("Niveau (facultatif)")}</label>
               <LevelSelect
                 id="message-level"
                 levels={levels}
                 value={levelId}
                 onChange={setLevelId}
-                placeholder="Tous les niveaux"
+                placeholder={t("Tous les niveaux")}
                 className="w-full rounded-lg border px-3 py-2"
               />
             </div>
           )}
 
           <div>
-            <label htmlFor="message-search" className="mb-2 block text-sm font-medium">Rechercher</label>
+            <label htmlFor="message-search" className="mb-2 block text-sm font-medium">{t("Rechercher")}</label>
             <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+              <Search className="pointer-events-none absolute start-3 top-2.5 h-5 w-5 text-gray-400" />
               <input
                 id="message-search"
                 type="text"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Nom, matricule, email..."
-                className="w-full rounded-lg border py-2 pl-10 pr-3"
+                placeholder={t("Nom, matricule, email...")}
+                className="w-full rounded-lg border py-2 ps-10 pe-3"
               />
             </div>
           </div>
 
           <div>
             <label htmlFor="message-recipient" className="mb-2 block text-sm font-medium">
-              {kind === 'student' ? 'Étudiant' : 'Enseignant'} * ({options.length})
+              {kind === 'student' ? t("Étudiant") : t("Enseignant")} * ({options.length})
             </label>
             <select
               id="message-recipient"
@@ -252,7 +253,7 @@ const MessagesManagement: React.FC<MessagesManagementProps> = ({
               onChange={(event) => setRecipientId(event.target.value)}
               className="w-full rounded-lg border px-3 py-2"
             >
-              <option value="">Choisir...</option>
+              <option value="">{t("Choisir...")}</option>
               {options.map((person) => (
                 <option key={person.user_id} value={person.user_id}>
                   {person.profiles?.last_name} {person.profiles?.first_name} — {numberOf(person)}
@@ -263,7 +264,7 @@ const MessagesManagement: React.FC<MessagesManagementProps> = ({
           </div>
 
           <div>
-            <label htmlFor="message-subject" className="mb-2 block text-sm font-medium">Objet *</label>
+            <label htmlFor="message-subject" className="mb-2 block text-sm font-medium">{t("Objet *")}</label>
             <input
               id="message-subject"
               type="text"
@@ -276,7 +277,7 @@ const MessagesManagement: React.FC<MessagesManagementProps> = ({
           </div>
 
           <div>
-            <label htmlFor="message-content" className="mb-2 block text-sm font-medium">Message *</label>
+            <label htmlFor="message-content" className="mb-2 block text-sm font-medium">{t("Message *")}</label>
             <textarea
               id="message-content"
               required
@@ -293,27 +294,27 @@ const MessagesManagement: React.FC<MessagesManagementProps> = ({
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             <Send className="h-4 w-4" />
-            {sending ? 'Envoi...' : recipient ? `Envoyer à ${nameOf(recipient)}` : 'Envoyer'}
+            {sending ? t("Envoi...") : recipient ? t("Envoyer à {0}", [nameOf(recipient)]) : t("Envoyer")}
           </button>
         </form>
       </Panel>
 
-      <Panel className="min-w-0 xl:col-span-3" title={`Messages envoyés (${visibleSent.length})`}>
+      <Panel className="min-w-0 xl:col-span-3" title={t("Messages envoyés ({0})", [visibleSent.length])}>
         <div className="relative mb-4">
-          <Search className="pointer-events-none absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+          <Search className="pointer-events-none absolute start-3 top-2.5 h-5 w-5 text-gray-400" />
           <input
             type="text"
-            aria-label="Rechercher dans les messages envoyés"
+            aria-label={t("Rechercher dans les messages envoyés")}
             value={sentSearch}
             onChange={(event) => setSentSearch(event.target.value)}
-            placeholder="Destinataire, objet, contenu..."
-            className="w-full rounded-lg border py-2 pl-10 pr-3"
+            placeholder={t("Destinataire, objet, contenu...")}
+            className="w-full rounded-lg border py-2 ps-10 pe-3"
           />
         </div>
         {loadingSent && sent.length === 0 ? (
-          <p className="py-8 text-center text-gray-500">Chargement...</p>
+          <p className="py-8 text-center text-gray-500">{t("Chargement...")}</p>
         ) : visibleSent.length === 0 ? (
-          <EmptyState icon={MessageSquare} title="Aucun message envoyé" />
+          <EmptyState icon={MessageSquare} title={t("Aucun message envoyé")} />
         ) : (
           <ul className="space-y-3">
             {visibleSent.map((message) => (
@@ -323,8 +324,8 @@ const MessagesManagement: React.FC<MessagesManagementProps> = ({
                     <p className="text-sm font-semibold text-gray-900">
                       À : {recipientName(message)}
                       {peopleByUser.get(message.recipient_id) && (
-                        <span className="ml-2 rounded bg-gray-100 px-2 py-0.5 text-xs font-normal text-gray-600">
-                          {peopleByUser.get(message.recipient_id)?.kind === 'student' ? 'Étudiant' : 'Enseignant'}
+                        <span className="ms-2 rounded bg-gray-100 px-2 py-0.5 text-xs font-normal text-gray-600">
+                          {peopleByUser.get(message.recipient_id)?.kind === 'student' ? t("Étudiant") : t("Enseignant")}
                         </span>
                       )}
                     </p>
@@ -333,8 +334,8 @@ const MessagesManagement: React.FC<MessagesManagementProps> = ({
                   {(canDeleteAny) && (
                     <button
                       onClick={() => remove(message)}
-                      title="Supprimer"
-                      aria-label={`Supprimer le message ${message.subject}`}
+                      title={t("Supprimer")}
+                      aria-label={t("Supprimer le message {0}", [message.subject])}
                       className="shrink-0 rounded p-2 text-red-600 hover:bg-red-50"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -343,12 +344,12 @@ const MessagesManagement: React.FC<MessagesManagementProps> = ({
                 </div>
                 <p className="mt-1 whitespace-pre-wrap break-words text-sm text-gray-700">{message.content}</p>
                 <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
-                  <span>{new Date(message.sent_at).toLocaleString('fr-FR')}</span>
-                  {message.sender_id !== currentUserId && <span>Par {names.get(message.sender_id) || 'un autre compte'}</span>}
+                  <span>{new Date(message.sent_at).toLocaleString(locale())}</span>
+                  {message.sender_id !== currentUserId && <span>{t("Par")} {names.get(message.sender_id) || t("un autre compte")}</span>}
                   {message.is_read ? (
-                    <span className="flex items-center gap-1 text-green-600"><Check className="h-3.5 w-3.5" /> Lu</span>
+                    <span className="flex items-center gap-1 text-green-600"><Check className="h-3.5 w-3.5" /> {t("Lu")}</span>
                   ) : (
-                    <span className="flex items-center gap-1"><Clock3 className="h-3.5 w-3.5" /> Non lu</span>
+                    <span className="flex items-center gap-1"><Clock3 className="h-3.5 w-3.5" /> {t("Non lu")}</span>
                   )}
                 </p>
               </li>

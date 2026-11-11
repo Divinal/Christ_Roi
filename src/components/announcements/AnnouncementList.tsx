@@ -3,10 +3,11 @@ import { Bell } from 'lucide-react';
 import { Announcement, PRIORITY_CLASSES, PRIORITY_LABELS } from '../../lib/announcements';
 import { formatDate } from '../../lib/grades';
 import { EmptyState } from '../ui/primitives';
+import { t } from '../../i18n';
 
 const AnnouncementList: React.FC<{ announcements: Announcement[] }> = ({ announcements }) => {
   if (announcements.length === 0) {
-    return <EmptyState icon={Bell} title="Aucune annonce pour le moment" />;
+    return <EmptyState icon={Bell} title={t("Aucune annonce pour le moment")} />;
   }
 
   return (
@@ -21,8 +22,8 @@ const AnnouncementList: React.FC<{ announcements: Announcement[] }> = ({ announc
           </div>
           <p className="whitespace-pre-wrap text-sm text-gray-700">{announcement.content}</p>
           <p className="mt-2 text-xs text-gray-500">
-            Publié le {formatDate(announcement.published_at)}
-            {announcement.expires_at && ` • Expire le ${formatDate(announcement.expires_at)}`}
+            {t("Publié le")} {formatDate(announcement.published_at)}
+            {announcement.expires_at && t(" • Expire le {0}", [formatDate(announcement.expires_at)])}
           </p>
         </li>
       ))}

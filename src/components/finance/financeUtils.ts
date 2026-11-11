@@ -1,5 +1,6 @@
+import { locale } from '../../i18n';
 export const formatFCFA = (amount: number): string =>
-  `${Math.round(amount).toLocaleString('fr-FR')} FCFA`;
+  `${Math.round(amount).toLocaleString(locale())} FCFA`;
 
 const shortId = (): string => crypto.randomUUID().slice(0, 8).toUpperCase();
 

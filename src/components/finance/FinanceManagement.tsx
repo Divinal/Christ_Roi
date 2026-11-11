@@ -8,6 +8,7 @@ import TuitionByLevel from './TuitionByLevel';
 import PayrollFlow from './PayrollFlow';
 import MonthlyComparisonTable from './MonthlyComparisonTable';
 import { CURRENT_ACADEMIC_YEAR } from '../../lib/levels';
+import { t } from '../../i18n';
 
 // Les années précédentes restent consultables.
 const ACADEMIC_YEARS = ['2025-2026', CURRENT_ACADEMIC_YEAR, '2027-2028'];
@@ -54,7 +55,7 @@ const FinanceManagement: React.FC = () => {
   return (
     <div className="bg-white rounded-xl shadow p-4 md:p-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
-        <h2 className="text-xl md:text-2xl font-bold">Gestion Financière</h2>
+        <h2 className="text-xl md:text-2xl font-bold">{t("Gestion Financière")}</h2>
         <select
           value={financeAcademicYear}
           onChange={(e) => setFinanceAcademicYear(e.target.value)}
@@ -68,10 +69,10 @@ const FinanceManagement: React.FC = () => {
 
       <div className="flex gap-2 mb-6 overflow-x-auto border-b">
         {[
-          { id: 'budget', label: 'Budget Prévisionnel' },
-          { id: 'revenue', label: 'Recettes' },
-          { id: 'expense', label: 'Dépenses' },
-          { id: 'comparison', label: 'Comparaison' },
+          { id: 'budget', label: t("Budget Prévisionnel") },
+          { id: 'revenue', label: t("Recettes") },
+          { id: 'expense', label: t("Dépenses") },
+          { id: 'comparison', label: t("Comparaison") },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -90,12 +91,12 @@ const FinanceManagement: React.FC = () => {
       {financeSubTab === 'budget' && (
         <div className="space-y-8">
           <div>
-            <h3 className="text-lg font-bold mb-3">Recettes prévisionnelles</h3>
+            <h3 className="text-lg font-bold mb-3">{t("Recettes prévisionnelles")}</h3>
             <CategoryQuickAdd kind="revenue" categories={financialCategories} onChanged={loadFinancialCategories} />
             <BudgetGrid kind="revenue" academicYear={financeAcademicYear} categories={financialCategories} />
           </div>
           <div>
-            <h3 className="text-lg font-bold mb-3">Dépenses prévisionnelles</h3>
+            <h3 className="text-lg font-bold mb-3">{t("Dépenses prévisionnelles")}</h3>
             <CategoryQuickAdd kind="expense" categories={financialCategories} onChanged={loadFinancialCategories} />
             <BudgetGrid kind="expense" academicYear={financeAcademicYear} categories={financialCategories} />
           </div>
@@ -105,11 +106,11 @@ const FinanceManagement: React.FC = () => {
       {financeSubTab === 'revenue' && (
         <div className="space-y-8">
           <div>
-            <h3 className="text-lg font-bold mb-3">Frais de scolarité par niveau</h3>
+            <h3 className="text-lg font-bold mb-3">{t("Frais de scolarité par niveau")}</h3>
             <TuitionByLevel academicYear={financeAcademicYear} />
           </div>
           <div>
-            <h3 className="text-lg font-bold mb-3">Autres recettes (subventions, etc.)</h3>
+            <h3 className="text-lg font-bold mb-3">{t("Autres recettes (subventions, etc.)")}</h3>
             <TransactionsPanel kind="revenue" academicYear={financeAcademicYear} categories={financialCategories} />
           </div>
         </div>
@@ -118,11 +119,11 @@ const FinanceManagement: React.FC = () => {
       {financeSubTab === 'expense' && (
         <div className="space-y-8">
           <div>
-            <h3 className="text-lg font-bold mb-3">Paie des enseignants</h3>
+            <h3 className="text-lg font-bold mb-3">{t("Paie des enseignants")}</h3>
             <PayrollFlow teachers={teachers} academicYear={financeAcademicYear} onTeacherRateUpdated={loadTeachers} />
           </div>
           <div>
-            <h3 className="text-lg font-bold mb-3">Autres dépenses (loyer, déplacements, etc.)</h3>
+            <h3 className="text-lg font-bold mb-3">{t("Autres dépenses (loyer, déplacements, etc.)")}</h3>
             <TransactionsPanel kind="expense" academicYear={financeAcademicYear} categories={financialCategories} />
           </div>
         </div>

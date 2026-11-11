@@ -5,6 +5,7 @@ import { ACADEMIC_MONTHS, FinancialCategory, FinancialKind, FinancialTransaction
 import { formatFCFA } from './financeUtils';
 import VoucherPrintable from './VoucherPrintable';
 import { confirmDialog, notify } from '../ui/feedback';
+import { t as tr, locale } from '../../i18n';
 
 interface TransactionsPanelProps {
   kind: FinancialKind;
@@ -52,7 +53,7 @@ const TransactionsPanel: React.FC<TransactionsPanelProps> = ({ kind, academicYea
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!categoryId || !amount) {
-      notify('Veuillez sélectionner une catégorie et un montant');
+      notify(tr("Veuillez sélectionner une catégorie et un montant"));
       return;
     }
 
@@ -75,7 +76,7 @@ const TransactionsPanel: React.FC<TransactionsPanelProps> = ({ kind, academicYea
   };
 
   const handleDelete = async (id: string) => {
-    if (!await confirmDialog('Supprimer cette opération ?')) return;
+    if (!await confirmDialog(tr("Supprimer cette opération ?"))) return;
     const { error } = await supabase.from('financial_transactions').delete().eq('id', id);
     if (error) notify(`❌ Erreur: ${error.message}`);
     else loadTransactions();
@@ -92,7 +93,7 @@ const TransactionsPanel: React.FC<TransactionsPanelProps> = ({ kind, academicYea
           className="border rounded px-3 py-2"
           required
         >
-          <option value="">Catégorie...</option>
+          <option value="">{tr("Catégorie...")}</option>
           {relevantCategories.map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
@@ -106,7 +107,7 @@ const TransactionsPanel: React.FC<TransactionsPanelProps> = ({ kind, academicYea
           type="number"
           min="0"
           step="0.01"
-          placeholder="Montant"
+          placeholder={tr("Montant")}
           value={amount}
           onChange={(e) => setAmount(e.target.value ? parseFloat(e.target.value) : '')}
           className="border rounded px-3 py-2"
@@ -120,30 +121,30 @@ const TransactionsPanel: React.FC<TransactionsPanelProps> = ({ kind, academicYea
         />
         <input
           type="text"
-          placeholder="Description (optionnel)"
+          placeholder={tr("Description (optionnel)")}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           className="border rounded px-3 py-2"
         />
         <button type="submit" className="md:col-span-5 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700">
-          Enregistrer
+          {tr("Enregistrer")}
         </button>
       </form>
 
       {loading ? (
-        <p className="text-center py-8">Chargement...</p>
+        <p className="text-center py-8">{tr("Chargement...")}</p>
       ) : (
         <>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-100">
                 <tr>
-                  <th className="px-3 py-2 text-left">Catégorie</th>
-                  <th className="px-3 py-2 text-left">Période</th>
-                  <th className="px-3 py-2 text-left">Date</th>
-                  <th className="px-3 py-2 text-left">Description</th>
-                  <th className="px-3 py-2 text-right">Montant</th>
-                  <th className="px-3 py-2 text-center">Actions</th>
+                  <th className="px-3 py-2 text-start">{tr("Catégorie")}</th>
+                  <th className="px-3 py-2 text-start">{tr("Période")}</th>
+                  <th className="px-3 py-2 text-start">{tr("Date")}</th>
+                  <th className="px-3 py-2 text-start">{tr("Description")}</th>
+                  <th className="px-3 py-2 text-end">{tr("Montant")}</th>
+                  <th className="px-3 py-2 text-center">{tr("Actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -151,15 +152,15 @@ const TransactionsPanel: React.FC<TransactionsPanelProps> = ({ kind, academicYea
                   <tr key={t.id} className="border-b hover:bg-gray-50">
                     <td className="px-3 py-2">{t.financial_categories?.name}</td>
                     <td className="px-3 py-2">{monthLabel(t.month)} {t.academic_year}</td>
-                    <td className="px-3 py-2">{new Date(t.transaction_date).toLocaleDateString('fr-FR')}</td>
+                    <td className="px-3 py-2">{new Date(t.transaction_date).toLocaleDateString(locale())}</td>
                     <td className="px-3 py-2 text-gray-600">{t.description || '-'}</td>
-                    <td className="px-3 py-2 text-right font-semibold">{formatFCFA(t.amount)}</td>
+                    <td className="px-3 py-2 text-end font-semibold">{formatFCFA(t.amount)}</td>
                     <td className="px-3 py-2 text-center">
                       <div className="flex gap-2 justify-center">
-                        <button onClick={() => setPrinting(t)} className="text-blue-600 hover:bg-blue-50 p-1 rounded" title="Imprimer">
+                        <button onClick={() => setPrinting(t)} className="text-blue-600 hover:bg-blue-50 p-1 rounded" title={tr("Imprimer")}>
                           <Printer className="w-4 h-4" />
                         </button>
-                        <button onClick={() => handleDelete(t.id)} className="text-red-600 hover:bg-red-50 p-1 rounded" title="Supprimer">
+                        <button onClick={() => handleDelete(t.id)} className="text-red-600 hover:bg-red-50 p-1 rounded" title={tr("Supprimer")}>
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -168,13 +169,13 @@ const TransactionsPanel: React.FC<TransactionsPanelProps> = ({ kind, academicYea
                 ))}
                 {transactions.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="text-center text-gray-500 py-6">Aucune opération enregistrée</td>
+                    <td colSpan={6} className="text-center text-gray-500 py-6">{tr("Aucune opération enregistrée")}</td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
-          <p className="text-right font-bold mt-3">Total {kind === 'expense' ? 'dépenses' : 'recettes'} : {formatFCFA(total)}</p>
+          <p className="text-end font-bold mt-3">{tr("Total")} {kind === 'expense' ? tr("dépenses") : 'recettes'} : {formatFCFA(total)}</p>
         </>
       )}
 

@@ -10,6 +10,7 @@ import LoginModal from './components/LoginModal';
 import { PublicPage } from './components/PublicHeader';
 import { FeedbackHost } from './components/ui/feedback';
 import { User } from './types';
+import { t } from './i18n';
 
 // Chargés à la demande : un visiteur du site public ne télécharge pas les espaces connectés.
 const StudentDashboard = lazy(() => import('./pages/StudentDashboard'));
@@ -25,12 +26,12 @@ const PAGE_SEO: Record<PublicPage, { title: string; description: string }> = {
     description: siteConfig.hero.description,
   },
   contact: {
-    title: `Contact — ${siteConfig.schoolName}`,
-    description: `Contactez ${siteConfig.schoolName} : adresse, téléphone et email.`,
+    title: t("Contact — {0}", [siteConfig.schoolName]),
+    description: t("Contactez {0} : adresse, téléphone et email.", [siteConfig.schoolName]),
   },
   privacy: {
-    title: `Politique de confidentialité — ${siteConfig.schoolName}`,
-    description: `Politique de confidentialité de ${siteConfig.schoolName}.`,
+    title: t("Politique de confidentialité — {0}", [siteConfig.schoolName]),
+    description: t("Politique de confidentialité de {0}.", [siteConfig.schoolName]),
   },
 };
 
@@ -57,7 +58,7 @@ const Spinner: React.FC = () => (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center">
     <div className="text-center">
       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-      <p className="mt-4 text-gray-600">Chargement...</p>
+      <p className="mt-4 text-gray-600">{t("Chargement...")}</p>
     </div>
   </div>
 );
@@ -109,7 +110,7 @@ const App: React.FC = () => {
       document.title = seo.title;
       setMetaDescription(seo.description);
     } else {
-      document.title = `Mon espace — ${siteConfig.schoolName}`;
+      document.title = t("Mon espace — {0}", [siteConfig.schoolName]);
     }
   }, [currentPage]);
 

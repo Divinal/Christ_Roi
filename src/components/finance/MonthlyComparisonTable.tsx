@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { ACADEMIC_MONTHS } from './financeTypes';
 import { formatFCFA } from './financeUtils';
+import { t } from '../../i18n';
 
 interface MonthRow {
   month: number;
@@ -82,7 +83,7 @@ const MonthlyComparisonTable: React.FC<MonthlyComparisonTableProps> = ({ academi
     setLoading(false);
   };
 
-  if (loading) return <p className="text-center py-8">Chargement...</p>;
+  if (loading) return <p className="text-center py-8">{t("Chargement...")}</p>;
 
   const ordered = ACADEMIC_MONTHS.map((m) => rows[m.month]);
   const totals = ordered.reduce(
@@ -100,13 +101,13 @@ const MonthlyComparisonTable: React.FC<MonthlyComparisonTableProps> = ({ academi
       <table className="w-full text-sm">
         <thead className="bg-gray-100">
           <tr>
-            <th className="px-3 py-2 text-left">Mois</th>
-            <th className="px-3 py-2 text-right">Prév. Recettes</th>
-            <th className="px-3 py-2 text-right">Réal. Recettes</th>
-            <th className="px-3 py-2 text-right">Prév. Dépenses</th>
-            <th className="px-3 py-2 text-right">Réal. Dépenses</th>
-            <th className="px-3 py-2 text-right">Solde Prév.</th>
-            <th className="px-3 py-2 text-right">Solde Réal.</th>
+            <th className="px-3 py-2 text-start">{t("Mois")}</th>
+            <th className="px-3 py-2 text-end">{t("Prév. Recettes")}</th>
+            <th className="px-3 py-2 text-end">{t("Réal. Recettes")}</th>
+            <th className="px-3 py-2 text-end">{t("Prév. Dépenses")}</th>
+            <th className="px-3 py-2 text-end">{t("Réal. Dépenses")}</th>
+            <th className="px-3 py-2 text-end">{t("Solde Prév.")}</th>
+            <th className="px-3 py-2 text-end">{t("Solde Réal.")}</th>
           </tr>
         </thead>
         <tbody>
@@ -117,14 +118,14 @@ const MonthlyComparisonTable: React.FC<MonthlyComparisonTableProps> = ({ academi
             return (
               <tr key={m.month} className="border-b hover:bg-gray-50">
                 <td className="px-3 py-2 font-medium">{m.label}</td>
-                <td className="px-3 py-2 text-right">{formatFCFA(r.prevRevenue)}</td>
-                <td className="px-3 py-2 text-right">{formatFCFA(r.realRevenue)}</td>
-                <td className="px-3 py-2 text-right">{formatFCFA(r.prevExpense)}</td>
-                <td className="px-3 py-2 text-right">{formatFCFA(r.realExpense)}</td>
-                <td className={`px-3 py-2 text-right font-medium ${solPrev >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <td className="px-3 py-2 text-end">{formatFCFA(r.prevRevenue)}</td>
+                <td className="px-3 py-2 text-end">{formatFCFA(r.realRevenue)}</td>
+                <td className="px-3 py-2 text-end">{formatFCFA(r.prevExpense)}</td>
+                <td className="px-3 py-2 text-end">{formatFCFA(r.realExpense)}</td>
+                <td className={`px-3 py-2 text-end font-medium ${solPrev >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {formatFCFA(solPrev)}
                 </td>
-                <td className={`px-3 py-2 text-right font-medium ${solReal >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <td className={`px-3 py-2 text-end font-medium ${solReal >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {formatFCFA(solReal)}
                 </td>
               </tr>
@@ -133,15 +134,15 @@ const MonthlyComparisonTable: React.FC<MonthlyComparisonTableProps> = ({ academi
         </tbody>
         <tfoot>
           <tr className="bg-gray-100 font-bold">
-            <td className="px-3 py-2">Total annuel</td>
-            <td className="px-3 py-2 text-right">{formatFCFA(totals.prevRevenue)}</td>
-            <td className="px-3 py-2 text-right">{formatFCFA(totals.realRevenue)}</td>
-            <td className="px-3 py-2 text-right">{formatFCFA(totals.prevExpense)}</td>
-            <td className="px-3 py-2 text-right">{formatFCFA(totals.realExpense)}</td>
-            <td className="px-3 py-2 text-right">
+            <td className="px-3 py-2">{t("Total annuel")}</td>
+            <td className="px-3 py-2 text-end">{formatFCFA(totals.prevRevenue)}</td>
+            <td className="px-3 py-2 text-end">{formatFCFA(totals.realRevenue)}</td>
+            <td className="px-3 py-2 text-end">{formatFCFA(totals.prevExpense)}</td>
+            <td className="px-3 py-2 text-end">{formatFCFA(totals.realExpense)}</td>
+            <td className="px-3 py-2 text-end">
               {formatFCFA(totals.prevRevenue - totals.prevExpense)}
             </td>
-            <td className="px-3 py-2 text-right">
+            <td className="px-3 py-2 text-end">
               {formatFCFA(totals.realRevenue - totals.realExpense)}
             </td>
           </tr>

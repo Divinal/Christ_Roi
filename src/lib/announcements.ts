@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { t } from '../i18n';
 
 export interface Announcement {
   id: string;
@@ -12,10 +13,10 @@ export interface Announcement {
 }
 
 export const PRIORITY_LABELS: Record<Announcement['priority'], string> = {
-  low: 'Basse',
-  normal: 'Normale',
-  high: 'Élevée',
-  urgent: 'Urgente',
+  low: t("Basse"),
+  normal: t("Normale"),
+  high: t("Élevée"),
+  urgent: t("Urgente"),
 };
 
 export const PRIORITY_CLASSES: Record<Announcement['priority'], string> = {
@@ -26,9 +27,9 @@ export const PRIORITY_CLASSES: Record<Announcement['priority'], string> = {
 };
 
 export const AUDIENCE_LABELS: Record<Announcement['target_audience'], string> = {
-  all: 'Tous',
-  students: 'Étudiants',
-  teachers: 'Enseignants',
+  all: t("Tous"),
+  students: t("Étudiants"),
+  teachers: t("Enseignants"),
 };
 
 // Une annonce reste visible toute la journée de sa date d'expiration.

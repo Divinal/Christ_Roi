@@ -5,6 +5,7 @@ import { CYCLES, Level, SchoolCycle, levelsOfCycle } from '../../lib/levels';
 import { confirmDialog, notify, promptDialog } from '../ui/feedback';
 import LevelSelect from './LevelSelect';
 import StudentListPrint from './StudentListPrint';
+import { t } from '../../i18n';
 
 export interface EnrollableStudent {
   id: string;
@@ -51,7 +52,7 @@ const LevelsManagement: React.FC<LevelsManagementProps> = ({
     if (error) {
       notify(`❌ Erreur: ${error.message}`);
     } else if (!data?.length) {
-      notify("❌ Modification refusée : vous n'avez pas les droits nécessaires.");
+      notify(t("❌ Modification refusée : vous n'avez pas les droits nécessaires."));
     } else {
       onStudentsChanged();
     }
@@ -66,7 +67,7 @@ const LevelsManagement: React.FC<LevelsManagementProps> = ({
     const { error } = await supabase.from('levels').insert({ cycle: activeCycle, name, position });
 
     if (error) {
-      notify(error.code === '23505' ? `⚠️ Le niveau « ${name} » existe déjà.` : `❌ Erreur: ${error.message}`);
+      notify(error.code === '23505' ? t("⚠️ Le niveau « {0} » existe déjà.", [name]) : `❌ Erreur: ${error.message}`);
       return;
     }
     setNewLevelName('');
@@ -75,16 +76,16 @@ const LevelsManagement: React.FC<LevelsManagementProps> = ({
 
   const handleRenameLevel = async (level: Level) => {
     const name = await promptDialog({
-      title: 'Modifier le niveau',
-      inputLabel: 'Nom du niveau',
+      title: t("Modifier le niveau"),
+      inputLabel: t("Nom du niveau"),
       defaultValue: level.name,
-      confirmLabel: 'Enregistrer',
+      confirmLabel: t("Enregistrer"),
     });
     if (!name || name === level.name) return;
 
     const { error } = await supabase.from('levels').update({ name }).eq('id', level.id);
     if (error) {
-      notify(error.code === '23505' ? `⚠️ Le niveau « ${name} » existe déjà.` : `❌ Erreur: ${error.message}`);
+      notify(error.code === '23505' ? t("⚠️ Le niveau « {0} » existe déjà.", [name]) : `❌ Erreur: ${error.message}`);
       return;
     }
     onLevelsChanged();
@@ -93,10 +94,10 @@ const LevelsManagement: React.FC<LevelsManagementProps> = ({
   const handleDeleteLevel = async (level: Level) => {
     const enrolled = studentsOfLevel(level.id).length;
     if (enrolled > 0) {
-      notify(`⚠️ Impossible : ${enrolled} étudiant(s) sont inscrits en ${level.name}. Changez-les de niveau d'abord.`);
+      notify(t("⚠️ Impossible : {0} étudiant(s) sont inscrits en {1}. Changez-les de niveau d'abord.", [enrolled, level.name]));
       return;
     }
-    if (!await confirmDialog(`⚠️ Supprimer le niveau « ${level.name} » et ses créneaux d'emploi du temps ?`)) return;
+    if (!await confirmDialog(t("⚠️ Supprimer le niveau « {0} » et ses créneaux d'emploi du temps ?", [level.name]))) return;
 
     const { error } = await supabase.from('levels').delete().eq('id', level.id);
     if (error) {
@@ -109,16 +110,16 @@ const LevelsManagement: React.FC<LevelsManagementProps> = ({
 
   return (
     <div className="bg-white rounded-xl shadow p-4 md:p-6">
-      <h2 className="text-xl md:text-2xl font-bold mb-1">Cycles &amp; Niveaux</h2>
+      <h2 className="text-xl md:text-2xl font-bold mb-1">{t("Cycles & Niveaux")}</h2>
       <p className="text-sm text-gray-600 mb-6">
-        Chaque étudiant est inscrit directement dans son niveau. {students.length} étudiant(s) au total.
+        {t("Chaque étudiant est inscrit directement dans son niveau.")} {students.length} {t("étudiant(s) au total.")}
       </p>
 
       {unenrolled.length > 0 && (
         <div className="mb-6 border border-orange-200 bg-orange-50 rounded-lg p-4">
           <h3 className="font-semibold text-orange-700 flex items-center gap-2 mb-3">
             <AlertTriangle className="w-5 h-5" />
-            {unenrolled.length} étudiant(s) à inscrire
+            {unenrolled.length} {t("étudiant(s) à inscrire")}
           </h3>
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {unenrolled.map((student) => (
@@ -130,9 +131,9 @@ const LevelsManagement: React.FC<LevelsManagementProps> = ({
                   levels={levels}
                   value=""
                   onChange={(levelId) => levelId && enroll(student.id, levelId)}
-                  placeholder="Inscrire en..."
+                  placeholder={t("Inscrire en...")}
                   className="border rounded px-3 py-1.5 text-sm sm:w-56"
-                  ariaLabel={`Niveau de ${student.profiles?.first_name} ${student.profiles?.last_name}`}
+                  ariaLabel={t("Niveau de {0} {1}", [student.profiles?.first_name, student.profiles?.last_name])}
                 />
               </div>
             ))}
@@ -176,20 +177,20 @@ const LevelsManagement: React.FC<LevelsManagementProps> = ({
               <div className="flex justify-between items-start gap-2">
                 <button
                   onClick={() => setSelectedLevelId(isSelected ? '' : level.id)}
-                  className="text-left flex-1 min-w-0"
+                  className="text-start flex-1 min-w-0"
                   aria-expanded={isSelected}
                 >
                   <h3 className="font-bold text-base md:text-lg">{level.name}</h3>
                   <p className="text-xs md:text-sm text-gray-600 flex items-center gap-1 mt-1">
-                    <Users className="w-4 h-4" /> {count} étudiant(s)
+                    <Users className="w-4 h-4" /> {count} {t("étudiant(s)")}
                   </p>
                 </button>
                 <div className="flex gap-1">
                   <button
                     onClick={() => setPrintLevelId(level.id)}
                     className="text-gray-700 hover:bg-gray-100 p-2 rounded"
-                    title="Imprimer la liste"
-                    aria-label={`Imprimer la liste de ${level.name}`}
+                    title={t("Imprimer la liste")}
+                    aria-label={t("Imprimer la liste de {0}", [level.name])}
                   >
                     <Printer className="w-4 h-4" />
                   </button>
@@ -198,16 +199,16 @@ const LevelsManagement: React.FC<LevelsManagementProps> = ({
                       <button
                         onClick={() => handleRenameLevel(level)}
                         className="text-blue-600 hover:bg-blue-50 p-2 rounded"
-                        title="Modifier"
-                        aria-label={`Modifier ${level.name}`}
+                        title={t("Modifier")}
+                        aria-label={t("Modifier {0}", [level.name])}
                       >
                         <Edit className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDeleteLevel(level)}
                         className="text-red-600 hover:bg-red-50 p-2 rounded"
-                        title="Supprimer"
-                        aria-label={`Supprimer ${level.name}`}
+                        title={t("Supprimer")}
+                        aria-label={t("Supprimer {0}", [level.name])}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -226,15 +227,15 @@ const LevelsManagement: React.FC<LevelsManagementProps> = ({
             type="text"
             value={newLevelName}
             onChange={(e) => setNewLevelName(e.target.value)}
-            placeholder={`Ajouter un niveau en ${CYCLES.find((c) => c.id === activeCycle)?.label}...`}
-            aria-label="Nom du nouveau niveau"
+            placeholder={t("Ajouter un niveau en {0}...", [CYCLES.find((c) => c.id === activeCycle)?.label])}
+            aria-label={t("Nom du nouveau niveau")}
             className="border rounded-lg px-3 py-2 flex-1"
           />
           <button
             type="submit"
             className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center justify-center gap-2"
           >
-            <Plus className="w-4 h-4" /> Ajouter
+            <Plus className="w-4 h-4" /> {t("Ajouter")}
           </button>
         </form>
       )}
@@ -242,25 +243,25 @@ const LevelsManagement: React.FC<LevelsManagementProps> = ({
       {selectedLevel && (
         <div>
           <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-            <h3 className="text-lg font-bold">Étudiants inscrits en {selectedLevel.name}</h3>
+            <h3 className="text-lg font-bold">{t("Étudiants inscrits en")} {selectedLevel.name}</h3>
             <button
               onClick={() => setPrintLevelId(selectedLevel.id)}
               className="flex items-center gap-2 border rounded-lg px-3 py-2 text-sm hover:bg-gray-100"
             >
-              <Printer className="w-4 h-4" /> Imprimer la liste
+              <Printer className="w-4 h-4" /> {t("Imprimer la liste")}
             </button>
           </div>
           {studentsOfLevel(selectedLevel.id).length === 0 ? (
-            <p className="text-center py-6 text-gray-500">Aucun étudiant inscrit dans ce niveau</p>
+            <p className="text-center py-6 text-gray-500">{t("Aucun étudiant inscrit dans ce niveau")}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[520px] text-sm">
                 <thead className="bg-gray-100">
                   <tr>
-                    <th className="px-3 py-2 text-left">Matricule</th>
-                    <th className="px-3 py-2 text-left">Nom</th>
-                    <th className="px-3 py-2 text-left">Changer de niveau</th>
-                    <th className="px-3 py-2 text-left">Retirer</th>
+                    <th className="px-3 py-2 text-start">{t("Matricule")}</th>
+                    <th className="px-3 py-2 text-start">{t("Nom")}</th>
+                    <th className="px-3 py-2 text-start">{t("Changer de niveau")}</th>
+                    <th className="px-3 py-2 text-start">{t("Retirer")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -274,19 +275,19 @@ const LevelsManagement: React.FC<LevelsManagementProps> = ({
                           value={selectedLevel.id}
                           onChange={(levelId) => levelId && enroll(student.id, levelId)}
                           className="border rounded px-2 py-1"
-                          ariaLabel={`Niveau de ${student.profiles?.first_name} ${student.profiles?.last_name}`}
+                          ariaLabel={t("Niveau de {0} {1}", [student.profiles?.first_name, student.profiles?.last_name])}
                         />
                       </td>
                       <td className="px-3 py-2">
                         <button
                           onClick={async () => {
-                            if (await confirmDialog(`⚠️ Retirer cet étudiant du niveau ${selectedLevel.name} ?`)) {
+                            if (await confirmDialog(t("⚠️ Retirer cet étudiant du niveau {0} ?", [selectedLevel.name]))) {
                               enroll(student.id, null);
                             }
                           }}
                           className="text-red-600 hover:bg-red-50 p-2 rounded"
-                          title="Retirer du niveau"
-                          aria-label={`Retirer ${student.profiles?.first_name} ${student.profiles?.last_name} du niveau`}
+                          title={t("Retirer du niveau")}
+                          aria-label={t("Retirer {0} {1} du niveau", [student.profiles?.first_name, student.profiles?.last_name])}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>

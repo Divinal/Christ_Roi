@@ -3,6 +3,7 @@ import { Plus, X } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { FinancialCategory, FinancialKind } from './financeTypes';
 import { confirmDialog, notify } from '../ui/feedback';
+import { t } from '../../i18n';
 
 interface CategoryQuickAddProps {
   kind: FinancialKind;
@@ -34,7 +35,7 @@ const CategoryQuickAdd: React.FC<CategoryQuickAddProps> = ({ kind, categories, o
   };
 
   const handleDeactivate = async (categoryId: string) => {
-    if (!await confirmDialog('Masquer cette catégorie ? Son historique sera conservé.')) return;
+    if (!await confirmDialog(t("Masquer cette catégorie ? Son historique sera conservé."))) return;
     const { error } = await supabase
       .from('financial_categories')
       .update({ is_active: false })
@@ -52,7 +53,7 @@ const CategoryQuickAdd: React.FC<CategoryQuickAddProps> = ({ kind, categories, o
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder={kind === 'expense' ? 'Nouvelle catégorie de dépense' : 'Nouvelle catégorie de recette'}
+            placeholder={kind === 'expense' ? t("Nouvelle catégorie de dépense") : t("Nouvelle catégorie de recette")}
             className="border rounded px-3 py-2 text-sm w-56"
           />
           <button
@@ -60,14 +61,14 @@ const CategoryQuickAdd: React.FC<CategoryQuickAddProps> = ({ kind, categories, o
             className="bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-1 text-sm"
           >
             <Plus className="w-4 h-4" />
-            Ajouter
+            {t("Ajouter")}
           </button>
         </form>
         <button
           onClick={() => setShowList(!showList)}
           className="text-sm text-blue-600 hover:underline"
         >
-          {showList ? 'Masquer les catégories' : 'Gérer les catégories'}
+          {showList ? t("Masquer les catégories") : t("Gérer les catégories")}
         </button>
       </div>
 
@@ -82,7 +83,7 @@ const CategoryQuickAdd: React.FC<CategoryQuickAddProps> = ({ kind, categories, o
             >
               {cat.name}
               {!cat.is_system && cat.is_active && (
-                <button onClick={() => handleDeactivate(cat.id)} title="Masquer">
+                <button onClick={() => handleDeactivate(cat.id)} title={t("Masquer")}>
                   <X className="w-3 h-3" />
                 </button>
               )}

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import PrintPreview, { DocumentHeader } from '../print/PrintPreview';
 import { CURRENT_ACADEMIC_YEAR, Level, cycleLabel } from '../../lib/levels';
 import { formatDate } from '../../lib/grades';
+import { t, locale, isolate } from '../../i18n';
 
 export interface PrintableStudent {
   id: string;
@@ -15,10 +16,10 @@ export interface PrintableStudent {
 type OptionalColumn = 'birth' | 'phone' | 'email' | 'signature';
 
 const COLUMN_LABELS: Record<OptionalColumn, string> = {
-  birth: 'Date de naissance',
-  phone: 'Téléphone',
-  email: 'Email',
-  signature: 'Colonne vide (émargement)',
+  birth: t("Date de naissance"),
+  phone: t("Téléphone"),
+  email: t("Email"),
+  signature: t("Colonne vide (émargement)"),
 };
 
 interface StudentListPrintProps {
@@ -52,11 +53,11 @@ const StudentListPrint: React.FC<StudentListPrintProps> = ({ level, students, on
 
   return (
     <PrintPreview
-      title={`Liste des étudiants — ${level.name}`}
+      title={t("Liste des étudiants — {0}", [level.name])}
       onClose={onClose}
       controls={
         <fieldset className="flex flex-wrap gap-x-5 gap-y-2">
-          <legend className="sr-only">Colonnes à imprimer</legend>
+          <legend className="sr-only">{t("Colonnes à imprimer")}</legend>
           {(Object.keys(COLUMN_LABELS) as OptionalColumn[]).map((column) => (
             <label key={column} className="flex items-center gap-2">
               <input
@@ -71,28 +72,28 @@ const StudentListPrint: React.FC<StudentListPrintProps> = ({ level, students, on
       }
     >
       <DocumentHeader
-        title="Liste des étudiants"
-        subtitle={`${level.name} — ${cycleLabel(level.cycle)}`}
+        title={t("Liste des étudiants")}
+        subtitle={`${isolate(level.name)} — ${cycleLabel(level.cycle)}`}
         meta={[
-          ['Année scolaire', CURRENT_ACADEMIC_YEAR],
-          ['Effectif', rows.length],
-          ['Édité le', new Date().toLocaleDateString('fr-FR')],
+          [t("Année scolaire"), CURRENT_ACADEMIC_YEAR],
+          [t("Effectif"), rows.length],
+          [t("Édité le"), new Date().toLocaleDateString(locale())],
         ]}
       />
       {rows.length === 0 ? (
-        <p className="print-doc-empty">Aucun étudiant inscrit dans ce niveau.</p>
+        <p className="print-doc-empty">{t("Aucun étudiant inscrit dans ce niveau.")}</p>
       ) : (
         <table>
           <thead>
             <tr>
               <th className="print-doc-narrow">N°</th>
-              <th>Matricule</th>
-              <th>Nom</th>
-              <th>Prénom</th>
-              {columns.birth && <th>Date de naissance</th>}
-              {columns.phone && <th>Téléphone</th>}
-              {columns.email && <th>Email</th>}
-              {columns.signature && <th className="print-doc-signature">Émargement</th>}
+              <th>{t("Matricule")}</th>
+              <th>{t("Nom")}</th>
+              <th>{t("Prénom")}</th>
+              {columns.birth && <th>{t("Date de naissance")}</th>}
+              {columns.phone && <th>{t("Téléphone")}</th>}
+              {columns.email && <th>{t("Email")}</th>}
+              {columns.signature && <th className="print-doc-signature">{t("Émargement")}</th>}
             </tr>
           </thead>
           <tbody>

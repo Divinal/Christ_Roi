@@ -1,9 +1,10 @@
+import { t, locale } from '../i18n';
 export const GRADE_TYPES: { value: string; label: string }[] = [
-  { value: 'CC1', label: 'CC1 (Contrôle Continu 1)' },
-  { value: 'CC2', label: 'CC2 (Contrôle Continu 2)' },
-  { value: 'CC3', label: 'CC3 (Contrôle Continu 3)' },
-  { value: 'E.Théorique', label: 'Examen Théorique' },
-  { value: 'E.Pratique', label: 'Examen Pratique' },
+  { value: 'CC1', label: t("CC1 (Contrôle Continu 1)") },
+  { value: 'CC2', label: t("CC2 (Contrôle Continu 2)") },
+  { value: 'CC3', label: t("CC3 (Contrôle Continu 3)") },
+  { value: 'E.Théorique', label: t("Examen Théorique") },
+  { value: 'E.Pratique', label: t("Examen Pratique") },
 ];
 
 export interface GradeRow {
@@ -45,7 +46,7 @@ export const gradeToneClass = (value: number | null | undefined): string => {
 };
 
 export const formatDate = (date?: string | null): string =>
-  date ? new Date(date).toLocaleDateString('fr-FR') : '-';
+  date ? new Date(date).toLocaleDateString(locale()) : '-';
 
 export const teacherNameOf = (grade: GradeRow): string => {
   const profile = grade.teachers?.profiles;
@@ -69,7 +70,7 @@ export const groupBySubject = (grades: GradeRow[]): SubjectGroup[] => {
   return Array.from(groups.entries())
     .map(([subjectId, rows]) => ({
       subjectId,
-      name: rows[0].subjects?.name || 'Matière inconnue',
+      name: rows[0].subjects?.name || t("Matière inconnue"),
       coefficient: effectiveCoefficient(rows[0]),
       average: weightedAverage(rows),
       grades: [...rows].sort((a, b) => (b.exam_date || '').localeCompare(a.exam_date || '')),

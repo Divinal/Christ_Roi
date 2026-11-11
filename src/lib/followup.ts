@@ -1,19 +1,20 @@
 import { supabase } from './supabaseClient';
 import { fetchAllRows } from './fetchAll';
 import { fetchProfileNames } from './messages';
+import { t } from '../i18n';
 
 export const ATTENDANCE_LABELS: Record<string, string> = {
-  present: 'Présent',
-  absent: 'Absent',
-  late: 'En retard',
-  excused: 'Absence justifiée',
+  present: t("Présent"),
+  absent: t("Absent"),
+  late: t("En retard"),
+  excused: t("Absence justifiée"),
 };
 
 export const CONDUCT_LABELS: Record<string, string> = {
-  excellent: 'Excellente',
-  good: 'Bonne',
-  fair: 'Passable',
-  concern: 'À surveiller',
+  excellent: t("Excellente"),
+  good: t("Bonne"),
+  fair: t("Passable"),
+  concern: t("À surveiller"),
 };
 
 export const ATTENDANCE_CLASSES: Record<string, string> = {
@@ -88,7 +89,7 @@ export const fetchReports = async (studentIds: string[], from: string, to: strin
 
   const names = await fetchProfileNames(rows.map((row) => row.author_id || ''));
   return rows
-    .map((row) => ({ ...row, author_name: names.get(row.author_id || '') || 'Compte supprimé' }))
+    .map((row) => ({ ...row, author_name: names.get(row.author_id || '') || t("Compte supprimé") }))
     .sort((a, b) => {
       const byDate = b.report_date.localeCompare(a.report_date);
       if (byDate !== 0) return byDate;

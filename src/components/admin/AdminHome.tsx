@@ -6,6 +6,7 @@ import { CYCLES, Level } from '../../lib/levels';
 import { Announcement, PRIORITY_CLASSES, PRIORITY_LABELS } from '../../lib/announcements';
 import { formatDate } from '../../lib/grades';
 import { Panel, StatTile } from '../ui/primitives';
+import { t } from '../../i18n';
 
 export type QuickAddType = 'student' | 'teacher' | 'subject' | 'schedule' | 'announcement';
 
@@ -21,11 +22,11 @@ interface AdminHomeProps {
 }
 
 const QUICK_ACTIONS: { label: string; icon: React.ElementType; tab: string; type: QuickAddType }[] = [
-  { label: 'Ajouter un étudiant', icon: UserPlus, tab: 'students', type: 'student' },
-  { label: 'Ajouter un enseignant', icon: UserPlus, tab: 'teachers', type: 'teacher' },
-  { label: 'Créer une matière', icon: Plus, tab: 'subjects', type: 'subject' },
-  { label: 'Ajouter un créneau', icon: Clock, tab: 'schedules', type: 'schedule' },
-  { label: 'Publier une annonce', icon: Bell, tab: 'announcements', type: 'announcement' },
+  { label: t("Ajouter un étudiant"), icon: UserPlus, tab: 'students', type: 'student' },
+  { label: t("Ajouter un enseignant"), icon: UserPlus, tab: 'teachers', type: 'teacher' },
+  { label: t("Créer une matière"), icon: Plus, tab: 'subjects', type: 'subject' },
+  { label: t("Ajouter un créneau"), icon: Clock, tab: 'schedules', type: 'schedule' },
+  { label: t("Publier une annonce"), icon: Bell, tab: 'announcements', type: 'announcement' },
 ];
 
 const AdminHome: React.FC<AdminHomeProps> = ({
@@ -49,26 +50,26 @@ const AdminHome: React.FC<AdminHomeProps> = ({
   return (
     <div className="space-y-4 md:space-y-6">
       <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
-        <StatTile icon={Users} tone="blue" label="Étudiants" value={students.length} />
-        <StatTile icon={BookOpen} tone="green" label="Enseignants" value={teacherCount} />
-        <StatTile icon={GraduationCap} tone="indigo" label="Niveaux" value={levels.length} />
-        <StatTile icon={FileText} tone="orange" label="Matières" value={subjectCount} />
+        <StatTile icon={Users} tone="blue" label={t("Étudiants")} value={students.length} />
+        <StatTile icon={BookOpen} tone="green" label={t("Enseignants")} value={teacherCount} />
+        <StatTile icon={GraduationCap} tone="indigo" label={t("Niveaux")} value={levels.length} />
+        <StatTile icon={FileText} tone="orange" label={t("Matières")} value={subjectCount} />
       </div>
 
       {unenrolled > 0 && (
         <button
           onClick={() => onNavigate('levels')}
-          className="flex w-full items-center gap-3 rounded-xl border border-orange-200 bg-orange-50 p-4 text-left hover:bg-orange-100"
+          className="flex w-full items-center gap-3 rounded-xl border border-orange-200 bg-orange-50 p-4 text-start hover:bg-orange-100"
         >
           <AlertTriangle className="h-5 w-5 shrink-0 text-orange-600" />
           <span className="text-sm text-orange-700">
-            <strong>{unenrolled} étudiant(s)</strong> ne sont inscrits dans aucun niveau. Cliquez pour les inscrire.
+            <strong>{unenrolled} {t("étudiant(s)")}</strong> {t("ne sont inscrits dans aucun niveau. Cliquez pour les inscrire.")}
           </span>
         </button>
       )}
 
       <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
-        <Panel title="Effectifs par cycle">
+        <Panel title={t("Effectifs par cycle")}>
           <ul className="space-y-3">
             {CYCLES.map((cycle) => {
               const count = enrolledOf(cycle.id);
@@ -91,7 +92,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({
         </Panel>
 
         {actions.length > 0 && (
-          <Panel title="Actions rapides">
+          <Panel title={t("Actions rapides")}>
             <div className="grid gap-2 sm:grid-cols-2">
               {actions.map((action) => {
                 const Icon = action.icon;
@@ -102,7 +103,7 @@ const AdminHome: React.FC<AdminHomeProps> = ({
                       onNavigate(action.tab);
                       onQuickAdd(action.type);
                     }}
-                    className="flex items-center gap-3 rounded-lg border p-3 text-left text-sm hover:bg-gray-100"
+                    className="flex items-center gap-3 rounded-lg border p-3 text-start text-sm hover:bg-gray-100"
                   >
                     <Icon className="h-5 w-5 shrink-0 text-indigo-600" />
                     {action.label}
@@ -116,15 +117,15 @@ const AdminHome: React.FC<AdminHomeProps> = ({
 
       {allowedTabs.includes('announcements') && (
         <Panel
-          title="Dernières annonces"
+          title={t("Dernières annonces")}
           actions={
             <button onClick={() => onNavigate('announcements')} className="text-sm text-indigo-600 hover:underline">
-              Tout voir
+              {t("Tout voir")}
             </button>
           }
         >
           {announcements.length === 0 ? (
-            <p className="py-4 text-center text-sm text-gray-500">Aucune annonce publiée</p>
+            <p className="py-4 text-center text-sm text-gray-500">{t("Aucune annonce publiée")}</p>
           ) : (
             <ul className="divide-y">
               {announcements.slice(0, 3).map((announcement) => (

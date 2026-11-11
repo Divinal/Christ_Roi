@@ -19,6 +19,7 @@ import { confirmDialog, notify } from '../ui/feedback';
 import { EmptyState, Panel, StatTile } from '../ui/primitives';
 import StudentGradesTable from './StudentGradesTable';
 import GradeReportPrint from './GradeReportPrint';
+import { t } from '../../i18n';
 
 interface OverviewRow {
   count: number;
@@ -196,7 +197,7 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
 
     const value = parseFloat(form.gradeValue);
     if (Number.isNaN(value) || value < 0 || value > 20) {
-      notify('⚠️ La note doit être comprise entre 0 et 20.');
+      notify(t("⚠️ La note doit être comprise entre 0 et 20."));
       return;
     }
 
@@ -216,9 +217,9 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
     if (error) {
       notify(`❌ Erreur: ${error.message}`);
     } else if (!data?.length) {
-      notify("❌ Modification refusée : vous n'avez pas les droits nécessaires.");
+      notify(t("❌ Modification refusée : vous n'avez pas les droits nécessaires."));
     } else {
-      notify('✅ Note modifiée');
+      notify(t("✅ Note modifiée"));
       setEditing(null);
       loadGrades(editing.student_id);
     }
@@ -226,8 +227,8 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
 
   const deleteGrade = async (grade: GradeRow) => {
     const confirmed = await confirmDialog(
-      `⚠️ Supprimer la note ${grade.grade_type} de ${grade.subjects?.name || 'cette matière'} (${formatGrade(grade.grade_value)}/20) ?`,
-      { title: 'Supprimer la note', confirmLabel: 'Supprimer' },
+      t("⚠️ Supprimer la note {0} de {1} ({2}/20) ?", [grade.grade_type, grade.subjects?.name || 'cette matière', formatGrade(grade.grade_value)]),
+      { title: t("Supprimer la note"), confirmLabel: t("Supprimer") },
     );
     if (!confirmed) return;
 
@@ -235,16 +236,16 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
     if (error) {
       notify(`❌ Erreur: ${error.message}`);
     } else if (!data?.length) {
-      notify("❌ Suppression refusée : vous n'avez pas les droits nécessaires.");
+      notify(t("❌ Suppression refusée : vous n'avez pas les droits nécessaires."));
     } else {
-      notify('✅ Note supprimée');
+      notify(t("✅ Note supprimée"));
       loadGrades(grade.student_id);
     }
   };
 
   const subjects = useMemo(() => {
     const names = new Map<string, string>();
-    grades.forEach((grade) => names.set(grade.subject_id, grade.subjects?.name || 'Matière inconnue'));
+    grades.forEach((grade) => names.set(grade.subject_id, grade.subjects?.name || t("Matière inconnue")));
     return Array.from(names.entries()).sort((a, b) => a[1].localeCompare(b[1], 'fr'));
   }, [grades]);
 
@@ -265,7 +266,7 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
       <Panel>
         <div className="grid gap-4 md:grid-cols-3">
           <div>
-            <label htmlFor="grades-level" className="mb-2 block text-sm font-medium">Niveau</label>
+            <label htmlFor="grades-level" className="mb-2 block text-sm font-medium">{t("Niveau")}</label>
             <LevelSelect
               id="grades-level"
               levels={levels}
@@ -274,13 +275,13 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
                 setLevelId(id);
                 setStudentId('');
               }}
-              placeholder="Choisir un niveau..."
+              placeholder={t("Choisir un niveau...")}
               className="w-full rounded-lg border px-3 py-2"
             />
           </div>
           <div>
             <label htmlFor="grades-student" className="mb-2 block text-sm font-medium">
-              Étudiant{levelId ? ` (${levelStudents.length})` : ''}
+              {t("Étudiant")}{levelId ? ` (${levelStudents.length})` : ''}
             </label>
             <select
               id="grades-student"
@@ -290,7 +291,7 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
               className="w-full rounded-lg border px-3 py-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <option value="">
-                {!levelId ? "Choisissez d'abord un niveau" : levelStudents.length ? 'Vue du niveau' : 'Aucun étudiant'}
+                {!levelId ? t("Choisissez d'abord un niveau") : levelStudents.length ? t("Vue du niveau") : t("Aucun étudiant")}
               </option>
               {levelStudents.map((student) => (
                 <option key={student.id} value={student.id}>
@@ -300,26 +301,26 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
             </select>
           </div>
           <div className="relative">
-            <label htmlFor="grades-search" className="mb-2 block text-sm font-medium">Rechercher un étudiant</label>
-            <Search className="pointer-events-none absolute left-3 top-[2.65rem] h-5 w-5 text-gray-400" />
+            <label htmlFor="grades-search" className="mb-2 block text-sm font-medium">{t("Rechercher un étudiant")}</label>
+            <Search className="pointer-events-none absolute start-3 top-[2.65rem] h-5 w-5 text-gray-400" />
             <input
               id="grades-search"
               type="text"
               value={search}
               autoComplete="off"
-              placeholder="Nom, matricule, email..."
+              placeholder={t("Nom, matricule, email...")}
               onChange={(event) => {
                 setSearch(event.target.value);
                 setSearchOpen(true);
               }}
               onFocus={() => setSearchOpen(true)}
               onBlur={() => window.setTimeout(() => setSearchOpen(false), 150)}
-              className="w-full rounded-lg border py-2 pl-10 pr-3"
+              className="w-full rounded-lg border py-2 ps-10 pe-3"
             />
             {searchOpen && search.trim() && (
               <ul className="absolute z-10 mt-1 max-h-72 w-full overflow-y-auto rounded-lg bg-white shadow-lg">
                 {searchResults.length === 0 ? (
-                  <li className="px-3 py-2 text-sm text-gray-500">Aucun étudiant trouvé</li>
+                  <li className="px-3 py-2 text-sm text-gray-500">{t("Aucun étudiant trouvé")}</li>
                 ) : (
                   searchResults.map((student) => (
                     <li key={student.id}>
@@ -327,11 +328,11 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
                         type="button"
                         onMouseDown={(event) => event.preventDefault()}
                         onClick={() => pickStudent(student)}
-                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100"
+                        className="w-full px-3 py-2 text-start text-sm hover:bg-gray-100"
                       >
                         <span className="font-medium">{fullName(student)}</span>
                         <span className="block text-xs text-gray-500">
-                          {student.student_number} • {student.levels?.name || 'Non inscrit'}
+                          {student.student_number} • {student.levels?.name || t("Non inscrit")}
                         </span>
                       </button>
                     </li>
@@ -347,28 +348,28 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
         <Panel>
           <EmptyState
             icon={FileText}
-            title={loadingStudents ? 'Chargement des étudiants...' : 'Choisissez un niveau pour commencer'}
-            hint="La liste de ses étudiants se charge, puis sélectionnez un étudiant pour afficher son tableau de notes. Vous pouvez aussi le rechercher directement."
+            title={loadingStudents ? t("Chargement des étudiants...") : t("Choisissez un niveau pour commencer")}
+            hint={t("La liste de ses étudiants se charge, puis sélectionnez un étudiant pour afficher son tableau de notes. Vous pouvez aussi le rechercher directement.")}
           />
         </Panel>
       )}
 
       {levelId && !selectedStudent && (
         <Panel
-          title={`Notes — ${selectedLevel?.name || ''}`}
-          description="Cliquez sur un étudiant pour ouvrir son tableau de notes."
+          title={t("Notes — {0}", [selectedLevel?.name || ''])}
+          description={t("Cliquez sur un étudiant pour ouvrir son tableau de notes.")}
         >
           {levelStudents.length === 0 ? (
-            <EmptyState icon={Users} title="Aucun étudiant inscrit dans ce niveau" />
+            <EmptyState icon={Users} title={t("Aucun étudiant inscrit dans ce niveau")} />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[520px] text-sm">
-                <thead className="bg-gray-100 text-left text-xs uppercase tracking-wide text-gray-600">
+                <thead className="bg-gray-100 text-start text-xs uppercase tracking-wide text-gray-600">
                   <tr>
-                    <th className="px-3 py-2">Matricule</th>
-                    <th className="px-3 py-2">Étudiant</th>
-                    <th className="px-3 py-2 text-center">Notes</th>
-                    <th className="px-3 py-2 text-center">Moyenne</th>
+                    <th className="px-3 py-2">{t("Matricule")}</th>
+                    <th className="px-3 py-2">{t("Étudiant")}</th>
+                    <th className="px-3 py-2 text-center">{t("Notes")}</th>
+                    <th className="px-3 py-2 text-center">{t("Moyenne")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -384,7 +385,7 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
                         <td className="px-3 py-2">
                           <button
                             onClick={() => setStudentId(student.id)}
-                            className="text-left font-medium text-indigo-600 hover:underline"
+                            className="text-start font-medium text-indigo-600 hover:underline"
                           >
                             {student.profiles?.last_name} {student.profiles?.first_name}
                           </button>
@@ -409,18 +410,18 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
             <StatTile
               icon={TrendingUp}
               tone="indigo"
-              label="Moyenne générale"
+              label={t("Moyenne générale")}
               value={formatGrade(generalAverage)}
               valueClassName={gradeToneClass(generalAverage)}
             />
-            <StatTile icon={Hash} tone="blue" label="Notes" value={grades.length} />
-            <StatTile icon={BookOpen} tone="orange" label="Matières" value={subjects.length} />
-            <StatTile icon={Award} tone="green" label="Meilleure note" value={formatGrade(bestGrade)} />
+            <StatTile icon={Hash} tone="blue" label={t("Notes")} value={grades.length} />
+            <StatTile icon={BookOpen} tone="orange" label={t("Matières")} value={subjects.length} />
+            <StatTile icon={Award} tone="green" label={t("Meilleure note")} value={formatGrade(bestGrade)} />
           </div>
 
           <Panel
             title={fullName(selectedStudent)}
-            description={`${selectedStudent.student_number} • ${selectedStudent.levels?.name || 'Non inscrit'}`}
+            description={`${selectedStudent.student_number} • ${selectedStudent.levels?.name || t("Non inscrit")}`}
             actions={
               <>
                 {position >= 0 && (
@@ -428,19 +429,19 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
                     <button
                       onClick={() => previousStudent && setStudentId(previousStudent.id)}
                       disabled={!previousStudent}
-                      aria-label="Étudiant précédent"
+                      aria-label={t("Étudiant précédent")}
                       className="rounded-lg border p-2 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
                     >
-                      <ChevronLeft className="h-4 w-4" />
+                      <ChevronLeft className="rtl:-scale-x-100 h-4 w-4" />
                     </button>
                     <span className="px-2 text-xs text-gray-600">{position + 1} / {levelStudents.length}</span>
                     <button
                       onClick={() => nextStudent && setStudentId(nextStudent.id)}
                       disabled={!nextStudent}
-                      aria-label="Étudiant suivant"
+                      aria-label={t("Étudiant suivant")}
                       className="rounded-lg border p-2 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
                     >
-                      <ChevronRight className="h-4 w-4" />
+                      <ChevronRight className="rtl:-scale-x-100 h-4 w-4" />
                     </button>
                   </div>
                 )}
@@ -450,28 +451,28 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
                     disabled={grades.length === 0}
                     className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    <Printer className="h-4 w-4" /> Imprimer le relevé
+                    <Printer className="h-4 w-4" /> {t("Imprimer le relevé")}
                   </button>
                 )}
                 <button
                   onClick={() => setStudentId('')}
                   className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-gray-100"
                 >
-                  <X className="h-4 w-4" /> Fermer
+                  <X className="h-4 w-4" /> {t("Fermer")}
                 </button>
               </>
             }
           >
             {subjects.length > 1 && (
               <div className="mb-4 max-w-xs">
-                <label htmlFor="grades-subject" className="mb-2 block text-sm font-medium">Matière</label>
+                <label htmlFor="grades-subject" className="mb-2 block text-sm font-medium">{t("Matière")}</label>
                 <select
                   id="grades-subject"
                   value={subjectFilter}
                   onChange={(event) => setSubjectFilter(event.target.value)}
                   className="w-full rounded-lg border px-3 py-2"
                 >
-                  <option value="">Toutes les matières</option>
+                  <option value="">{t("Toutes les matières")}</option>
                   {subjects.map(([id, name]) => (
                     <option key={id} value={id}>{name}</option>
                   ))}
@@ -480,12 +481,12 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
             )}
 
             {loadingGrades ? (
-              <p className="py-8 text-center text-gray-500">Chargement des notes...</p>
+              <p className="py-8 text-center text-gray-500">{t("Chargement des notes...")}</p>
             ) : grades.length === 0 ? (
               <EmptyState
                 icon={FileText}
-                title="Aucune note pour cet étudiant"
-                hint={teacherId ? "Vous n'avez pas encore saisi de note pour cet étudiant." : 'Les notes apparaîtront ici dès que ses enseignants les auront saisies.'}
+                title={t("Aucune note pour cet étudiant")}
+                hint={teacherId ? t("Vous n'avez pas encore saisi de note pour cet étudiant.") : t("Les notes apparaîtront ici dès que ses enseignants les auront saisies.")}
               />
             ) : (
               <StudentGradesTable
@@ -504,16 +505,16 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
             onSubmit={saveEdit}
             role="dialog"
             aria-modal="true"
-            aria-label="Modifier la note"
+            aria-label={t("Modifier la note")}
             className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 shadow-lg"
           >
-            <h3 className="text-lg font-semibold">Modifier la note</h3>
+            <h3 className="text-lg font-semibold">{t("Modifier la note")}</h3>
             <p className="mb-4 text-sm text-gray-600">
-              {editing.subjects?.name} • coefficient {effectiveCoefficient(editing)} (défini dans Matières)
+              {editing.subjects?.name} {t("• coefficient")} {effectiveCoefficient(editing)} {t("(défini dans Matières)")}
             </p>
             <div className="grid gap-4 md:grid-cols-2">
               <label className="block text-sm font-medium">
-                Note /20 *
+                {t("Note /20 *")}
                 <input
                   type="number"
                   min="0"
@@ -526,7 +527,7 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
                 />
               </label>
               <label className="block text-sm font-medium">
-                Type *
+                {t("Type *")}
                 <select
                   required
                   value={form.gradeType}
@@ -539,7 +540,7 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
                 </select>
               </label>
               <label className="block text-sm font-medium md:col-span-2">
-                Date
+                {t("Date")}
                 <input
                   type="date"
                   value={form.examDate}
@@ -548,7 +549,7 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
                 />
               </label>
               <label className="block text-sm font-medium md:col-span-2">
-                Commentaire
+                {t("Commentaire")}
                 <textarea
                   rows={3}
                   value={form.comment}
@@ -559,14 +560,14 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
             </div>
             <div className="mt-6 flex justify-end gap-3">
               <button type="button" onClick={() => setEditing(null)} className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-100">
-                Annuler
+                {t("Annuler")}
               </button>
               <button
                 type="submit"
                 disabled={saving}
                 className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
               >
-                {saving ? 'Enregistrement...' : 'Enregistrer'}
+                {saving ? t("Enregistrement...") : t("Enregistrer")}
               </button>
             </div>
           </form>

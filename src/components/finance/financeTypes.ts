@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 export type FinancialKind = 'expense' | 'revenue';
 
 export interface FinancialCategory {
@@ -64,18 +65,18 @@ export interface TeacherPayslip {
 
 // Ordre d'affichage de l'année scolaire : Septembre -> Août
 export const ACADEMIC_MONTHS: { month: number; label: string }[] = [
-  { month: 9, label: 'Septembre' },
-  { month: 10, label: 'Octobre' },
-  { month: 11, label: 'Novembre' },
-  { month: 12, label: 'Décembre' },
-  { month: 1, label: 'Janvier' },
-  { month: 2, label: 'Février' },
-  { month: 3, label: 'Mars' },
-  { month: 4, label: 'Avril' },
-  { month: 5, label: 'Mai' },
-  { month: 6, label: 'Juin' },
-  { month: 7, label: 'Juillet' },
-  { month: 8, label: 'Août' },
+  { month: 9, label: t("Septembre") },
+  { month: 10, label: t("Octobre") },
+  { month: 11, label: t("Novembre") },
+  { month: 12, label: t("Décembre") },
+  { month: 1, label: t("Janvier") },
+  { month: 2, label: t("Février") },
+  { month: 3, label: t("Mars") },
+  { month: 4, label: t("Avril") },
+  { month: 5, label: t("Mai") },
+  { month: 6, label: t("Juin") },
+  { month: 7, label: t("Juillet") },
+  { month: 8, label: t("Août") },
 ];
 
 export const monthLabel = (month: number): string =>

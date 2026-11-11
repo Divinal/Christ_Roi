@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { AlertTriangle, CheckCircle2, Copy, Info, X, XCircle } from 'lucide-react';
+import { t as tr } from '../../i18n';
 
 // Notifications et boîtes de dialogue de l'application : remplacent alert(),
 // confirm() et prompt(), bloquants et non stylables. Le rendu est assuré par un
@@ -80,9 +81,9 @@ export const confirmDialog = (
   const parsed = parseMessage(message);
   return openDialog<boolean>({
     type: 'confirm',
-    title: options.title || 'Confirmation',
+    title: options.title || tr("Confirmation"),
     message: parsed.message,
-    confirmLabel: options.confirmLabel || 'Confirmer',
+    confirmLabel: options.confirmLabel || tr("Confirmer"),
     danger: options.danger ?? parsed.kind === 'warning',
   });
 };
@@ -169,7 +170,7 @@ const Dialog: React.FC<{ dialog: DialogRequest }> = ({ dialog }) => {
                 onClick={copySecret}
                 className="flex shrink-0 items-center gap-1 rounded px-2 py-1 text-xs text-indigo-600 hover:bg-indigo-50"
               >
-                <Copy className="h-4 w-4" /> {copied ? 'Copié' : 'Copier'}
+                <Copy className="h-4 w-4" /> {copied ? tr("Copié") : tr("Copier")}
               </button>
             )}
           </div>
@@ -192,7 +193,7 @@ const Dialog: React.FC<{ dialog: DialogRequest }> = ({ dialog }) => {
               onClick={() => close(cancelValue)}
               className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-100"
             >
-              Annuler
+              {tr("Annuler")}
             </button>
           )}
           <button
@@ -203,7 +204,7 @@ const Dialog: React.FC<{ dialog: DialogRequest }> = ({ dialog }) => {
               dialog.danger ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'
             }`}
           >
-            {dialog.confirmLabel || (dialog.type === 'info' ? 'Fermer' : 'Valider')}
+            {dialog.confirmLabel || (dialog.type === 'info' ? tr("Fermer") : tr("Valider"))}
           </button>
         </div>
       </form>
@@ -218,7 +219,7 @@ export const FeedbackHost: React.FC = () => {
     <>
       <div
         aria-live="polite"
-        className="no-print fixed right-4 top-4 z-[80] flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2"
+        className="no-print fixed end-4 top-4 z-[80] flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2"
       >
         {toasts.map((toast) => {
           const { icon: Icon, className } = TOAST_STYLES[toast.kind];
@@ -228,7 +229,7 @@ export const FeedbackHost: React.FC = () => {
               <p className="min-w-0 flex-1 whitespace-pre-line break-words text-sm text-gray-800">{toast.message}</p>
               <button
                 onClick={() => dismissToast(toast.id)}
-                aria-label="Fermer la notification"
+                aria-label={tr("Fermer la notification")}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <X className="h-4 w-4" />

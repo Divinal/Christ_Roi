@@ -5,6 +5,7 @@ import { generatePayslipNumber } from './financeUtils';
 import PayslipHistoryTable from './PayslipHistoryTable';
 import PayslipPrintable from './PayslipPrintable';
 import { notify } from '../ui/feedback';
+import { t as tr, locale } from '../../i18n';
 
 interface TeacherOption {
   id: string;
@@ -53,7 +54,7 @@ const PayrollFlow: React.FC<PayrollFlowProps> = ({ teachers, academicYear, onTea
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTeacher || !hours || !hourlyRate) {
-      notify('Veuillez sélectionner un enseignant, les heures et le taux horaire');
+      notify(tr("Veuillez sélectionner un enseignant, les heures et le taux horaire"));
       return;
     }
 
@@ -86,7 +87,7 @@ const PayrollFlow: React.FC<PayrollFlowProps> = ({ teachers, academicYear, onTea
     <div>
       <form onSubmit={handleSubmit} className="grid md:grid-cols-5 gap-3 mb-6 p-4 bg-gray-50 rounded-lg">
         <select value={selectedTeacher} onChange={(e) => handleSelectTeacher(e.target.value)} className="border rounded px-3 py-2" required>
-          <option value="">Enseignant...</option>
+          <option value="">{tr("Enseignant...")}</option>
           {teachers.map((t) => (
             <option key={t.id} value={t.id}>
               {t.profiles?.first_name} {t.profiles?.last_name} ({t.teacher_number})
@@ -102,7 +103,7 @@ const PayrollFlow: React.FC<PayrollFlowProps> = ({ teachers, academicYear, onTea
           type="number"
           min="0"
           step="0.5"
-          placeholder="Heures effectuées"
+          placeholder={tr("Heures effectuées")}
           value={hours}
           onChange={(e) => setHours(e.target.value ? parseFloat(e.target.value) : '')}
           className="border rounded px-3 py-2"
@@ -113,7 +114,7 @@ const PayrollFlow: React.FC<PayrollFlowProps> = ({ teachers, academicYear, onTea
             type="number"
             min="0"
             step="0.01"
-            placeholder="Taux horaire (FCFA)"
+            placeholder={tr("Taux horaire (FCFA)")}
             value={hourlyRate}
             onChange={(e) => setHourlyRate(e.target.value ? parseFloat(e.target.value) : '')}
             className="border rounded px-3 py-2 w-full"
@@ -123,18 +124,18 @@ const PayrollFlow: React.FC<PayrollFlowProps> = ({ teachers, academicYear, onTea
             <button
               type="button"
               onClick={handleSaveDefaultRate}
-              title="Enregistrer comme taux par défaut de cet enseignant"
+              title={tr("Enregistrer comme taux par défaut de cet enseignant")}
               className="text-xs bg-gray-200 hover:bg-gray-300 rounded px-2"
             >
-              Définir
+              {tr("Définir")}
             </button>
           )}
         </div>
         <div className="flex items-center px-3 py-2 bg-white border rounded text-sm font-semibold">
-          Brut : {grossAmount.toLocaleString('fr-FR')} FCFA
+          {tr("Brut :")} {grossAmount.toLocaleString(locale())} {tr("FCFA")}
         </div>
         <button type="submit" className="md:col-span-5 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700">
-          Enregistrer le paiement et générer le bulletin
+          {tr("Enregistrer le paiement et générer le bulletin")}
         </button>
       </form>
 

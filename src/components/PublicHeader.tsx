@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Menu, X as CloseIcon } from 'lucide-react';
 import { siteConfig } from '../config/site.config';
 import { PUBLIC_PATHS } from '../lib/publicRoutes';
+import { t } from '../i18n';
+import LanguageSwitcher from './ui/LanguageSwitcher';
 
 export type PublicPage = 'home' | 'contact' | 'privacy';
 
@@ -12,9 +14,9 @@ interface PublicHeaderProps {
 }
 
 const navItems: { id: PublicPage; label: string }[] = [
-  { id: 'home', label: 'Accueil' },
-  { id: 'contact', label: 'Contact' },
-  { id: 'privacy', label: 'Confidentialité' },
+  { id: 'home', label: t("Accueil") },
+  { id: 'contact', label: t("Contact") },
+  { id: 'privacy', label: t("Confidentialité") },
 ];
 
 const PublicHeader: React.FC<PublicHeaderProps> = ({ currentPage, onNavigate, onLoginClick }) => {
@@ -36,13 +38,13 @@ const PublicHeader: React.FC<PublicHeaderProps> = ({ currentPage, onNavigate, on
           <a href={PUBLIC_PATHS.home} onClick={navigate('home')} className="flex items-center gap-3">
             <img
               src={siteConfig.logoUrl}
-              alt={`Logo ${siteConfig.schoolName}`}
+              alt={t("Logo {0}", [siteConfig.schoolName])}
               className="h-10 w-10 object-contain"
               onError={(e) => {
                 e.currentTarget.src = `data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="40" height="40"%3E%3Crect fill="%233b82f6" width="40" height="40" rx="8"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="20" font-weight="bold"%3E${siteConfig.logoFallbackInitials}%3C/text%3E%3C/svg%3E`;
               }}
             />
-            <h1 className="text-xl md:text-2xl font-bold text-blue-600">{siteConfig.schoolName}</h1>
+            <h1 className="text-xl md:text-2xl font-bold text-blue-600">{t(siteConfig.schoolName)}</h1>
           </a>
 
           <div className="hidden md:flex items-center gap-8">
@@ -58,20 +60,24 @@ const PublicHeader: React.FC<PublicHeaderProps> = ({ currentPage, onNavigate, on
                 {item.label}
               </a>
             ))}
+            <LanguageSwitcher />
             <button
               onClick={onLoginClick}
               className="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 transition shadow-md"
             >
-              Connexion
+              {t("Connexion")}
             </button>
           </div>
 
+          <div className="flex items-center gap-2 md:hidden">
+          <LanguageSwitcher />
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="md:hidden p-2 text-gray-600 hover:text-blue-600"
           >
             {mobileMenuOpen ? <CloseIcon className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
+          </div>
         </div>
 
         {mobileMenuOpen && (
@@ -81,7 +87,7 @@ const PublicHeader: React.FC<PublicHeaderProps> = ({ currentPage, onNavigate, on
                 key={item.id}
                 href={PUBLIC_PATHS[item.id]}
                 onClick={navigate(item.id)}
-                className={`block w-full text-left py-2 transition ${
+                className={`block w-full text-start py-2 transition ${
                   currentPage === item.id ? 'text-blue-600 font-medium' : 'text-gray-600 hover:text-blue-600'
                 }`}
               >
@@ -95,7 +101,7 @@ const PublicHeader: React.FC<PublicHeaderProps> = ({ currentPage, onNavigate, on
               }}
               className="w-full bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 transition"
             >
-              Connexion
+              {t("Connexion")}
             </button>
           </div>
         )}

@@ -19,23 +19,24 @@ import GradeReportPrint from '../components/grades/GradeReportPrint';
 import StudentGradesTable from '../components/grades/StudentGradesTable';
 import MessageInbox from '../components/messages/MessageInbox';
 import TuitionHistoryTable from '../components/finance/TuitionHistoryTable';
+import { t, locale } from '../i18n';
 
 const NAV_GROUPS: NavGroup[] = [
-  { label: 'Général', items: [{ id: 'dashboard', label: 'Tableau de bord', icon: Home }] },
+  { label: t("Général"), items: [{ id: 'dashboard', label: t("Tableau de bord"), icon: Home }] },
   {
-    label: 'Ma scolarité',
+    label: t("Ma scolarité"),
     items: [
-      { id: 'grades', label: 'Mes notes', icon: FileText },
-      { id: 'followup', label: 'Mon suivi', icon: ClipboardCheck },
-      { id: 'schedule', label: 'Emploi du temps', icon: Calendar },
-      { id: 'payments', label: 'Mes paiements', icon: DollarSign },
+      { id: 'grades', label: t("Mes notes"), icon: FileText },
+      { id: 'followup', label: t("Mon suivi"), icon: ClipboardCheck },
+      { id: 'schedule', label: t("Emploi du temps"), icon: Calendar },
+      { id: 'payments', label: t("Mes paiements"), icon: DollarSign },
     ],
   },
   {
-    label: 'Communication',
+    label: t("Communication"),
     items: [
-      { id: 'messages', label: 'Messages', icon: MessageSquare },
-      { id: 'announcements', label: 'Annonces', icon: Bell },
+      { id: 'messages', label: t("Messages"), icon: MessageSquare },
+      { id: 'announcements', label: t("Annonces"), icon: Bell },
     ],
   },
 ];
@@ -162,11 +163,11 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout, onC
 
   const average = weightedAverage(grades);
 
-  const dayNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+  const dayNames = [t("Lundi"), t("Mardi"), t("Mercredi"), t("Jeudi"), t("Vendredi"), t("Samedi")];
 
   return (
     <AppShell
-      spaceLabel="Espace étudiant"
+      spaceLabel={t("Espace étudiant")}
       userId={user?.id}
       groups={NAV_GROUPS.map((group) => ({
         ...group,
@@ -175,7 +176,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout, onC
       activeId={activeTab}
       onSelect={setActiveTab}
       userName={`${user?.first_name || ''} ${user?.last_name || ''}`.trim()}
-      roleLabel={studentData?.levels ? `Étudiant • ${studentData.levels.name}` : 'Étudiant'}
+      roleLabel={studentData?.levels ? t("Étudiant • {0}", [studentData.levels.name]) : t("Étudiant")}
       onLogout={onLogout}
       onChangePassword={onChangePassword}
     >
@@ -188,15 +189,15 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout, onC
               <div className="flex justify-between items-center">
                 <div>
                   <h2 className="text-2xl font-bold mb-2">
-                    Bienvenue, {user?.first_name} {user?.last_name} 👋
+                    {t("Bienvenue,")} {user?.first_name} {user?.last_name} 👋
                   </h2>
                   <p className="text-blue-100">
-                    Matricule: {studentData?.student_number}
+                    {t("Matricule:")} {studentData?.student_number}
                     {studentData?.levels && ` • ${studentData.levels.name}`}
                   </p>
                 </div>
                 <div className="bg-white bg-opacity-20 rounded-lg p-4 backdrop-blur shrink-0">
-                  <p className="text-sm text-blue-100">Moyenne générale</p>
+                  <p className="text-sm text-blue-100">{t("Moyenne générale")}</p>
                   <p className="text-3xl font-bold">{average === null ? '-' : `${formatGrade(average)}/20`}</p>
                 </div>
               </div>
@@ -207,18 +208,18 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout, onC
               <StatTile
                 icon={Award}
                 tone="blue"
-                label="Moyenne générale"
+                label={t("Moyenne générale")}
                 value={formatGrade(average)}
                 valueClassName={gradeToneClass(average)}
               />
               <StatTile
                 icon={GraduationCap}
                 tone="indigo"
-                label={studentData?.levels ? cycleLabel(studentData.levels.cycle) : "Contactez l'administration"}
-                value={studentData?.levels?.name || 'À inscrire'}
+                label={studentData?.levels ? cycleLabel(studentData.levels.cycle) : t("Contactez l'administration")}
+                value={studentData?.levels?.name || t("À inscrire")}
               />
-              <StatTile icon={Hash} tone="green" label="Notes" value={grades.length} />
-              <StatTile icon={Bell} tone="orange" label="Annonces" value={announcements.length} />
+              <StatTile icon={Hash} tone="green" label={t("Notes")} value={grades.length} />
+              <StatTile icon={Bell} tone="orange" label={t("Annonces")} value={announcements.length} />
             </div>
 
             {/* Dernières notes et annonces */}
@@ -226,7 +227,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout, onC
               <div className="bg-white rounded-xl shadow p-6">
                 <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                   <FileText className="text-blue-600" />
-                  Dernières notes
+                  {t("Dernières notes")}
                 </h3>
                 <div className="space-y-3">
                   {grades.slice(0, 5).map((grade) => (
@@ -244,7 +245,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout, onC
                     </div>
                   ))}
                   {grades.length === 0 && (
-                    <p className="text-center text-gray-500 py-8">Aucune note disponible</p>
+                    <p className="text-center text-gray-500 py-8">{t("Aucune note disponible")}</p>
                   )}
                 </div>
               </div>
@@ -252,11 +253,11 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout, onC
               <div className="bg-white rounded-xl shadow p-6">
                 <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                   <Bell className="text-orange-600" />
-                  Dernières annonces
+                  {t("Dernières annonces")}
                 </h3>
                 <div className="space-y-3">
                   {announcements.slice(0, 4).map((announcement) => (
-                    <div key={announcement.id} className="p-3 border-l-4 border-orange-500 bg-orange-50 rounded">
+                    <div key={announcement.id} className="p-3 border-s-4 border-orange-500 bg-orange-50 rounded">
                       <div className="flex justify-between items-start mb-1">
                         <p className="font-semibold text-sm">{announcement.title}</p>
                         <span className={`text-xs px-2 py-0.5 rounded ${PRIORITY_CLASSES[announcement.priority]}`}>
@@ -265,7 +266,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout, onC
                       </div>
                       <p className="text-xs text-gray-600 line-clamp-2">{announcement.content}</p>
                       <p className="text-xs text-gray-400 mt-1">
-                        {new Date(announcement.published_at).toLocaleDateString()}
+                        {new Date(announcement.published_at).toLocaleDateString(locale())}
                       </p>
                     </div>
                   ))}
@@ -274,7 +275,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout, onC
                   onClick={() => setActiveTab('announcements')}
                   className="w-full mt-4 text-orange-600 font-semibold hover:bg-orange-50 py-2 rounded-lg"
                 >
-                  Voir toutes les annonces →
+                  {t("Voir toutes les annonces →")}
                 </button>
               </div>
             </div>
@@ -284,20 +285,20 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout, onC
         {/* MES NOTES */}
         {activeTab === 'grades' && (
           <Panel
-            title="Mes notes"
-            description={`Moyenne générale : ${formatGrade(average)} / 20`}
+            title={t("Mes notes")}
+            description={t("Moyenne générale : {0} / 20", [formatGrade(average)])}
             actions={
               <button
                 onClick={() => setPrinting(true)}
                 disabled={grades.length === 0}
                 className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <Printer className="h-4 w-4" /> Imprimer mon relevé
+                <Printer className="h-4 w-4" /> {t("Imprimer mon relevé")}
               </button>
             }
           >
             {grades.length === 0 ? (
-              <EmptyState icon={FileText} title="Aucune note disponible" hint="Vos notes apparaîtront ici dès que vos enseignants les auront saisies." />
+              <EmptyState icon={FileText} title={t("Aucune note disponible")} hint={t("Vos notes apparaîtront ici dès que vos enseignants les auront saisies.")} />
             ) : (
               <StudentGradesTable grades={grades} />
             )}
@@ -315,19 +316,19 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout, onC
         {/* SCHEDULE TAB - EMPLOI DU TEMPS */}
         {activeTab === 'schedule' && (
           <div className="bg-white rounded-xl shadow p-6">
-            <h2 className="text-2xl font-bold mb-6">Mon Emploi du Temps</h2>
+            <h2 className="text-2xl font-bold mb-6">{t("Mon Emploi du Temps")}</h2>
             
             {schedules.length === 0 ? (
               <div className="text-center py-12">
                 <Calendar className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <p className="text-xl text-gray-500">Aucun emploi du temps disponible</p>
+                <p className="text-xl text-gray-500">{t("Aucun emploi du temps disponible")}</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
                   <thead>
                     <tr className="bg-gray-100">
-                      <th className="border-2 px-4 py-3 font-bold">Heure</th>
+                      <th className="border-2 px-4 py-3 font-bold">{t("Heure")}</th>
                       {dayNames.map((day, idx) => (
                         <th key={idx} className="border-2 px-4 py-3 font-bold">{day}</th>
                       ))}
@@ -362,10 +363,10 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout, onC
               </div>
             )}
 
-            <div className="mt-6 bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
-              <p className="font-semibold text-blue-800 mb-1">📌 Note importante</p>
+            <div className="mt-6 bg-blue-50 border-s-4 border-blue-500 p-4 rounded">
+              <p className="font-semibold text-blue-800 mb-1">{t("📌 Note importante")}</p>
               <p className="text-sm text-blue-700">
-                Cet emploi du temps est valable pour le semestre en cours. Consultez régulièrement pour les mises à jour.
+                {t("Cet emploi du temps est valable pour le semestre en cours. Consultez régulièrement pour les mises à jour.")}
               </p>
             </div>
           </div>
@@ -384,7 +385,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout, onC
 
         {/* ANNONCES */}
         {activeTab === 'announcements' && (
-          <Panel title={`Annonces (${announcements.length})`}>
+          <Panel title={t("Annonces ({0})", [announcements.length])}>
             <AnnouncementList announcements={announcements} />
           </Panel>
         )}
@@ -392,7 +393,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout, onC
         {/* MES PAIEMENTS - FRAIS DE SCOLARITÉ */}
         {activeTab === 'payments' && (
           <div className="bg-white rounded-xl shadow p-6">
-            <h2 className="text-2xl font-bold mb-6">Mes Paiements</h2>
+            <h2 className="text-2xl font-bold mb-6">{t("Mes Paiements")}</h2>
             {studentData ? (
               <TuitionHistoryTable
                 studentId={studentData.id}
@@ -401,7 +402,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout, onC
                 showStudentName={false}
               />
             ) : (
-              <p className="text-center text-gray-500 py-12">Chargement...</p>
+              <p className="text-center text-gray-500 py-12">{t("Chargement...")}</p>
             )}
           </div>
         )}

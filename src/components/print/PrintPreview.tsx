@@ -2,6 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { Printer, X } from 'lucide-react';
 import { siteConfig } from '../../config/site.config';
+import { t } from '../../i18n';
 
 interface PrintPreviewProps {
   title: string;
@@ -29,11 +30,11 @@ const PrintPreview: React.FC<PrintPreviewProps> = ({ title, onClose, controls, c
               onClick={() => window.print()}
               className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
             >
-              <Printer className="h-4 w-4" /> Imprimer
+              <Printer className="h-4 w-4" /> {t("Imprimer")}
             </button>
             <button
               onClick={onClose}
-              aria-label="Fermer l'aperçu"
+              aria-label={t("Fermer l'aperçu")}
               className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
             >
               <X className="h-5 w-5" />
@@ -70,7 +71,7 @@ export const DocumentHeader: React.FC<{ title: string; subtitle?: string; meta: 
         }}
       />
       <div>
-        <strong>{siteConfig.schoolName}</strong>
+        <strong>{t(siteConfig.schoolName)}</strong>
         <div>{siteConfig.contact.phone}</div>
       </div>
     </div>

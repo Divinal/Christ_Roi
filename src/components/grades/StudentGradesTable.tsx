@@ -9,6 +9,7 @@ import {
   groupBySubject,
   teacherNameOf,
 } from '../../lib/grades';
+import { t } from '../../i18n';
 
 interface StudentGradesTableProps {
   grades: GradeRow[];
@@ -24,28 +25,28 @@ const StudentGradesTable: React.FC<StudentGradesTableProps> = ({ grades, onEdit,
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[720px] text-sm">
-        <thead className="bg-gray-100 text-left text-xs uppercase tracking-wide text-gray-600">
+        <thead className="bg-gray-100 text-start text-xs uppercase tracking-wide text-gray-600">
           <tr>
-            <th className="px-3 py-2">Évaluation</th>
-            <th className="px-3 py-2 text-center">Note /20</th>
-            <th className="px-3 py-2 text-center">Coef.</th>
-            <th className="px-3 py-2">Date</th>
-            <th className="px-3 py-2">Enseignant</th>
-            <th className="px-3 py-2">Commentaire</th>
-            {canAct && <th className="px-3 py-2">Actions</th>}
+            <th className="px-3 py-2">{t("Évaluation")}</th>
+            <th className="px-3 py-2 text-center">{t("Note /20")}</th>
+            <th className="px-3 py-2 text-center">{t("Coef.")}</th>
+            <th className="px-3 py-2">{t("Date")}</th>
+            <th className="px-3 py-2">{t("Enseignant")}</th>
+            <th className="px-3 py-2">{t("Commentaire")}</th>
+            {canAct && <th className="px-3 py-2">{t("Actions")}</th>}
           </tr>
         </thead>
         {groupBySubject(grades).map((group) => (
           <tbody key={group.subjectId}>
             <tr className="border-t bg-gray-50">
-              <th scope="colgroup" colSpan={columnCount} className="px-3 py-2 text-left">
+              <th scope="colgroup" colSpan={columnCount} className="px-3 py-2 text-start">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-semibold text-gray-900">
                     {group.name}
-                    <span className="ml-2 text-xs font-normal text-gray-500">coef. {group.coefficient}</span>
+                    <span className="ms-2 text-xs font-normal text-gray-500">{t("coef.")} {group.coefficient}</span>
                   </span>
                   <span className="text-xs font-normal text-gray-600">
-                    Moyenne :{' '}
+                    {t("Moyenne :")}{' '}
                     <span className={`text-sm font-bold ${gradeToneClass(group.average)}`}>
                       {formatGrade(group.average)}
                     </span>
@@ -68,8 +69,8 @@ const StudentGradesTable: React.FC<StudentGradesTableProps> = ({ grades, onEdit,
                     {onEdit && (
                       <button
                         onClick={() => onEdit(grade)}
-                        title="Modifier"
-                        aria-label={`Modifier la note ${grade.grade_type} de ${group.name}`}
+                        title={t("Modifier")}
+                        aria-label={t("Modifier la note {0} de {1}", [grade.grade_type, group.name])}
                         className="rounded p-2 text-blue-600 hover:bg-blue-50"
                       >
                         <Edit className="h-4 w-4" />
@@ -78,8 +79,8 @@ const StudentGradesTable: React.FC<StudentGradesTableProps> = ({ grades, onEdit,
                     {onDelete && (
                       <button
                         onClick={() => onDelete(grade)}
-                        title="Supprimer"
-                        aria-label={`Supprimer la note ${grade.grade_type} de ${group.name}`}
+                        title={t("Supprimer")}
+                        aria-label={t("Supprimer la note {0} de {1}", [grade.grade_type, group.name])}
                         className="rounded p-2 text-red-600 hover:bg-red-50"
                       >
                         <Trash2 className="h-4 w-4" />

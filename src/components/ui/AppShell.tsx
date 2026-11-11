@@ -4,6 +4,8 @@ import { siteConfig } from '../../config/site.config';
 import { CURRENT_ACADEMIC_YEAR } from '../../lib/levels';
 import { confirmDialog } from './feedback';
 import NotificationBell from './NotificationBell';
+import LanguageSwitcher from './LanguageSwitcher';
+import { t } from '../../i18n';
 
 export interface NavItem {
   id: string;
@@ -60,8 +62,8 @@ const AppShell: React.FC<AppShellProps> = ({
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r bg-white transition-transform duration-200 lg:translate-x-0 ${
-          drawerOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`fixed inset-y-0 start-0 z-40 flex w-64 flex-col border-e bg-white transition-transform duration-200 lg:translate-x-0 lg:rtl:translate-x-0 ${
+          drawerOpen ? 'translate-x-0' : '-translate-x-full rtl:translate-x-full'
         }`}
       >
         <div className="flex h-16 shrink-0 items-center gap-3 border-b px-4">
@@ -74,19 +76,19 @@ const AppShell: React.FC<AppShellProps> = ({
             }}
           />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-gray-900">{siteConfig.schoolName}</p>
+            <p className="truncate text-sm font-semibold text-gray-900">{t(siteConfig.schoolName)}</p>
             <p className="truncate text-xs text-gray-500">{spaceLabel}</p>
           </div>
           <button
             onClick={() => setDrawerOpen(false)}
-            aria-label="Fermer le menu"
+            aria-label={t("Fermer le menu")}
             className="rounded p-1 text-gray-500 hover:bg-gray-100 lg:hidden"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <nav aria-label="Menu principal" className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
+        <nav aria-label={t("Menu principal")} className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
           {visibleGroups.map((group) => (
             <div key={group.label}>
               <p className="mb-1 px-3 text-xs font-semibold uppercase tracking-wide text-gray-500">{group.label}</p>
@@ -102,7 +104,7 @@ const AppShell: React.FC<AppShellProps> = ({
                           setDrawerOpen(false);
                         }}
                         aria-current={active ? 'page' : undefined}
-                        className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition ${
+                        className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-start text-sm transition ${
                           active
                             ? 'bg-indigo-100 font-medium text-indigo-700'
                             : 'text-gray-700 hover:bg-gray-100'
@@ -133,7 +135,7 @@ const AppShell: React.FC<AppShellProps> = ({
               {initialsOf(userName)}
             </span>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-gray-900">{userName || 'Utilisateur'}</p>
+              <p className="truncate text-sm font-medium text-gray-900">{userName || t("Utilisateur")}</p>
               <p className="truncate text-xs text-gray-500">{roleLabel}</p>
             </div>
           </div>
@@ -142,29 +144,29 @@ const AppShell: React.FC<AppShellProps> = ({
               onClick={onChangePassword}
               className="flex items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-100"
             >
-              <KeyRound className="h-3.5 w-3.5" /> Mot de passe
+              <KeyRound className="h-3.5 w-3.5" /> {t("Mot de passe")}
             </button>
             <button
               onClick={async () => {
-                const confirmed = await confirmDialog('Voulez-vous vous déconnecter ?', {
-                  title: 'Déconnexion',
-                  confirmLabel: 'Se déconnecter',
+                const confirmed = await confirmDialog(t("Voulez-vous vous déconnecter ?"), {
+                  title: t("Déconnexion"),
+                  confirmLabel: t("Se déconnecter"),
                 });
                 if (confirmed) onLogout();
               }}
               className="flex items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-100"
             >
-              <LogOut className="h-3.5 w-3.5" /> Déconnexion
+              <LogOut className="h-3.5 w-3.5" /> {t("Déconnexion")}
             </button>
           </div>
         </div>
       </aside>
 
-      <div className="lg:pl-64">
+      <div className="lg:ps-64">
         <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b bg-white px-4 md:px-6">
           <button
             onClick={() => setDrawerOpen(true)}
-            aria-label="Ouvrir le menu"
+            aria-label={t("Ouvrir le menu")}
             className="rounded-lg p-2 text-gray-700 hover:bg-gray-100 lg:hidden"
           >
             <Menu className="h-5 w-5" />
@@ -173,6 +175,7 @@ const AppShell: React.FC<AppShellProps> = ({
             {activeGroup && <p className="truncate text-xs text-gray-500">{activeGroup.label}</p>}
             <h1 className="truncate text-base font-semibold text-gray-900">{activeItem?.label}</h1>
           </div>
+          <LanguageSwitcher />
           <NotificationBell
             userId={userId}
             activeTab={activeId}
@@ -182,7 +185,7 @@ const AppShell: React.FC<AppShellProps> = ({
             }}
           />
           <span className="hidden whitespace-nowrap rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600 sm:inline">
-            Année {CURRENT_ACADEMIC_YEAR}
+            {t("Année")} {CURRENT_ACADEMIC_YEAR}
           </span>
         </header>
 

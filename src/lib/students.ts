@@ -1,6 +1,7 @@
 import { supabase } from './supabaseClient';
 import { fetchAllRows } from './fetchAll';
 import { SchoolCycle } from './levels';
+import { t } from '../i18n';
 
 export interface StudentOption {
   id: string;
@@ -12,7 +13,7 @@ export interface StudentOption {
 }
 
 export const studentFullName = (student?: StudentOption | null): string =>
-  `${student?.profiles?.first_name || ''} ${student?.profiles?.last_name || ''}`.trim() || 'Sans nom';
+  `${student?.profiles?.first_name || ''} ${student?.profiles?.last_name || ''}`.trim() || t("Sans nom");
 
 // Recherche insensible à la casse et aux accents.
 export const normalizeText = (text: string): string =>

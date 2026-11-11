@@ -6,6 +6,7 @@ import { confirmDialog, infoDialog, notify } from '../ui/feedback';
 import { CURRENT_ACADEMIC_YEAR, Level, cycleLabel } from '../../lib/levels';
 import LevelSelect from '../levels/LevelSelect';
 import PayslipHistoryTable from '../finance/PayslipHistoryTable';
+import { t, locale } from '../../i18n';
 
 export interface TeacherRecord {
   id: string;
@@ -39,14 +40,14 @@ interface TeacherDetailProps {
 }
 
 const TABS: { id: TeacherTab; label: string; icon: React.ElementType }[] = [
-  { id: 'profile', label: 'Profil', icon: UserIcon },
-  { id: 'assignments', label: 'Matières & niveaux', icon: BookOpen },
-  { id: 'schedule', label: 'Emploi du temps', icon: Calendar },
-  { id: 'messages', label: 'Messages', icon: MessageSquare },
-  { id: 'payslips', label: 'Paie', icon: DollarSign },
+  { id: 'profile', label: t("Profil"), icon: UserIcon },
+  { id: 'assignments', label: t("Matières & niveaux"), icon: BookOpen },
+  { id: 'schedule', label: t("Emploi du temps"), icon: Calendar },
+  { id: 'messages', label: t("Messages"), icon: MessageSquare },
+  { id: 'payslips', label: t("Paie"), icon: DollarSign },
 ];
 
-const DAY_NAMES = ['', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+const DAY_NAMES = ['', t("Lundi"), t("Mardi"), t("Mercredi"), t("Jeudi"), t("Vendredi"), t("Samedi"), t("Dimanche")];
 
 const TeacherDetail: React.FC<TeacherDetailProps> = ({
   teacher,
@@ -138,9 +139,9 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
         .select('id');
 
       if (teacherError) {
-        throw new Error(teacherError.code === '23505' ? 'Ce matricule est déjà utilisé.' : teacherError.message);
+        throw new Error(teacherError.code === '23505' ? t("Ce matricule est déjà utilisé.") : teacherError.message);
       }
-      if (!updated?.length) throw new Error("Modification refusée : vous n'avez pas les droits nécessaires.");
+      if (!updated?.length) throw new Error(t("Modification refusée : vous n'avez pas les droits nécessaires."));
 
       const email = form.email.trim().toLowerCase();
       if (email !== teacher.profiles?.email) {
@@ -153,7 +154,7 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
         .eq('user_id', teacher.user_id);
       if (profileError) throw profileError;
 
-      notify('✅ Enseignant modifié avec succès !');
+      notify(t("✅ Enseignant modifié avec succès !"));
       onUpdated();
     } catch (error: any) {
       notify(`❌ Erreur: ${error.message}`);
@@ -164,7 +165,7 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
 
   const handleResetPassword = async () => {
     const confirmed = await confirmDialog(
-      `Générer un nouveau mot de passe temporaire pour ${fullName || teacher.teacher_number} ?\n\nSon mot de passe actuel ne fonctionnera plus.`
+      t("Générer un nouveau mot de passe temporaire pour {0} ?\n\nSon mot de passe actuel ne fonctionnera plus.", [fullName || teacher.teacher_number])
     );
     if (!confirmed) return;
 
@@ -174,8 +175,8 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
         { teacher_id: teacher.id },
       );
       infoDialog({
-        title: `Nouveau mot de passe de ${fullName || teacher.teacher_number}`,
-        message: 'Mot de passe temporaire à lui transmettre. Il ne sera plus affiché, et devra être changé à la première connexion :',
+        title: t("Nouveau mot de passe de {0}", [fullName || teacher.teacher_number]),
+        message: t("Mot de passe temporaire à lui transmettre. Il ne sera plus affiché, et devra être changé à la première connexion :"),
         secret: temporary_password,
       });
     } catch (error: any) {
@@ -191,7 +192,7 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
     });
 
     if (error) {
-      notify(error.code === '23505' ? '⚠️ Cette affectation existe déjà.' : `❌ Erreur: ${error.message}`);
+      notify(error.code === '23505' ? t("⚠️ Cette affectation existe déjà.") : `❌ Erreur: ${error.message}`);
       return;
     }
     setAssignForm({ subjectId: '', levelId: '' });
@@ -200,7 +201,7 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
   };
 
   const handleRemoveAssignment = async (assignmentId: string) => {
-    if (!await confirmDialog('⚠️ Retirer cette affectation ?')) return;
+    if (!await confirmDialog(t("⚠️ Retirer cette affectation ?"))) return;
     const { error } = await supabase.from('teacher_levels').delete().eq('id', assignmentId);
     if (error) {
       notify(`❌ Erreur: ${error.message}`);
@@ -231,7 +232,7 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
   };
 
   const handleDeleteMessage = async (messageId: string) => {
-    if (!await confirmDialog('⚠️ Supprimer ce message ? Il disparaîtra aussi de la messagerie de l’enseignant.')) return;
+    if (!await confirmDialog(t("⚠️ Supprimer ce message ? Il disparaîtra aussi de la messagerie de l’enseignant."))) return;
     const { error } = await supabase.from('messages').delete().eq('id', messageId);
     if (error) {
       notify(`❌ Erreur: ${error.message}`);
@@ -251,14 +252,14 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
   return (
     <div className="bg-white rounded-xl shadow p-4 md:p-6">
       <button onClick={onBack} className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-700 mb-4">
-        <ArrowLeft className="w-4 h-4" /> Retour à la liste des enseignants
+        <ArrowLeft className="rtl:-scale-x-100 w-4 h-4" /> {t("Retour à la liste des enseignants")}
       </button>
 
       <div className="flex flex-col sm:flex-row justify-between items-start gap-3 mb-6">
         <div>
           <h2 className="text-xl md:text-2xl font-bold">{fullName || teacher.teacher_number}</h2>
           <p className="text-sm text-gray-600">
-            Matricule {teacher.teacher_number}
+            {t("Matricule")} {teacher.teacher_number}
             {teacher.profiles?.email && ` • ${teacher.profiles.email}`}
           </p>
         </div>
@@ -266,7 +267,7 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
           onClick={() => onDelete(teacher)}
           className="flex items-center gap-2 border border-red-200 text-red-600 hover:bg-red-50 px-3 py-2 rounded-lg text-sm"
         >
-          <Trash2 className="w-4 h-4" /> Supprimer l'enseignant
+          <Trash2 className="w-4 h-4" /> {t("Supprimer l'enseignant")}
         </button>
       </div>
 
@@ -293,27 +294,27 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
         <form onSubmit={handleSaveProfile} className="space-y-4 max-w-2xl">
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-2">Prénom *</label>
+              <label className="block text-sm font-medium mb-2">{t("Prénom *")}</label>
               <input type="text" required {...field('firstName')} />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Nom *</label>
+              <label className="block text-sm font-medium mb-2">{t("Nom *")}</label>
               <input type="text" required {...field('lastName')} />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Email de connexion *</label>
+              <label className="block text-sm font-medium mb-2">{t("Email de connexion *")}</label>
               <input type="email" required {...field('email')} />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Téléphone</label>
+              <label className="block text-sm font-medium mb-2">{t("Téléphone")}</label>
               <input type="tel" {...field('phone')} />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Matricule *</label>
+              <label className="block text-sm font-medium mb-2">{t("Matricule *")}</label>
               <input type="text" required {...field('teacherNumber')} />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Taux horaire (FCFA)</label>
+              <label className="block text-sm font-medium mb-2">{t("Taux horaire (FCFA)")}</label>
               <input
                 type="number"
                 min="0"
@@ -324,11 +325,11 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Spécialité</label>
+              <label className="block text-sm font-medium mb-2">{t("Spécialité")}</label>
               <input type="text" {...field('specialization')} />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Département</label>
+              <label className="block text-sm font-medium mb-2">{t("Département")}</label>
               <input type="text" {...field('department')} />
             </div>
           </div>
@@ -338,14 +339,14 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
               disabled={saving}
               className="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
             >
-              {saving ? 'Enregistrement...' : 'Enregistrer les modifications'}
+              {saving ? t("Enregistrement...") : t("Enregistrer les modifications")}
             </button>
             <button
               type="button"
               onClick={handleResetPassword}
               className="flex items-center gap-2 px-4 py-2 border rounded hover:bg-gray-100"
             >
-              <KeyRound className="w-4 h-4" /> Réinitialiser le mot de passe
+              <KeyRound className="w-4 h-4" /> {t("Réinitialiser le mot de passe")}
             </button>
           </div>
         </form>
@@ -358,10 +359,10 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
               value={assignForm.subjectId}
               onChange={(e) => setAssignForm({ ...assignForm, subjectId: e.target.value })}
               className="border rounded px-3 py-2"
-              aria-label="Matière"
+              aria-label={t("Matière")}
               required
             >
-              <option value="">Sélectionner une matière...</option>
+              <option value="">{t("Sélectionner une matière...")}</option>
               {subjects.map((subject) => (
                 <option key={subject.id} value={subject.id}>{subject.code} - {subject.name}</option>
               ))}
@@ -371,25 +372,25 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
               value={assignForm.levelId}
               onChange={(levelId) => setAssignForm({ ...assignForm, levelId })}
               className="border rounded px-3 py-2"
-              ariaLabel="Niveau"
+              ariaLabel={t("Niveau")}
               required
             />
             <button type="submit" className="bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700 flex items-center justify-center gap-2">
-              <Plus className="w-4 h-4" /> Affecter
+              <Plus className="w-4 h-4" /> {t("Affecter")}
             </button>
           </form>
 
           {assignments.length === 0 ? (
-            <p className="text-center py-8 text-gray-500">Aucune affectation</p>
+            <p className="text-center py-8 text-gray-500">{t("Aucune affectation")}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[480px] text-sm">
                 <thead className="bg-gray-100">
                   <tr>
-                    <th className="px-3 py-2 text-left">Matière</th>
-                    <th className="px-3 py-2 text-left">Niveau</th>
-                    <th className="px-3 py-2 text-left">Cycle</th>
-                    <th className="px-3 py-2 text-left">Retirer</th>
+                    <th className="px-3 py-2 text-start">{t("Matière")}</th>
+                    <th className="px-3 py-2 text-start">{t("Niveau")}</th>
+                    <th className="px-3 py-2 text-start">{t("Cycle")}</th>
+                    <th className="px-3 py-2 text-start">{t("Retirer")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -402,8 +403,8 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
                         <button
                           onClick={() => handleRemoveAssignment(a.id)}
                           className="text-red-600 hover:bg-red-50 p-2 rounded"
-                          title="Retirer"
-                          aria-label={`Retirer ${a.subjects?.name} en ${a.levels?.name}`}
+                          title={t("Retirer")}
+                          aria-label={t("Retirer {0} en {1}", [a.subjects?.name, a.levels?.name])}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -419,17 +420,17 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
 
       {activeTab === 'schedule' && (
         schedule.length === 0 ? (
-          <p className="text-center py-8 text-gray-500">Aucun créneau planifié</p>
+          <p className="text-center py-8 text-gray-500">{t("Aucun créneau planifié")}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[480px] text-sm">
               <thead className="bg-gray-100">
                 <tr>
-                  <th className="px-3 py-2 text-left">Jour</th>
-                  <th className="px-3 py-2 text-left">Horaire</th>
-                  <th className="px-3 py-2 text-left">Matière</th>
-                  <th className="px-3 py-2 text-left">Niveau</th>
-                  <th className="px-3 py-2 text-left">Salle</th>
+                  <th className="px-3 py-2 text-start">{t("Jour")}</th>
+                  <th className="px-3 py-2 text-start">{t("Horaire")}</th>
+                  <th className="px-3 py-2 text-start">{t("Matière")}</th>
+                  <th className="px-3 py-2 text-start">{t("Niveau")}</th>
+                  <th className="px-3 py-2 text-start">{t("Salle")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -451,21 +452,21 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
       {activeTab === 'messages' && (
         <div>
           <form onSubmit={handleSendMessage} className="space-y-3 mb-8 p-4 bg-gray-50 rounded-lg">
-            <h3 className="font-bold">Envoyer un message à {fullName}</h3>
+            <h3 className="font-bold">{t("Envoyer un message à")} {fullName}</h3>
             <input
               type="text"
               value={messageForm.subject}
               onChange={(e) => setMessageForm({ ...messageForm, subject: e.target.value })}
-              placeholder="Objet"
-              aria-label="Objet du message"
+              placeholder={t("Objet")}
+              aria-label={t("Objet du message")}
               className="w-full border rounded px-3 py-2"
               required
             />
             <textarea
               value={messageForm.content}
               onChange={(e) => setMessageForm({ ...messageForm, content: e.target.value })}
-              placeholder="Votre message..."
-              aria-label="Contenu du message"
+              placeholder={t("Votre message...")}
+              aria-label={t("Contenu du message")}
               className="w-full border rounded px-3 py-2"
               rows={4}
               required
@@ -475,13 +476,13 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
               disabled={saving}
               className="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
             >
-              <Send className="w-4 h-4" /> {saving ? 'Envoi...' : 'Envoyer'}
+              <Send className="w-4 h-4" /> {saving ? t("Envoi...") : t("Envoyer")}
             </button>
           </form>
 
-          <h3 className="font-bold mb-3">Messages envoyés ({messages.length})</h3>
+          <h3 className="font-bold mb-3">{t("Messages envoyés (")}{messages.length})</h3>
           {messages.length === 0 ? (
-            <p className="text-center py-6 text-gray-500">Aucun message envoyé à cet enseignant</p>
+            <p className="text-center py-6 text-gray-500">{t("Aucun message envoyé à cet enseignant")}</p>
           ) : (
             <div className="space-y-3">
               {messages.map((message) => (
@@ -490,16 +491,16 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
                     <div className="min-w-0">
                       <p className="font-semibold">{message.subject}</p>
                       <p className="text-xs text-gray-500 mb-2">
-                        {new Date(message.sent_at).toLocaleString('fr-FR')} •{' '}
-                        {message.is_read ? 'Lu' : 'Non lu'}
+                        {new Date(message.sent_at).toLocaleString(locale())} •{' '}
+                        {message.is_read ? t("Lu") : t("Non lu")}
                       </p>
                       <p className="text-sm text-gray-700 whitespace-pre-wrap">{message.content}</p>
                     </div>
                     <button
                       onClick={() => handleDeleteMessage(message.id)}
                       className="text-red-600 hover:bg-red-50 p-2 rounded"
-                      title="Supprimer"
-                      aria-label={`Supprimer le message ${message.subject}`}
+                      title={t("Supprimer")}
+                      aria-label={t("Supprimer le message {0}", [message.subject])}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

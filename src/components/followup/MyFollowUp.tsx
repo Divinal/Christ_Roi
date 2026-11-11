@@ -13,6 +13,7 @@ import { notify } from '../ui/feedback';
 import { EmptyState, Panel, StatTile } from '../ui/primitives';
 import FollowUpPrint from './FollowUpPrint';
 import { ReportsTable } from './StudentFollowUp';
+import { t } from '../../i18n';
 
 interface MyFollowUpProps {
   studentId: string;
@@ -60,7 +61,7 @@ const MyFollowUp: React.FC<MyFollowUpProps> = ({ studentId, studentName }) => {
   if (notActivated) {
     return (
       <Panel>
-        <EmptyState icon={ClipboardCheck} title="Le suivi n'est pas encore disponible" />
+        <EmptyState icon={ClipboardCheck} title={t("Le suivi n'est pas encore disponible")} />
       </Panel>
     );
   }
@@ -72,28 +73,28 @@ const MyFollowUp: React.FC<MyFollowUpProps> = ({ studentId, studentName }) => {
   return (
     <div className="space-y-4 md:space-y-6">
       <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
-        <StatTile icon={CalendarCheck} tone="blue" label="Jours renseignés" value={new Set(reports.map((r) => r.report_date)).size} />
-        <StatTile icon={CalendarX} tone="red" label="Absences" value={absences} />
-        <StatTile icon={Clock3} tone="orange" label="Retards" value={lateness} />
-        <StatTile icon={AlertTriangle} tone="red" label="Conduite à surveiller" value={concerns} />
+        <StatTile icon={CalendarCheck} tone="blue" label={t("Jours renseignés")} value={new Set(reports.map((r) => r.report_date)).size} />
+        <StatTile icon={CalendarX} tone="red" label={t("Absences")} value={absences} />
+        <StatTile icon={Clock3} tone="orange" label={t("Retards")} value={lateness} />
+        <StatTile icon={AlertTriangle} tone="red" label={t("Conduite à surveiller")} value={concerns} />
       </div>
 
       <Panel
-        title="Mon suivi"
-        description="Les rapports de vos enseignants et de l'administration. Vous pouvez les imprimer pour vos parents."
+        title={t("Mon suivi")}
+        description={t("Les rapports de vos enseignants et de l'administration. Vous pouvez les imprimer pour vos parents.")}
         actions={
           <button
             onClick={() => setPrinting(true)}
             disabled={reports.length === 0}
             className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <Printer className="h-4 w-4" /> Imprimer
+            <Printer className="h-4 w-4" /> {t("Imprimer")}
           </button>
         }
       >
         <div className="mb-4 grid max-w-md grid-cols-2 gap-3">
           <div>
-            <label htmlFor="my-followup-from" className="mb-2 block text-sm font-medium">Du</label>
+            <label htmlFor="my-followup-from" className="mb-2 block text-sm font-medium">{t("Du")}</label>
             <input
               id="my-followup-from"
               type="date"
@@ -104,7 +105,7 @@ const MyFollowUp: React.FC<MyFollowUpProps> = ({ studentId, studentName }) => {
             />
           </div>
           <div>
-            <label htmlFor="my-followup-to" className="mb-2 block text-sm font-medium">Au</label>
+            <label htmlFor="my-followup-to" className="mb-2 block text-sm font-medium">{t("Au")}</label>
             <input
               id="my-followup-to"
               type="date"
@@ -118,9 +119,9 @@ const MyFollowUp: React.FC<MyFollowUpProps> = ({ studentId, studentName }) => {
         </div>
 
         {loading && reports.length === 0 ? (
-          <p className="py-8 text-center text-gray-500">Chargement...</p>
+          <p className="py-8 text-center text-gray-500">{t("Chargement...")}</p>
         ) : reports.length === 0 ? (
-          <EmptyState icon={ClipboardCheck} title="Aucun rapport sur cette période" />
+          <EmptyState icon={ClipboardCheck} title={t("Aucun rapport sur cette période")} />
         ) : (
           <ReportsTable reports={reports} hideStudent />
         )}
@@ -128,12 +129,12 @@ const MyFollowUp: React.FC<MyFollowUpProps> = ({ studentId, studentName }) => {
 
       {printing && (
         <FollowUpPrint
-          title="Suivi administratif"
+          title={t("Suivi administratif")}
           subtitle={studentName}
           meta={[
-            ['Période', `${formatDate(from)} - ${formatDate(to)}`],
-            ['Absences', absences],
-            ['Retards', lateness],
+            [t("Période"), `${formatDate(from)} - ${formatDate(to)}`],
+            [t("Absences"), absences],
+            [t("Retards"), lateness],
           ]}
           reports={reports}
           onClose={() => setPrinting(false)}

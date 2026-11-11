@@ -3,6 +3,7 @@ import {
   Award, Bell, BellOff, Calendar, CheckCheck, ClipboardCheck, DollarSign, FileText, LucideIcon, Megaphone, MessageSquare, Wallet,
 } from 'lucide-react';
 import { AppNotification, NotificationType, relativeTime, useNotifications } from '../../lib/notifications';
+import { t } from '../../i18n';
 
 const TYPE_STYLES: Record<NotificationType, { icon: LucideIcon; className: string }> = {
   message: { icon: MessageSquare, className: 'bg-indigo-100 text-indigo-600' },
@@ -61,14 +62,14 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ userId, activeTab, 
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         aria-haspopup="true"
-        aria-label={unreadCount > 0 ? `Notifications : ${unreadCount} non lues` : 'Notifications'}
+        aria-label={unreadCount > 0 ? t("Notifications : {0} non lues", [unreadCount]) : t("Notifications")}
         className="relative rounded-lg p-2 text-gray-700 hover:bg-gray-100"
       >
         <Bell className="h-5 w-5" />
         {unreadCount > 0 && (
           <span
             data-testid="notification-badge"
-            className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-semibold text-white"
+            className="absolute -end-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-semibold text-white"
           >
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
@@ -78,17 +79,17 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ userId, activeTab, 
       {open && (
         <div
           role="region"
-          aria-label="Notifications"
-          className="fixed inset-x-3 top-[4.25rem] z-30 flex max-h-[75vh] flex-col rounded-xl bg-white shadow-lg sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96"
+          aria-label={t("Notifications")}
+          className="fixed inset-x-3 top-[4.25rem] z-30 flex max-h-[75vh] flex-col rounded-xl bg-white shadow-lg sm:absolute sm:inset-x-auto sm:end-0 sm:top-full sm:mt-2 sm:w-96"
         >
           <div className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3">
-            <h2 className="text-sm font-semibold text-gray-900">Notifications</h2>
+            <h2 className="text-sm font-semibold text-gray-900">{t("Notifications")}</h2>
             {unreadCount > 0 && (
               <button
                 onClick={markAllRead}
                 className="flex items-center gap-1 text-xs text-indigo-600 hover:underline"
               >
-                <CheckCheck className="h-4 w-4" /> Tout marquer comme lu
+                <CheckCheck className="h-4 w-4" /> {t("Tout marquer comme lu")}
               </button>
             )}
           </div>
@@ -97,8 +98,8 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ userId, activeTab, 
               <BellOff className="mx-auto mb-2 h-8 w-8 text-gray-400" />
               <p className="text-sm text-gray-500">
                 {available
-                  ? 'Aucune notification pour le moment'
-                  : "Les notifications ne sont pas encore activées sur le serveur."}
+                  ? t("Aucune notification pour le moment")
+                  : t("Les notifications ne sont pas encore activées sur le serveur.")}
               </p>
             </div>
           ) : (
@@ -109,18 +110,18 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ userId, activeTab, 
                   <li key={item.id}>
                     <button
                       onClick={() => openItem(item)}
-                      className={`flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-gray-100 ${item.is_read ? '' : 'bg-gray-50'}`}
+                      className={`flex w-full items-start gap-3 px-4 py-3 text-start hover:bg-gray-100 ${item.is_read ? '' : 'bg-gray-50'}`}
                     >
                       <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${className}`}>
                         <Icon className="h-4 w-4" />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className={`block text-sm text-gray-900 ${item.is_read ? '' : 'font-semibold'}`}>{item.title}</span>
-                        {item.body && <span className="block break-words text-xs text-gray-600">{item.body}</span>}
+                        <span className={`block text-sm text-gray-900 ${item.is_read ? '' : 'font-semibold'}`}>{t(item.title)}</span>
+                        {item.body && <span className="block break-words text-xs text-gray-600">{t(item.body)}</span>}
                         <span className="mt-0.5 block text-xs text-gray-500">{relativeTime(item.created_at)}</span>
                       </span>
                       {!item.is_read && (
-                        <span aria-label="Non lue" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-indigo-600" />
+                        <span aria-label={t("Non lue")} className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-indigo-600" />
                       )}
                     </button>
                   </li>

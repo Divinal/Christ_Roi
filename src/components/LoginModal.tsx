@@ -3,6 +3,7 @@ import { AlertCircle, X as CloseIcon } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { User } from '../types';
 import { siteConfig } from '../config/site.config';
+import { t } from '../i18n';
 
 interface LoginModalProps {
   onClose: () => void;
@@ -36,7 +37,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLogin }) => {
           .maybeSingle();
 
         if (profileError) throw profileError;
-        if (!profileData) throw new Error('Profil non trouvé dans la base de données');
+        if (!profileData) throw new Error(t("Profil non trouvé dans la base de données"));
 
         const { data: roleData, error: roleError } = await supabase
           .from('user_roles')
@@ -45,7 +46,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLogin }) => {
           .maybeSingle();
 
         if (roleError) throw roleError;
-        if (!roleData) throw new Error("Aucun rôle n'est attribué à ce compte. Contactez l'administrateur.");
+        if (!roleData) throw new Error(t("Aucun rôle n'est attribué à ce compte. Contactez l'administrateur."));
 
         const user: User = {
           id: profileData.user_id,
@@ -60,7 +61,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLogin }) => {
         onLogin(user);
       }
     } catch (error: any) {
-      setError(error.message || 'Erreur de connexion');
+      setError(error.message || t("Erreur de connexion"));
     } finally {
       setLoading(false);
     }
@@ -69,7 +70,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLogin }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
       <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 w-full max-w-md relative">
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition">
+        <button onClick={onClose} className="absolute top-4 end-4 text-gray-400 hover:text-gray-600 transition">
           <CloseIcon className="w-6 h-6" />
         </button>
 
@@ -77,15 +78,15 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLogin }) => {
           <div className="inline-block mb-4">
             <img
               src={siteConfig.logoUrl}
-              alt="Logo"
+              alt={t("Logo")}
               className="w-20 h-20 md:w-24 md:h-24 mx-auto object-contain"
               onError={(e) => {
                 e.currentTarget.src = `data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="96" height="96"%3E%3Crect fill="%233b82f6" width="96" height="96" rx="12"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="40" font-weight="bold"%3E${siteConfig.logoFallbackInitials}%3C/text%3E%3C/svg%3E`;
               }}
             />
           </div>
-          <h2 className="text-xl md:text-2xl font-bold text-gray-800">Connexion</h2>
-          <p className="text-gray-600 mt-2 text-sm md:text-base">Accédez à votre espace personnel</p>
+          <h2 className="text-xl md:text-2xl font-bold text-gray-800">{t("Connexion")}</h2>
+          <p className="text-gray-600 mt-2 text-sm md:text-base">{t("Accédez à votre espace personnel")}</p>
         </div>
 
         {error && (
@@ -97,7 +98,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLogin }) => {
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">{t("Email")}</label>
             <input
               type="email"
               value={email}
@@ -109,7 +110,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLogin }) => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Mot de passe</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">{t("Mot de passe")}</label>
             <input
               type="password"
               value={password}
@@ -125,12 +126,12 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLogin }) => {
             disabled={loading}
             className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
           >
-            {loading ? 'Connexion...' : 'Se connecter'}
+            {loading ? t("Connexion...") : t("Se connecter")}
           </button>
         </form>
 
         <p className="text-center text-sm text-gray-600 mt-4">
-          Mot de passe oublié ? Contactez l'administration de l'établissement.
+          {t("Mot de passe oublié ? Contactez l'administration de l'établissement.")}
         </p>
       </div>
     </div>

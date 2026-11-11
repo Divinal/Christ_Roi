@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from './supabaseClient';
 import { notify } from '../components/ui/feedback';
+import { t, locale } from '../i18n';
 
 export type NotificationType =
   | 'message' | 'payment' | 'payslip' | 'grade' | 'exam' | 'announcement' | 'schedule' | 'followup';
@@ -54,9 +55,9 @@ export const useNotifications = (userId: string | undefined) => {
     if (knownIds.current) {
       const fresh = rows.filter((row) => !row.is_read && !knownIds.current?.has(row.id));
       if (fresh.length === 1) {
-        notify(fresh[0].body ? `${fresh[0].title}\n${fresh[0].body}` : fresh[0].title, 'info');
+        notify(fresh[0].body ? `${t(fresh[0].title)}\n${t(fresh[0].body)}` : t(fresh[0].title), 'info');
       } else if (fresh.length > 1) {
-        notify(`${fresh.length} nouvelles notifications`, 'info');
+        notify(t("{0} nouvelles notifications", [fresh.length]), 'info');
       }
       if (fresh.length > 0) {
         window.dispatchEvent(new CustomEvent(NOTIFICATION_EVENT, { detail: { types: fresh.map((row) => row.type) } }));
@@ -133,13 +134,13 @@ export const useNotifications = (userId: string | undefined) => {
 
 export const relativeTime = (iso: string): string => {
   const seconds = Math.round((new Date(iso).getTime() - Date.now()) / 1000);
-  const format = new Intl.RelativeTimeFormat('fr', { numeric: 'auto' });
-  if (Math.abs(seconds) < 60) return "à l'instant";
+  const format = new Intl.RelativeTimeFormat(locale(), { numeric: 'auto' });
+  if (Math.abs(seconds) < 60) return t("à l'instant");
   const minutes = Math.round(seconds / 60);
   if (Math.abs(minutes) < 60) return format.format(minutes, 'minute');
   const hours = Math.round(minutes / 60);
   if (Math.abs(hours) < 24) return format.format(hours, 'hour');
   const days = Math.round(hours / 24);
   if (Math.abs(days) < 7) return format.format(days, 'day');
-  return new Date(iso).toLocaleDateString('fr-FR');
+  return new Date(iso).toLocaleDateString(locale());
 };

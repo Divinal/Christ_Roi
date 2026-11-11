@@ -1,5 +1,6 @@
 import React from 'react';
 import { CYCLES, Level, SchoolCycle, levelsOfCycle } from '../../lib/levels';
+import { t } from '../../i18n';
 
 interface LevelSelectProps {
   levels: Level[];
@@ -19,7 +20,7 @@ const LevelSelect: React.FC<LevelSelectProps> = ({
   levels,
   value,
   onChange,
-  placeholder = 'Sélectionner un niveau...',
+  placeholder = t("Sélectionner un niveau..."),
   required,
   disabled,
   className = 'w-full border rounded px-3 py-2',

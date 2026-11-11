@@ -8,14 +8,15 @@ import ReceiptPrintable from './ReceiptPrintable';
 import TuitionHistoryTable from './TuitionHistoryTable';
 import { confirmDialog, notify } from '../ui/feedback';
 import { fetchAllRows } from '../../lib/fetchAll';
+import { t } from '../../i18n';
 
 type PaymentStatus = 'paid' | 'partial' | 'unpaid' | 'no_fee';
 
 const STATUS: Record<PaymentStatus, { label: string; className: string }> = {
-  paid: { label: 'Soldé', className: 'bg-green-100 text-green-700' },
-  partial: { label: 'Partiel', className: 'bg-orange-100 text-orange-700' },
-  unpaid: { label: 'Aucun paiement', className: 'bg-red-100 text-red-700' },
-  no_fee: { label: 'Frais non défini', className: 'bg-gray-100 text-gray-700' },
+  paid: { label: t("Soldé"), className: 'bg-green-100 text-green-700' },
+  partial: { label: t("Partiel"), className: 'bg-orange-100 text-orange-700' },
+  unpaid: { label: t("Aucun paiement"), className: 'bg-red-100 text-red-700' },
+  no_fee: { label: t("Frais non défini"), className: 'bg-gray-100 text-gray-700' },
 };
 
 interface StudentRow {
@@ -118,7 +119,7 @@ const TuitionByLevel: React.FC<TuitionByLevelProps> = ({ academicYear }) => {
       );
     } catch (error: any) {
       console.error('Erreur chargement scolarité:', error);
-      setLoadError(error.message || 'Erreur de chargement');
+      setLoadError(error.message || t("Erreur de chargement"));
     } finally {
       setLoading(false);
     }
@@ -172,7 +173,7 @@ const TuitionByLevel: React.FC<TuitionByLevelProps> = ({ academicYear }) => {
       return;
     }
     if (!data?.length) {
-      notify("❌ Modification refusée : vous n'avez pas les droits nécessaires.");
+      notify(t("❌ Modification refusée : vous n'avez pas les droits nécessaires."));
       return;
     }
     setFeeEdit(null);
@@ -191,7 +192,7 @@ const TuitionByLevel: React.FC<TuitionByLevelProps> = ({ academicYear }) => {
     const fee = Number(collecting.annual_tuition_fee) || 0;
     if (fee > 0 && paymentForm.amount > collecting.remaining) {
       const proceed = await confirmDialog(
-        `⚠️ Ce montant dépasse le reste à payer (${formatFCFA(collecting.remaining)}). Enregistrer quand même ?`
+        t("⚠️ Ce montant dépasse le reste à payer ({0}). Enregistrer quand même ?", [formatFCFA(collecting.remaining)])
       );
       if (!proceed) return;
     }
@@ -225,13 +226,13 @@ const TuitionByLevel: React.FC<TuitionByLevelProps> = ({ academicYear }) => {
       <table className="w-full min-w-[820px] text-sm">
         <thead className="bg-gray-100">
           <tr>
-            <th className="px-3 py-2 text-left">Matricule</th>
-            <th className="px-3 py-2 text-left">Étudiant</th>
-            <th className="px-3 py-2 text-right">Frais annuel</th>
-            <th className="px-3 py-2 text-right">Déjà payé</th>
-            <th className="px-3 py-2 text-right">Reste</th>
-            <th className="px-3 py-2 text-left">Statut</th>
-            <th className="px-3 py-2 text-center">Actions</th>
+            <th className="px-3 py-2 text-start">{t("Matricule")}</th>
+            <th className="px-3 py-2 text-start">{t("Étudiant")}</th>
+            <th className="px-3 py-2 text-end">{t("Frais annuel")}</th>
+            <th className="px-3 py-2 text-end">{t("Déjà payé")}</th>
+            <th className="px-3 py-2 text-end">{t("Reste")}</th>
+            <th className="px-3 py-2 text-start">{t("Statut")}</th>
+            <th className="px-3 py-2 text-center">{t("Actions")}</th>
           </tr>
         </thead>
         <tbody>
@@ -244,7 +245,7 @@ const TuitionByLevel: React.FC<TuitionByLevelProps> = ({ academicYear }) => {
                 <tr className="border-b hover:bg-gray-50">
                   <td className="px-3 py-2 font-medium">{row.student_number}</td>
                   <td className="px-3 py-2">{fullName}</td>
-                  <td className="px-3 py-2 text-right">
+                  <td className="px-3 py-2 text-end">
                     {isEditingFee ? (
                       <div className="flex justify-end gap-1">
                         <input
@@ -254,20 +255,20 @@ const TuitionByLevel: React.FC<TuitionByLevelProps> = ({ academicYear }) => {
                           autoFocus
                           value={feeEdit.value}
                           onChange={(e) => setFeeEdit({ studentId: row.id, value: e.target.value === '' ? '' : Number(e.target.value) })}
-                          aria-label={`Frais annuel de ${fullName}`}
-                          className="border rounded px-2 py-1 w-28 text-right"
+                          aria-label={t("Frais annuel de {0}", [fullName])}
+                          className="border rounded px-2 py-1 w-28 text-end"
                         />
-                        <button onClick={handleSaveFee} className="bg-indigo-600 text-white rounded px-2 text-xs hover:bg-indigo-700">OK</button>
+                        <button onClick={handleSaveFee} className="bg-indigo-600 text-white rounded px-2 text-xs hover:bg-indigo-700">{t("OK")}</button>
                         <button onClick={() => setFeeEdit(null)} className="border rounded px-2 text-xs hover:bg-gray-100">×</button>
                       </div>
                     ) : row.annual_tuition_fee ? (
                       formatFCFA(row.annual_tuition_fee)
                     ) : (
-                      <span className="text-gray-500">Non défini</span>
+                      <span className="text-gray-500">{t("Non défini")}</span>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-right font-semibold text-green-600">{formatFCFA(row.paid)}</td>
-                  <td className={`px-3 py-2 text-right font-semibold ${row.remaining > 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                  <td className="px-3 py-2 text-end font-semibold text-green-600">{formatFCFA(row.paid)}</td>
+                  <td className={`px-3 py-2 text-end font-semibold ${row.remaining > 0 ? 'text-red-600' : 'text-gray-500'}`}>
                     {row.status === 'no_fee' ? '-' : formatFCFA(row.remaining)}
                   </td>
                   <td className="px-3 py-2">
@@ -280,16 +281,16 @@ const TuitionByLevel: React.FC<TuitionByLevelProps> = ({ academicYear }) => {
                       <button
                         onClick={() => openPaymentForm(row)}
                         className="text-green-600 hover:bg-green-50 p-2 rounded"
-                        title="Encaisser un paiement"
-                        aria-label={`Encaisser un paiement pour ${fullName}`}
+                        title={t("Encaisser un paiement")}
+                        aria-label={t("Encaisser un paiement pour {0}", [fullName])}
                       >
                         <Plus className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => setFeeEdit({ studentId: row.id, value: row.annual_tuition_fee ?? '' })}
                         className="text-blue-600 hover:bg-blue-50 p-2 rounded"
-                        title="Modifier le frais annuel"
-                        aria-label={`Modifier le frais annuel de ${fullName}`}
+                        title={t("Modifier le frais annuel")}
+                        aria-label={t("Modifier le frais annuel de {0}", [fullName])}
                       >
                         <Edit className="w-4 h-4" />
                       </button>
@@ -297,10 +298,10 @@ const TuitionByLevel: React.FC<TuitionByLevelProps> = ({ academicYear }) => {
                         onClick={() => setExpandedStudent(isExpanded ? '' : row.id)}
                         className="text-gray-700 hover:bg-gray-100 px-2 py-1 rounded text-xs flex items-center gap-1 whitespace-nowrap"
                         aria-expanded={isExpanded}
-                        title="Voir, modifier ou supprimer les paiements"
+                        title={t("Voir, modifier ou supprimer les paiements")}
                       >
-                        {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                        Paiements ({row.paymentCount})
+                        {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="rtl:-scale-x-100 w-3 h-3" />}
+                        {t("Paiements (")}{row.paymentCount})
                       </button>
                     </div>
                   </td>
@@ -336,17 +337,17 @@ const TuitionByLevel: React.FC<TuitionByLevelProps> = ({ academicYear }) => {
         <button
           onClick={() => toggleLevel(id)}
           aria-expanded={isOpen}
-          className="w-full flex flex-col md:flex-row md:items-center justify-between gap-2 p-3 md:p-4 text-left hover:bg-gray-50"
+          className="w-full flex flex-col md:flex-row md:items-center justify-between gap-2 p-3 md:p-4 text-start hover:bg-gray-50"
         >
           <span className="flex items-center gap-2 font-bold">
-            {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="rtl:-scale-x-100 w-4 h-4" />}
             {title}
-            <span className="text-xs font-normal text-gray-500">{list.length} étudiant(s)</span>
+            <span className="text-xs font-normal text-gray-500">{list.length} {t("étudiant(s)")}</span>
           </span>
           <span className="flex flex-wrap gap-x-4 gap-y-1 text-xs md:text-sm">
-            <span className="text-gray-600">Attendu : {formatFCFA(summary.expected)}</span>
-            <span className="text-green-600">Payé : {formatFCFA(summary.paid)}</span>
-            <span className="text-red-600">Reste : {formatFCFA(summary.remaining)}</span>
+            <span className="text-gray-600">{t("Attendu :")} {formatFCFA(summary.expected)}</span>
+            <span className="text-green-600">{t("Payé :")} {formatFCFA(summary.paid)}</span>
+            <span className="text-red-600">{t("Reste :")} {formatFCFA(summary.remaining)}</span>
           </span>
         </button>
         {isOpen && <div className="border-t">{renderTable(list)}</div>}
@@ -360,38 +361,38 @@ const TuitionByLevel: React.FC<TuitionByLevelProps> = ({ academicYear }) => {
     <div>
       <div className="grid md:grid-cols-3 gap-4 mb-6">
         <div className="bg-blue-50 p-4 rounded-lg">
-          <p className="text-sm text-blue-800">Total attendu</p>
+          <p className="text-sm text-blue-800">{t("Total attendu")}</p>
           <p className="text-2xl font-bold text-blue-600">{formatFCFA(totals.expected)}</p>
         </div>
         <div className="bg-green-50 p-4 rounded-lg">
-          <p className="text-sm text-green-800">Total encaissé</p>
+          <p className="text-sm text-green-800">{t("Total encaissé")}</p>
           <p className="text-2xl font-bold text-green-600">{formatFCFA(totals.paid)}</p>
         </div>
         <div className="bg-red-50 p-4 rounded-lg">
-          <p className="text-sm text-red-800">Reste à encaisser</p>
+          <p className="text-sm text-red-800">{t("Reste à encaisser")}</p>
           <p className="text-2xl font-bold text-red-600">{formatFCFA(totals.remaining)}</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
         <div className="relative md:col-span-2">
-          <Search className="w-5 h-5 absolute left-3 top-2.5 text-gray-400" />
+          <Search className="w-5 h-5 absolute start-3 top-2.5 text-gray-400" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Rechercher un étudiant (nom, matricule)..."
-            aria-label="Rechercher un étudiant"
-            className="w-full border rounded-lg px-3 py-2 pl-10"
+            placeholder={t("Rechercher un étudiant (nom, matricule)...")}
+            aria-label={t("Rechercher un étudiant")}
+            className="w-full border rounded-lg px-3 py-2 ps-10"
           />
         </div>
         <select
           value={cycleFilter}
           onChange={(e) => setCycleFilter(e.target.value as SchoolCycle | 'all')}
-          aria-label="Filtrer par cycle"
+          aria-label={t("Filtrer par cycle")}
           className="border rounded-lg px-3 py-2"
         >
-          <option value="all">Tous les cycles</option>
+          <option value="all">{t("Tous les cycles")}</option>
           {CYCLES.map((c) => (
             <option key={c.id} value={c.id}>{c.label}</option>
           ))}
@@ -399,10 +400,10 @@ const TuitionByLevel: React.FC<TuitionByLevelProps> = ({ academicYear }) => {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as PaymentStatus | 'all')}
-          aria-label="Filtrer par statut de paiement"
+          aria-label={t("Filtrer par statut de paiement")}
           className="border rounded-lg px-3 py-2"
         >
-          <option value="all">Tous les statuts</option>
+          <option value="all">{t("Tous les statuts")}</option>
           {(Object.keys(STATUS) as PaymentStatus[]).map((s) => (
             <option key={s} value={s}>{STATUS[s].label}</option>
           ))}
@@ -411,12 +412,12 @@ const TuitionByLevel: React.FC<TuitionByLevelProps> = ({ academicYear }) => {
 
       {loadError && (
         <p className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
-          Impossible de charger les paiements : {loadError}
+          {t("Impossible de charger les paiements :")} {loadError}
         </p>
       )}
 
       {loading && rows.length === 0 ? (
-        <p className="text-center py-8">Chargement...</p>
+        <p className="text-center py-8">{t("Chargement...")}</p>
       ) : (
         <div className="space-y-6">
           {visibleCycles.map((cycle) => {
@@ -436,13 +437,13 @@ const TuitionByLevel: React.FC<TuitionByLevelProps> = ({ academicYear }) => {
 
           {unenrolledRows.length > 0 && (
             <section>
-              <h4 className="text-sm font-semibold text-gray-500 uppercase mb-2">Sans niveau</h4>
-              {renderLevelSection(UNENROLLED, 'Étudiants à inscrire', unenrolledRows)}
+              <h4 className="text-sm font-semibold text-gray-500 uppercase mb-2">{t("Sans niveau")}</h4>
+              {renderLevelSection(UNENROLLED, t("Étudiants à inscrire"), unenrolledRows)}
             </section>
           )}
 
           {inScope.length === 0 && !loading && (
-            <p className="text-center py-8 text-gray-500">Aucun étudiant ne correspond à ces critères</p>
+            <p className="text-center py-8 text-gray-500">{t("Aucun étudiant ne correspond à ces critères")}</p>
           )}
         </div>
       )}
@@ -451,8 +452,8 @@ const TuitionByLevel: React.FC<TuitionByLevelProps> = ({ academicYear }) => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold">Encaisser un paiement</h3>
-              <button onClick={() => setCollecting(null)} className="text-3xl hover:text-red-600" aria-label="Fermer">×</button>
+              <h3 className="text-xl font-bold">{t("Encaisser un paiement")}</h3>
+              <button onClick={() => setCollecting(null)} className="text-3xl hover:text-red-600" aria-label={t("Fermer")}>×</button>
             </div>
             <p className="text-sm text-gray-600 mb-4">
               {collecting.profiles?.first_name} {collecting.profiles?.last_name} ({collecting.student_number})
@@ -460,7 +461,7 @@ const TuitionByLevel: React.FC<TuitionByLevelProps> = ({ academicYear }) => {
             </p>
             <form onSubmit={handleSubmitPayment} className="space-y-4">
               <div>
-                <label htmlFor="payment-month" className="block text-sm font-medium mb-2">Mois payé *</label>
+                <label htmlFor="payment-month" className="block text-sm font-medium mb-2">{t("Mois payé *")}</label>
                 <select
                   id="payment-month"
                   value={paymentForm.month}
@@ -474,7 +475,7 @@ const TuitionByLevel: React.FC<TuitionByLevelProps> = ({ academicYear }) => {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="payment-amount" className="block text-sm font-medium mb-2">Montant (FCFA) *</label>
+                  <label htmlFor="payment-amount" className="block text-sm font-medium mb-2">{t("Montant (FCFA) *")}</label>
                   <input
                     id="payment-amount"
                     type="number"
@@ -488,7 +489,7 @@ const TuitionByLevel: React.FC<TuitionByLevelProps> = ({ academicYear }) => {
                   />
                 </div>
                 <div>
-                  <label htmlFor="payment-date" className="block text-sm font-medium mb-2">Date *</label>
+                  <label htmlFor="payment-date" className="block text-sm font-medium mb-2">{t("Date *")}</label>
                   <input
                     id="payment-date"
                     type="date"
@@ -504,7 +505,7 @@ const TuitionByLevel: React.FC<TuitionByLevelProps> = ({ academicYear }) => {
                 disabled={submitting}
                 className="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
               >
-                {submitting ? 'Enregistrement...' : 'Enregistrer et générer le reçu'}
+                {submitting ? t("Enregistrement...") : t("Enregistrer et générer le reçu")}
               </button>
             </form>
           </div>

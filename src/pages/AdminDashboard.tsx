@@ -23,6 +23,7 @@ import { Announcement, PRIORITY_CLASSES, PRIORITY_LABELS } from '../lib/announce
 import { CURRENT_ACADEMIC_YEAR, CYCLES, Level, SchoolCycle, fetchLevels } from '../lib/levels';
 import { timeSlotOf, timeSlotsOf } from '../lib/schedule';
 import { useHashTab } from '../lib/useHashTab';
+import { t as tr, locale } from '../i18n';
 
 interface User {
   id: string;
@@ -93,39 +94,39 @@ const ROLE_TABS: Record<string, string[]> = {
 // ROLE_TABS lui autorise.
 const NAV_GROUPS: NavGroup[] = [
   {
-    label: 'Général',
-    items: [{ id: 'dashboard', label: 'Tableau de bord', icon: Home }],
+    label: tr("Général"),
+    items: [{ id: 'dashboard', label: tr("Tableau de bord"), icon: Home }],
   },
   {
-    label: 'Scolarité',
+    label: tr("Scolarité"),
     items: [
-      { id: 'students', label: 'Étudiants', icon: Users },
-      { id: 'levels', label: 'Cycles & Niveaux', icon: GraduationCap },
-      { id: 'grades', label: 'Notes', icon: FileText },
-      { id: 'followup', label: 'Suivi des étudiants', icon: ClipboardCheck },
+      { id: 'students', label: tr("Étudiants"), icon: Users },
+      { id: 'levels', label: tr("Cycles & Niveaux"), icon: GraduationCap },
+      { id: 'grades', label: tr("Notes"), icon: FileText },
+      { id: 'followup', label: tr("Suivi des étudiants"), icon: ClipboardCheck },
     ],
   },
   {
-    label: 'Pédagogie',
+    label: tr("Pédagogie"),
     items: [
-      { id: 'teachers', label: 'Enseignants', icon: BookOpen },
-      { id: 'assign-teachers', label: 'Affectations', icon: Link2 },
-      { id: 'subjects', label: 'Matières', icon: FileText },
-      { id: 'schedules', label: 'Emplois du temps', icon: Clock },
+      { id: 'teachers', label: tr("Enseignants"), icon: BookOpen },
+      { id: 'assign-teachers', label: tr("Affectations"), icon: Link2 },
+      { id: 'subjects', label: tr("Matières"), icon: FileText },
+      { id: 'schedules', label: tr("Emplois du temps"), icon: Clock },
     ],
   },
   {
-    label: 'Communication',
+    label: tr("Communication"),
     items: [
-      { id: 'messages', label: 'Messages', icon: MessageSquare },
-      { id: 'announcements', label: 'Annonces', icon: Bell },
+      { id: 'messages', label: tr("Messages"), icon: MessageSquare },
+      { id: 'announcements', label: tr("Annonces"), icon: Bell },
     ],
   },
   {
-    label: 'Administration',
+    label: tr("Administration"),
     items: [
-      { id: 'finance', label: 'Finances', icon: DollarSign },
-      { id: 'admins', label: 'Comptes admin', icon: Shield },
+      { id: 'finance', label: tr("Finances"), icon: DollarSign },
+      { id: 'admins', label: tr("Comptes admin"), icon: Shield },
     ],
   },
 ];
@@ -134,10 +135,10 @@ const fullNameOf = (person?: { profiles?: { first_name?: string; last_name?: str
   `${person?.profiles?.first_name || ''} ${person?.profiles?.last_name || ''}`.trim();
 // Rôles gérables depuis l'onglet "Comptes Admin" (admin général uniquement)
 const ADMIN_ROLE_LABELS: Record<string, string> = {
-  admin: 'Admin Général',
-  academic_admin: 'Admin Pédagogique',
-  finance_admin: 'Admin Financier',
-  admin_secretaire: 'Admin Secrétaire',
+  admin: tr("Admin Général"),
+  academic_admin: tr("Admin Pédagogique"),
+  finance_admin: tr("Admin Financier"),
+  admin_secretaire: tr("Admin Secrétaire"),
 };
 
 interface AdminDashboardProps {
@@ -251,7 +252,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onChang
   const showCredentials = (title: string, email: string, password: string) => {
     infoDialog({
       title,
-      message: `Email de connexion : ${email}\n\nMot de passe temporaire à lui transmettre. Il ne sera plus affiché, et devra être changé à la première connexion :`,
+      message: tr("Email de connexion : {0}\n\nMot de passe temporaire à lui transmettre. Il ne sera plus affiché, et devra être changé à la première connexion :", [email]),
       secret: password,
     });
   };
@@ -409,7 +410,7 @@ const loadTeacherAssignments = async () => {
         if (error) {
           notify(`❌ Erreur: ${error.message}`);
         } else if (!data?.length) {
-          notify("❌ Modification refusée : vous n'avez pas les droits nécessaires.");
+          notify(tr("❌ Modification refusée : vous n'avez pas les droits nécessaires."));
         } else {
           loadStudents();
         }
@@ -419,7 +420,7 @@ const handleAssignTeacherToLevel = async (e: React.FormEvent) => {
   e.preventDefault();
 
   if (!teacherAssignForm.teacherId || !teacherAssignForm.subjectId || !teacherAssignForm.levelId) {
-    notify('⚠️ Veuillez remplir tous les champs');
+    notify(tr("⚠️ Veuillez remplir tous les champs"));
     return;
   }
 
@@ -435,12 +436,12 @@ const handleAssignTeacherToLevel = async (e: React.FormEvent) => {
 
     if (error) {
       if (error.code === '23505') {
-        notify('⚠️ Cet enseignant est déjà affecté à cette matière pour ce niveau');
+        notify(tr("⚠️ Cet enseignant est déjà affecté à cette matière pour ce niveau"));
       } else {
         throw error;
       }
     } else {
-      notify('✅ Enseignant affecté avec succès !');
+      notify(tr("✅ Enseignant affecté avec succès !"));
       setShowAssignModal(false);
       setTeacherAssignForm({ teacherId: '', subjectId: '', levelId: '' });
       loadTeacherAssignments();
@@ -453,7 +454,7 @@ const handleAssignTeacherToLevel = async (e: React.FormEvent) => {
 };
 
 const handleRemoveTeacherAssignment = async (assignmentId: string) => {
-  if (!await confirmDialog('⚠️ Retirer cet enseignant de cette affectation ?')) return;
+  if (!await confirmDialog(tr("⚠️ Retirer cet enseignant de cette affectation ?"))) return;
 
   try {
     const { error } = await supabase
@@ -462,7 +463,7 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
       .eq('id', assignmentId);
 
     if (error) throw error;
-    notify('✅ Enseignant retiré de l\'affectation');
+    notify(tr("✅ Enseignant retiré de l'affectation"));
     loadTeacherAssignments();
   } catch (error: any) {
     notify(`❌ Erreur: ${error.message}`);
@@ -488,7 +489,7 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
         setShowModal(false);
         resetStudentForm();
         await loadStudents();
-        showCredentials('Étudiant créé', email, temporary_password);
+        showCredentials(tr("Étudiant créé"), email, temporary_password);
       } catch (error: any) {
         notify(`❌ ${error.message}`);
       } finally {
@@ -513,7 +514,7 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
         setShowModal(false);
         resetTeacherForm();
         await loadTeachers();
-        showCredentials('Enseignant créé', email, temporary_password);
+        showCredentials(tr("Enseignant créé"), email, temporary_password);
       } catch (error: any) {
         notify(`❌ ${error.message}`);
       } finally {
@@ -535,7 +536,7 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
         setShowModal(false);
         setAdminForm({ firstName: '', lastName: '', email: '', role: 'academic_admin' });
         await loadAdminAccounts();
-        showCredentials(`Compte ${ADMIN_ROLE_LABELS[adminForm.role]} créé`, email, temporary_password);
+        showCredentials(tr("Compte {0} créé", [ADMIN_ROLE_LABELS[adminForm.role]]), email, temporary_password);
       } catch (error: any) {
         notify(`❌ ${error.message}`);
       } finally {
@@ -546,8 +547,8 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
     const handleResetStudentPassword = async (student: Student) => {
       const name = fullNameOf(student) || student.student_number;
       const confirmed = await confirmDialog(
-        `Générer un nouveau mot de passe temporaire pour ${name} ?\n\nSon mot de passe actuel ne fonctionnera plus.`,
-        { title: 'Réinitialiser le mot de passe', confirmLabel: 'Réinitialiser' },
+        tr("Générer un nouveau mot de passe temporaire pour {0} ?\n\nSon mot de passe actuel ne fonctionnera plus.", [name]),
+        { title: tr("Réinitialiser le mot de passe"), confirmLabel: tr("Réinitialiser") },
       );
       if (!confirmed) return;
 
@@ -556,7 +557,7 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
           'reset_student_password',
           { student_id: student.id },
         );
-        showCredentials(`Nouveau mot de passe de ${name}`, student.profiles?.email || '', temporary_password);
+        showCredentials(tr("Nouveau mot de passe de {0}", [name]), student.profiles?.email || '', temporary_password);
       } catch (error: any) {
         notify(`❌ ${error.message}`);
       }
@@ -564,10 +565,10 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
 
     const handleRemoveAdminRole = async (assignmentId: string, targetUserId: string) => {
       if (targetUserId === user?.id) {
-        notify("⚠️ Vous ne pouvez pas retirer votre propre rôle.");
+        notify(tr("⚠️ Vous ne pouvez pas retirer votre propre rôle."));
         return;
       }
-      if (!await confirmDialog("⚠️ Retirer ce rôle d'administration à cette personne ?")) return;
+      if (!await confirmDialog(tr("⚠️ Retirer ce rôle d'administration à cette personne ?"))) return;
 
       try {
         const { error } = await supabase
@@ -576,7 +577,7 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
           .eq('id', assignmentId);
 
         if (error) throw error;
-        notify('✅ Rôle retiré');
+        notify(tr("✅ Rôle retiré"));
         loadAdminAccounts();
       } catch (error: any) {
         notify(`❌ Erreur: ${error.message}`);
@@ -617,7 +618,7 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
         if (linkError) throw linkError;
       }
 
-      notify('✅ Matière créée avec succès !');
+      notify(tr("✅ Matière créée avec succès !"));
       setShowModal(false);
       resetSubjectForm();
       loadSubjects();
@@ -654,7 +655,7 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
           .eq('id', editingSchedule.id);
 
         if (error) throw error;
-        notify('✅ Emploi du temps modifié avec succès !');
+        notify(tr("✅ Emploi du temps modifié avec succès !"));
       } else {
         // Création
         const { error } = await supabase
@@ -662,7 +663,7 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
           .insert(scheduleData);
 
         if (error) throw error;
-        notify('✅ Emploi du temps créé avec succès !');
+        notify(tr("✅ Emploi du temps créé avec succès !"));
       }
 
       setShowModal(false);
@@ -693,7 +694,7 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
   };
 
   const handleDeleteSchedule = async (scheduleId: string) => {
-    if (!await confirmDialog('⚠️ Êtes-vous sûr de vouloir supprimer ce créneau ?')) return;
+    if (!await confirmDialog(tr("⚠️ Êtes-vous sûr de vouloir supprimer ce créneau ?"))) return;
 
     try {
       const { error } = await supabase
@@ -702,7 +703,7 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
         .eq('id', scheduleId);
 
       if (error) throw error;
-      notify('✅ Créneau supprimé');
+      notify(tr("✅ Créneau supprimé"));
       loadSchedules();
     } catch (error: any) {
       notify(`❌ Erreur: ${error.message}`);
@@ -728,7 +729,7 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
 
       if (error) throw error;
 
-      notify('✅ Annonce publiée avec succès !');
+      notify(tr("✅ Annonce publiée avec succès !"));
       setShowModal(false);
       resetAnnouncementForm();
       loadAnnouncements();
@@ -740,7 +741,7 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
   };
 
   const handleDeleteAnnouncement = async (announcementId: string) => {
-    if (!await confirmDialog('⚠️ Êtes-vous sûr de vouloir supprimer cette annonce ?')) return;
+    if (!await confirmDialog(tr("⚠️ Êtes-vous sûr de vouloir supprimer cette annonce ?"))) return;
 
     try {
       const { error } = await supabase
@@ -749,7 +750,7 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
         .eq('id', announcementId);
 
       if (error) throw error;
-      notify('✅ Annonce supprimée');
+      notify(tr("✅ Annonce supprimée"));
       loadAnnouncements();
     } catch (error: any) {
       notify(`❌ Erreur: ${error.message}`);
@@ -760,8 +761,8 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
   const handleDeleteStudent = async (student: Student) => {
     const name = fullNameOf(student) || student.student_number;
     const confirmed = await confirmDialog(
-      `⚠️ Supprimer définitivement ${name} ?\n\nSeront supprimés : son compte de connexion, ses notes, ses rapports de suivi et ses paiements de scolarité, qui sortiront des totaux financiers.`,
-      { title: "Supprimer l'étudiant", confirmLabel: 'Supprimer' },
+      tr("⚠️ Supprimer définitivement {0} ?\n\nSeront supprimés : son compte de connexion, ses notes, ses rapports de suivi et ses paiements de scolarité, qui sortiront des totaux financiers.", [name]),
+      { title: tr("Supprimer l'étudiant"), confirmLabel: tr("Supprimer") },
     );
     if (!confirmed) return;
 
@@ -771,9 +772,9 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
         { student_id: student.id },
       );
       if (login_deleted || reason === 'other_roles') {
-        notify('✅ Étudiant supprimé');
+        notify(tr("✅ Étudiant supprimé"));
       } else {
-        notify("⚠️ La fiche est supprimée, mais pas le compte de connexion. Réessayez ou contactez le support.");
+        notify(tr("⚠️ La fiche est supprimée, mais pas le compte de connexion. Réessayez ou contactez le support."));
       }
       loadStudents();
     } catch (error: any) {
@@ -790,11 +791,11 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
       .eq('teacher_id', teacher.id);
 
     const payslipWarning = payslipCount
-      ? `\n- ses ${payslipCount} bulletin(s) de paie, qui sortiront aussi du suivi financier`
+      ? tr("\n- ses {0} bulletin(s) de paie, qui sortiront aussi du suivi financier", [payslipCount])
       : '';
     const confirmed = await confirmDialog(
-      `⚠️ Supprimer définitivement ${name} ?\n\nSeront supprimés :\n- son compte de connexion\n- ses affectations${payslipWarning}\n\nSes notes et créneaux sont conservés, sans enseignant.`,
-      { title: "Supprimer l'enseignant", confirmLabel: 'Supprimer' },
+      tr("⚠️ Supprimer définitivement {0} ?\n\nSeront supprimés :\n- son compte de connexion\n- ses affectations{1}\n\nSes notes et créneaux sont conservés, sans enseignant.", [name, payslipWarning]),
+      { title: tr("Supprimer l'enseignant"), confirmLabel: tr("Supprimer") },
     );
     if (!confirmed) return;
 
@@ -804,9 +805,9 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
         { teacher_id: teacher.id },
       );
       if (login_deleted || reason === 'other_roles') {
-        notify('✅ Enseignant supprimé');
+        notify(tr("✅ Enseignant supprimé"));
       } else {
-        notify("⚠️ La fiche est supprimée, mais pas le compte de connexion. Réessayez ou contactez le support.");
+        notify(tr("⚠️ La fiche est supprimée, mais pas le compte de connexion. Réessayez ou contactez le support."));
       }
       setViewingTeacher(null);
       loadTeachers();
@@ -818,7 +819,7 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
   };
 
   const handleDeleteSubject = async (subjectId: string) => {
-    if (!await confirmDialog('⚠️ Êtes-vous sûr de vouloir supprimer cette matière ?')) return;
+    if (!await confirmDialog(tr("⚠️ Êtes-vous sûr de vouloir supprimer cette matière ?"))) return;
 
     try {
       const { error } = await supabase
@@ -827,7 +828,7 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
         .eq('id', subjectId);
 
       if (error) throw error;
-      notify('✅ Matière supprimée');
+      notify(tr("✅ Matière supprimée"));
       loadSubjects();
     } catch (error: any) {
       notify(`❌ Erreur: ${error.message}`);
@@ -894,7 +895,7 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
           if (linkError) throw linkError;
         }
 
-        notify('✅ Matière modifiée avec succès !');
+        notify(tr("✅ Matière modifiée avec succès !"));
         setShowModal(false);
         setEditingSubject(null);
         resetSubjectForm();
@@ -1024,13 +1025,13 @@ const filteredSubjects = subjects.filter(subject => {
             return matchesClass && matchesSearch;
           });
 
-          const dayNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+          const dayNames = [tr("Lundi"), tr("Mardi"), tr("Mercredi"), tr("Jeudi"), tr("Vendredi"), tr("Samedi")];
           const openedTeacher = viewingTeacher ? teachers.find(t => t.id === viewingTeacher.id) : undefined;
 
   // ==================== RENDER ====================
   return (
     <AppShell
-      spaceLabel="Administration"
+      spaceLabel={tr("Administration")}
       userId={user?.id}
       groups={NAV_GROUPS.map(group => ({
         ...group,
@@ -1047,7 +1048,7 @@ const filteredSubjects = subjects.filter(subject => {
         handleSelectTab(tab);
       }}
       userName={`${user?.first_name || ''} ${user?.last_name || ''}`.trim()}
-      roleLabel={ADMIN_ROLE_LABELS[user?.role || ''] || 'Administration'}
+      roleLabel={ADMIN_ROLE_LABELS[user?.role || ''] || tr("Administration")}
       onLogout={onLogout}
       onChangePassword={onChangePassword}
     >
@@ -1096,23 +1097,23 @@ const filteredSubjects = subjects.filter(subject => {
       {activeTab === 'students' && (
         <div className="bg-white rounded-xl shadow p-4 md:p-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
-            <h2 className="text-xl md:text-2xl font-bold">Étudiants ({filteredStudents.length})</h2>
+            <h2 className="text-xl md:text-2xl font-bold">{tr("Étudiants (")}{filteredStudents.length})</h2>
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
               <button
                 onClick={() => setPrintLevelId(levelFilter)}
                 disabled={!levelFilter}
-                title={levelFilter ? 'Imprimer la liste de ce niveau' : "Choisissez d'abord un niveau dans les filtres"}
+                title={levelFilter ? tr("Imprimer la liste de ce niveau") : tr("Choisissez d'abord un niveau dans les filtres")}
                 className="border px-3 py-2 md:px-4 rounded-lg hover:bg-gray-100 flex items-center gap-2 text-sm md:text-base justify-center disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Printer className="w-4 h-4 md:w-5 md:h-5" />
-                Imprimer la liste
+                {tr("Imprimer la liste")}
               </button>
               <button
                 onClick={() => openQuickAdd('student')}
                 className="bg-indigo-600 text-white px-3 py-2 md:px-4 rounded-lg hover:bg-indigo-700 flex items-center gap-2 text-sm md:text-base justify-center"
               >
                 <Plus className="w-4 h-4 md:w-5 md:h-5" />
-                Ajouter
+                {tr("Ajouter")}
               </button>
             </div>
           </div>
@@ -1120,23 +1121,23 @@ const filteredSubjects = subjects.filter(subject => {
           {/* FILTRES ET RECHERCHE */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4 mb-6">
             <div className="sm:col-span-2">
-              <label className="block text-sm font-medium mb-2">Rechercher</label>
+              <label className="block text-sm font-medium mb-2">{tr("Rechercher")}</label>
               <div className="relative">
-                <Search className="w-5 h-5 absolute left-3 top-2.5 text-gray-400" />
+                <Search className="w-5 h-5 absolute start-3 top-2.5 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Nom, matricule, email..."
+                  placeholder={tr("Nom, matricule, email...")}
                   value={searchTerm}
                   onChange={(e) => { setSearchTerm(e.target.value); setCurrentPageStudents(1); }}
-                  className="w-full border rounded-lg px-3 py-2 pl-10 text-sm md:text-base"
+                  className="w-full border rounded-lg px-3 py-2 ps-10 text-sm md:text-base"
                 />
               </div>
             </div>
 
            <div>
               <label htmlFor="student-cycle-filter" className="block text-sm font-medium mb-2">
-                <Filter className="w-4 h-4 inline mr-1" />
-                Cycle
+                <Filter className="w-4 h-4 inline me-1" />
+                {tr("Cycle")}
               </label>
               <select
                 id="student-cycle-filter"
@@ -1148,16 +1149,16 @@ const filteredSubjects = subjects.filter(subject => {
                 }}
                 className="w-full border rounded-lg px-3 py-2 text-sm md:text-base"
               >
-                <option value="all">Tous les cycles</option>
+                <option value="all">{tr("Tous les cycles")}</option>
                 {CYCLES.map(cycle => (
                   <option key={cycle.id} value={cycle.id}>{cycle.label}</option>
                 ))}
-                <option value="none">Non inscrits</option>
+                <option value="none">{tr("Non inscrits")}</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Niveau</label>
+              <label className="block text-sm font-medium mb-2">{tr("Niveau")}</label>
               <LevelSelect
                 levels={levels}
                 value={levelFilter}
@@ -1165,16 +1166,16 @@ const filteredSubjects = subjects.filter(subject => {
                   setLevelFilter(levelId);
                   setCurrentPageStudents(1);
                 }}
-                placeholder="Tous les niveaux"
+                placeholder={tr("Tous les niveaux")}
                 cycle={cycleFilter === 'all' || cycleFilter === 'none' ? 'all' : (cycleFilter as SchoolCycle)}
                 disabled={cycleFilter === 'none'}
                 className="w-full border rounded-lg px-3 py-2 text-sm md:text-base disabled:opacity-50"
-                ariaLabel="Filtrer par niveau"
+                ariaLabel={tr("Filtrer par niveau")}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Par page</label>
+              <label className="block text-sm font-medium mb-2">{tr("Par page")}</label>
               <select 
                 value={itemsPerPage} 
                 onChange={(e) => { 
@@ -1193,21 +1194,21 @@ const filteredSubjects = subjects.filter(subject => {
 
           {/* TABLE */}
           {loading ? (
-            <p className="text-center py-8">Chargement...</p>
+            <p className="text-center py-8">{tr("Chargement...")}</p>
           ) : paginatedStudents.length === 0 ? (
-            <p className="text-center py-8 text-gray-500">Aucun étudiant trouvé</p>
+            <p className="text-center py-8 text-gray-500">{tr("Aucun étudiant trouvé")}</p>
           ) : (
             <>
               <div className="overflow-x-auto -mx-4 md:mx-0">
                 <table className="w-full min-w-[600px]">
                   <thead className="bg-gray-100">
                     <tr>
-                      <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm">Matricule</th>
-                      <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm">Nom</th>
-                      <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm hidden md:table-cell">Email</th>
-                      <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm">Niveau</th>
-                      <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm">Statut</th>
-                      <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm">Actions</th>
+                      <th className="px-3 md:px-4 py-3 text-start text-xs md:text-sm">{tr("Matricule")}</th>
+                      <th className="px-3 md:px-4 py-3 text-start text-xs md:text-sm">{tr("Nom")}</th>
+                      <th className="px-3 md:px-4 py-3 text-start text-xs md:text-sm hidden md:table-cell">{tr("Email")}</th>
+                      <th className="px-3 md:px-4 py-3 text-start text-xs md:text-sm">{tr("Niveau")}</th>
+                      <th className="px-3 md:px-4 py-3 text-start text-xs md:text-sm">{tr("Statut")}</th>
+                      <th className="px-3 md:px-4 py-3 text-start text-xs md:text-sm">{tr("Actions")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1221,16 +1222,16 @@ const filteredSubjects = subjects.filter(subject => {
                             levels={levels}
                             value={student.level_id || ''}
                             onChange={(levelId) => handleChangeStudentLevel(student.id, levelId)}
-                            placeholder="À inscrire..."
+                            placeholder={tr("À inscrire...")}
                             className="border rounded px-2 py-1 text-xs md:text-sm max-w-[11rem]"
-                            ariaLabel={`Niveau de ${student.profiles?.first_name} ${student.profiles?.last_name}`}
+                            ariaLabel={tr("Niveau de {0} {1}", [student.profiles?.first_name, student.profiles?.last_name])}
                           />
                         </td>
                         <td className="px-3 md:px-4 py-3">
                           <span className={`px-2 py-1 rounded text-xs ${
                             student.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
                           }`}>
-                            {student.status === 'active' ? 'Actif' : student.status === 'suspended' ? 'Suspendu' : 'Inactif'}
+                            {student.status === 'active' ? tr("Actif") : student.status === 'suspended' ? tr("Suspendu") : tr("Inactif")}
                           </span>
                         </td>
                         <td className="px-3 md:px-4 py-3">
@@ -1239,8 +1240,8 @@ const filteredSubjects = subjects.filter(subject => {
                               <button
                                 onClick={() => { handleSelectTab('grades'); setGradesStudentId(student.id); }}
                                 className="text-gray-700 hover:bg-gray-100 p-2 rounded"
-                                title="Voir ses notes"
-                                aria-label={`Voir les notes de ${fullNameOf(student)}`}
+                                title={tr("Voir ses notes")}
+                                aria-label={tr("Voir les notes de {0}", [fullNameOf(student)])}
                               >
                                 <FileText className="w-4 h-4" />
                               </button>
@@ -1248,8 +1249,8 @@ const filteredSubjects = subjects.filter(subject => {
                             <button
                               onClick={() => { handleSelectTab('messages'); setMessageRecipient({ kind: 'student', userId: student.user_id }); }}
                               className="text-green-600 hover:bg-green-50 p-2 rounded"
-                              title="Envoyer un message"
-                              aria-label={`Envoyer un message à ${fullNameOf(student)}`}
+                              title={tr("Envoyer un message")}
+                              aria-label={tr("Envoyer un message à {0}", [fullNameOf(student)])}
                             >
                               <MessageSquare className="w-4 h-4" />
                             </button>
@@ -1257,8 +1258,8 @@ const filteredSubjects = subjects.filter(subject => {
                               <button
                                 onClick={() => handleResetStudentPassword(student)}
                                 className="text-blue-600 hover:bg-blue-50 p-2 rounded"
-                                title="Réinitialiser le mot de passe"
-                                aria-label={`Réinitialiser le mot de passe de ${fullNameOf(student)}`}
+                                title={tr("Réinitialiser le mot de passe")}
+                                aria-label={tr("Réinitialiser le mot de passe de {0}", [fullNameOf(student)])}
                               >
                                 <KeyRound className="w-4 h-4" />
                               </button>
@@ -1267,8 +1268,8 @@ const filteredSubjects = subjects.filter(subject => {
                               <button
                                 onClick={() => handleDeleteStudent(student)}
                                 className="text-red-600 hover:bg-red-50 p-2 rounded"
-                                title="Supprimer"
-                                aria-label={`Supprimer ${fullNameOf(student)}`}
+                                title={tr("Supprimer")}
+                                aria-label={tr("Supprimer {0}", [fullNameOf(student)])}
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -1284,7 +1285,7 @@ const filteredSubjects = subjects.filter(subject => {
               {/* PAGINATION */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-6">
                 <p className="text-xs md:text-sm text-gray-600">
-                  Affichage {startIndexStudents + 1} à {Math.min(startIndexStudents + itemsPerPage, filteredStudents.length)} sur {filteredStudents.length}
+                  {tr("Affichage")} {startIndexStudents + 1} à {Math.min(startIndexStudents + itemsPerPage, filteredStudents.length)} {tr("sur")} {filteredStudents.length}
                 </p>
                 
                 <div className="flex gap-2">
@@ -1293,7 +1294,7 @@ const filteredSubjects = subjects.filter(subject => {
                     disabled={pageStudents === 1}
                     className="px-2 md:px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <ChevronLeft className="w-4 h-4" />
+                    <ChevronLeft className="rtl:-scale-x-100 w-4 h-4" />
                   </button>
                   
                   <span className="px-3 md:px-4 py-1 border rounded bg-gray-50 text-xs md:text-sm">
@@ -1305,7 +1306,7 @@ const filteredSubjects = subjects.filter(subject => {
                     disabled={pageStudents === totalPagesStudents}
                     className="px-2 md:px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <ChevronRight className="w-4 h-4" />
+                    <ChevronRight className="rtl:-scale-x-100 w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -1334,43 +1335,43 @@ const filteredSubjects = subjects.filter(subject => {
         {activeTab === 'teachers' && !openedTeacher && (
           <div className="bg-white rounded-xl shadow p-4 md:p-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
-              <h2 className="text-xl md:text-2xl font-bold">Enseignants ({filteredTeachers.length})</h2>
+              <h2 className="text-xl md:text-2xl font-bold">{tr("Enseignants (")}{filteredTeachers.length})</h2>
               <button
                 onClick={() => openQuickAdd('teacher')}
                 className="bg-indigo-600 text-white px-3 py-2 md:px-4 rounded-lg hover:bg-indigo-700 flex items-center gap-2 text-sm md:text-base w-full sm:w-auto justify-center"
               >
                 <Plus className="w-4 h-4 md:w-5 md:h-5" />
-                Ajouter
+                {tr("Ajouter")}
               </button>
             </div>
 
             {/* FILTRES ET RECHERCHE */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
               <div className="sm:col-span-2">
-                <label className="block text-sm font-medium mb-2">Rechercher</label>
+                <label className="block text-sm font-medium mb-2">{tr("Rechercher")}</label>
                 <div className="relative">
-                  <Search className="w-5 h-5 absolute left-3 top-2.5 text-gray-400" />
+                  <Search className="w-5 h-5 absolute start-3 top-2.5 text-gray-400" />
                   <input
                     type="text"
-                    placeholder="Nom, matricule, email..."
+                    placeholder={tr("Nom, matricule, email...")}
                     value={searchTerm}
                     onChange={(e) => { setSearchTerm(e.target.value); setCurrentPageTeachers(1); }}
-                    className="w-full border rounded-lg px-3 py-2 pl-10 text-sm md:text-base"
+                    className="w-full border rounded-lg px-3 py-2 ps-10 text-sm md:text-base"
                   />
                 </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  <Filter className="w-4 h-4 inline mr-1" />
-                  Département
+                  <Filter className="w-4 h-4 inline me-1" />
+                  {tr("Département")}
                 </label>
                 <select 
                   value={departmentFilter} 
                   onChange={(e) => setDepartmentFilter(e.target.value)} 
                   className="w-full border rounded-lg px-3 py-2 text-sm md:text-base"
                 >
-                  <option value="all">Tous</option>
+                  <option value="all">{tr("Tous")}</option>
                   {uniqueDepartments.map(dept => (
                     <option key={dept} value={dept}>{dept}</option>
                   ))}
@@ -1378,7 +1379,7 @@ const filteredSubjects = subjects.filter(subject => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Par page</label>
+                <label className="block text-sm font-medium mb-2">{tr("Par page")}</label>
                 <select 
                   value={itemsPerPage} 
                   onChange={(e) => { 
@@ -1397,21 +1398,21 @@ const filteredSubjects = subjects.filter(subject => {
 
             {/* TABLE */}
             {loading ? (
-              <p className="text-center py-8">Chargement...</p>
+              <p className="text-center py-8">{tr("Chargement...")}</p>
             ) : paginatedTeachers.length === 0 ? (
-              <p className="text-center py-8 text-gray-500">Aucun enseignant trouvé</p>
+              <p className="text-center py-8 text-gray-500">{tr("Aucun enseignant trouvé")}</p>
             ) : (
               <>
                 <div className="overflow-x-auto -mx-4 md:mx-0">
                   <table className="w-full min-w-[600px]">
                     <thead className="bg-gray-100">
                       <tr>
-                        <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm">Matricule</th>
-                        <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm">Nom</th>
-                        <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm hidden md:table-cell">Email</th>
-                        <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm hidden lg:table-cell">Spécialité</th>
-                        <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm hidden lg:table-cell">Département</th>
-                        <th className="px-3 md:px-4 py-3 text-left text-xs md:text-sm">Actions</th>
+                        <th className="px-3 md:px-4 py-3 text-start text-xs md:text-sm">{tr("Matricule")}</th>
+                        <th className="px-3 md:px-4 py-3 text-start text-xs md:text-sm">{tr("Nom")}</th>
+                        <th className="px-3 md:px-4 py-3 text-start text-xs md:text-sm hidden md:table-cell">{tr("Email")}</th>
+                        <th className="px-3 md:px-4 py-3 text-start text-xs md:text-sm hidden lg:table-cell">{tr("Spécialité")}</th>
+                        <th className="px-3 md:px-4 py-3 text-start text-xs md:text-sm hidden lg:table-cell">{tr("Département")}</th>
+                        <th className="px-3 md:px-4 py-3 text-start text-xs md:text-sm">{tr("Actions")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1428,32 +1429,32 @@ const filteredSubjects = subjects.filter(subject => {
                                 <button
                                   onClick={() => setViewingTeacher({ id: teacher.id, tab: 'assignments' })}
                                   className="text-gray-700 hover:bg-gray-100 p-2 rounded"
-                                  title="Ouvrir la fiche"
-                                  aria-label={`Ouvrir la fiche de ${teacher.profiles?.first_name} ${teacher.profiles?.last_name}`}
+                                  title={tr("Ouvrir la fiche")}
+                                  aria-label={tr("Ouvrir la fiche de {0} {1}", [teacher.profiles?.first_name, teacher.profiles?.last_name])}
                                 >
                                   <Eye className="w-4 h-4" />
                                 </button>
                                 <button
                                   onClick={() => setViewingTeacher({ id: teacher.id, tab: 'profile' })}
                                   className="text-blue-600 hover:bg-blue-50 p-2 rounded"
-                                  title="Modifier"
-                                  aria-label={`Modifier ${teacher.profiles?.first_name} ${teacher.profiles?.last_name}`}
+                                  title={tr("Modifier")}
+                                  aria-label={tr("Modifier {0} {1}", [teacher.profiles?.first_name, teacher.profiles?.last_name])}
                                 >
                                   <Edit className="w-4 h-4" />
                                 </button>
                                 <button
                                   onClick={() => setViewingTeacher({ id: teacher.id, tab: 'messages' })}
                                   className="text-green-600 hover:bg-green-50 p-2 rounded"
-                                  title="Envoyer un message"
-                                  aria-label={`Envoyer un message à ${teacher.profiles?.first_name} ${teacher.profiles?.last_name}`}
+                                  title={tr("Envoyer un message")}
+                                  aria-label={tr("Envoyer un message à {0} {1}", [teacher.profiles?.first_name, teacher.profiles?.last_name])}
                                 >
                                   <MessageSquare className="w-4 h-4" />
                                 </button>
                                 <button
                                   onClick={() => handleDeleteTeacher(teacher)}
                                   className="text-red-600 hover:bg-red-50 p-2 rounded"
-                                  title="Supprimer"
-                                  aria-label={`Supprimer ${teacher.profiles?.first_name} ${teacher.profiles?.last_name}`}
+                                  title={tr("Supprimer")}
+                                  aria-label={tr("Supprimer {0} {1}", [teacher.profiles?.first_name, teacher.profiles?.last_name])}
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </button>
@@ -1471,7 +1472,7 @@ const filteredSubjects = subjects.filter(subject => {
                 {/* PAGINATION */}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-6">
                   <p className="text-xs md:text-sm text-gray-600">
-                    Affichage {startIndexTeachers + 1} à {Math.min(startIndexTeachers + itemsPerPage, filteredTeachers.length)} sur {filteredTeachers.length}
+                    {tr("Affichage")} {startIndexTeachers + 1} à {Math.min(startIndexTeachers + itemsPerPage, filteredTeachers.length)} {tr("sur")} {filteredTeachers.length}
                   </p>
                   
                   <div className="flex gap-2">
@@ -1480,7 +1481,7 @@ const filteredSubjects = subjects.filter(subject => {
                       disabled={pageTeachers === 1}
                       className="px-2 md:px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <ChevronLeft className="w-4 h-4" />
+                      <ChevronLeft className="rtl:-scale-x-100 w-4 h-4" />
                     </button>
                     
                     <span className="px-3 md:px-4 py-1 border rounded bg-gray-50 text-xs md:text-sm">
@@ -1492,7 +1493,7 @@ const filteredSubjects = subjects.filter(subject => {
                       disabled={pageTeachers === totalPagesTeachers}
                       className="px-2 md:px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <ChevronRight className="w-4 h-4" />
+                      <ChevronRight className="rtl:-scale-x-100 w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -1516,7 +1517,7 @@ const filteredSubjects = subjects.filter(subject => {
           {activeTab === 'subjects' && (
             <div className="bg-white rounded-xl shadow p-4 md:p-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
-                <h2 className="text-xl md:text-2xl font-bold">Matières ({subjects.length})</h2>
+                <h2 className="text-xl md:text-2xl font-bold">{tr("Matières (")}{subjects.length})</h2>
                 <button
                   onClick={() => { 
                     setModalType('subject'); 
@@ -1527,7 +1528,7 @@ const filteredSubjects = subjects.filter(subject => {
                   className="bg-indigo-600 text-white px-3 py-2 md:px-4 rounded-lg hover:bg-indigo-700 flex items-center gap-2 text-sm md:text-base w-full sm:w-auto justify-center"
                 >
                   <Plus className="w-4 h-4 md:w-5 md:h-5" />
-                  Créer
+                  {tr("Créer")}
                 </button>
               </div>
 
@@ -1536,30 +1537,30 @@ const filteredSubjects = subjects.filter(subject => {
                 {/* Filtre par niveau */}
                 <div>
                   <label className="block text-sm font-medium mb-2">
-                    <Filter className="w-4 h-4 inline mr-1" />
-                    Filtrer par niveau
+                    <Filter className="w-4 h-4 inline me-1" />
+                    {tr("Filtrer par niveau")}
                   </label>
                   <LevelSelect
                     levels={levels}
                     value={selectedLevelForSubjects}
                     onChange={setSelectedLevelForSubjects}
-                    placeholder="Tous les niveaux"
+                    placeholder={tr("Tous les niveaux")}
                     className="w-full border rounded-lg px-3 py-2"
-                    ariaLabel="Filtrer les matières par niveau"
+                    ariaLabel={tr("Filtrer les matières par niveau")}
                   />
                 </div>
 
                 {/* Barre de recherche */}
                 <div>
-                  <label className="block text-sm font-medium mb-2">Rechercher</label>
+                  <label className="block text-sm font-medium mb-2">{tr("Rechercher")}</label>
                   <div className="relative">
-                    <Search className="w-5 h-5 absolute left-3 top-2.5 text-gray-400" />
+                    <Search className="w-5 h-5 absolute start-3 top-2.5 text-gray-400" />
                     <input
                       type="text"
-                      placeholder="Nom ou code de matière..."
+                      placeholder={tr("Nom ou code de matière...")}
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full border rounded-lg px-3 py-2 pl-10"
+                      className="w-full border rounded-lg px-3 py-2 ps-10"
                     />
                   </div>
                 </div>
@@ -1572,32 +1573,32 @@ const filteredSubjects = subjects.filter(subject => {
                     <div className="flex justify-between items-start mb-2">
                       <div>
                         <h3 className="font-bold text-base md:text-lg">{subject.name}</h3>
-                        <p className="text-xs md:text-sm text-gray-600">Code: {subject.code}</p>
+                        <p className="text-xs md:text-sm text-gray-600">{tr("Code:")} {subject.code}</p>
                       </div>
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleEditSubject(subject)}
                           className="text-blue-600 hover:bg-blue-50 p-2 rounded"
-                          title="Modifier"
+                          title={tr("Modifier")}
                         >
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleDeleteSubject(subject.id)}
                           className="text-red-600 hover:bg-red-50 p-2 rounded"
-                          title="Supprimer"
+                          title={tr("Supprimer")}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
-                    <p className="text-xs md:text-sm text-gray-600">Coefficient: {subject.coefficient}</p>
+                    <p className="text-xs md:text-sm text-gray-600">{tr("Coefficient:")} {subject.coefficient}</p>
                   </div>
                 ))}
               </div>
 
               {filteredSubjects.length === 0 && (
-                <p className="text-center py-8 text-gray-500">Aucune matière trouvée</p>
+                <p className="text-center py-8 text-gray-500">{tr("Aucune matière trouvée")}</p>
               )}
             </div>
           )}
@@ -1606,15 +1607,15 @@ const filteredSubjects = subjects.filter(subject => {
         {activeTab === 'schedules' && (
           <div className="bg-white rounded-xl shadow p-6">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-6">
-              <h2 className="text-2xl font-bold">Emplois du temps</h2>
+              <h2 className="text-2xl font-bold">{tr("Emplois du temps")}</h2>
               <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
                 <LevelSelect
                   levels={levels}
                   value={selectedLevelForSchedule}
                   onChange={setSelectedLevelForSchedule}
-                  placeholder="Tous les niveaux"
+                  placeholder={tr("Tous les niveaux")}
                   className="border rounded-lg px-3 py-2"
-                  ariaLabel="Filtrer l'emploi du temps par niveau"
+                  ariaLabel={tr("Filtrer l'emploi du temps par niveau")}
                 />
                 <button
                   onClick={() => { 
@@ -1626,20 +1627,20 @@ const filteredSubjects = subjects.filter(subject => {
                   className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-2"
                 >
                   <Plus className="w-5 h-5" />
-                  Ajouter un créneau
+                  {tr("Ajouter un créneau")}
                 </button>
               </div>
             </div>
             {/* Barre de recherche emploi du temps */}
                 <div className="mb-4">
                   <div className="relative">
-                    <Search className="w-5 h-5 absolute left-3 top-2.5 text-gray-400" />
+                    <Search className="w-5 h-5 absolute start-3 top-2.5 text-gray-400" />
                     <input
                       type="text"
-                      placeholder="Rechercher enseignant, matière, salle..."
+                      placeholder={tr("Rechercher enseignant, matière, salle...")}
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full border rounded-lg px-3 py-2 pl-10"
+                      className="w-full border rounded-lg px-3 py-2 ps-10"
                     />
                   </div>
                 </div>
@@ -1648,7 +1649,7 @@ const filteredSubjects = subjects.filter(subject => {
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="bg-gray-100">
-                    <th className="border px-4 py-2">Heure</th>
+                    <th className="border px-4 py-2">{tr("Heure")}</th>
                     {dayNames.map((day, idx) => (
                       <th key={idx} className="border px-4 py-2">{day}</th>
                     ))}
@@ -1668,7 +1669,7 @@ const filteredSubjects = subjects.filter(subject => {
                             {daySchedules.map(schedule => (
                               <div key={schedule.id} className="bg-blue-100 p-2 rounded mb-1 text-sm">
                                 <p className="font-semibold">{schedule.subjects?.name}</p>
-                                <p className="text-xs text-gray-600">{schedule.levels?.name || 'Sans niveau'}</p>
+                                <p className="text-xs text-gray-600">{schedule.levels?.name || tr("Sans niveau")}</p>
                                 <p className="text-xs text-gray-600">
                                   {schedule.teachers?.profiles?.first_name} {schedule.teachers?.profiles?.last_name}
                                 </p>
@@ -1704,13 +1705,13 @@ const filteredSubjects = subjects.filter(subject => {
         {activeTab === 'announcements' && (
           <div className="bg-white rounded-xl shadow p-6">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">Annonces ({announcements.length})</h2>
+              <h2 className="text-2xl font-bold">{tr("Annonces (")}{announcements.length})</h2>
               <button
                 onClick={() => openQuickAdd('announcement')}
                 className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-2"
               >
                 <Plus className="w-5 h-5" />
-                Publier
+                {tr("Publier")}
               </button>
             </div>
 
@@ -1725,14 +1726,14 @@ const filteredSubjects = subjects.filter(subject => {
                           {PRIORITY_LABELS[announcement.priority]}
                         </span>
                         <span className="px-2 py-1 rounded text-xs bg-indigo-100 text-indigo-700">
-                          {announcement.target_audience === 'all' ? 'Tous' :
-                           announcement.target_audience === 'students' ? 'Étudiants' : 'Enseignants'}
+                          {announcement.target_audience === 'all' ? tr("Tous") :
+                           announcement.target_audience === 'students' ? tr("Étudiants") : tr("Enseignants")}
                         </span>
                       </div>
                       <p className="text-gray-700 mb-2">{announcement.content}</p>
                       <p className="text-xs text-gray-500">
-                        Publié le {new Date(announcement.published_at).toLocaleDateString()}
-                        {announcement.expires_at && ` • Expire le ${new Date(announcement.expires_at).toLocaleDateString()}`}
+                        {tr("Publié le")} {new Date(announcement.published_at).toLocaleDateString(locale())}
+                        {announcement.expires_at && tr(" • Expire le {0}", [new Date(announcement.expires_at).toLocaleDateString(locale())])}
                       </p>
                     </div>
                     <button
@@ -1746,7 +1747,7 @@ const filteredSubjects = subjects.filter(subject => {
               ))}
 
               {announcements.length === 0 && (
-                <p className="text-center py-8 text-gray-500">Aucune annonce publiée</p>
+                <p className="text-center py-8 text-gray-500">{tr("Aucune annonce publiée")}</p>
               )}
             </div>
           </div>
@@ -1757,11 +1758,11 @@ const filteredSubjects = subjects.filter(subject => {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-bold">Affecter un enseignant à une matière et un niveau</h3>
+                <h3 className="text-2xl font-bold">{tr("Affecter un enseignant à une matière et un niveau")}</h3>
                 <button
                   onClick={() => setShowAssignModal(false)}
                   className="text-3xl hover:text-red-600"
-                  aria-label="Fermer"
+                  aria-label={tr("Fermer")}
                 >
                   ×
                 </button>
@@ -1769,7 +1770,7 @@ const filteredSubjects = subjects.filter(subject => {
 
               <form onSubmit={handleAssignTeacherToLevel} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2">Enseignant *</label>
+                  <label className="block text-sm font-medium mb-2">{tr("Enseignant *")}</label>
                   <select
                     value={teacherAssignForm.teacherId}
                     onChange={(e) => setTeacherAssignForm({
@@ -1779,7 +1780,7 @@ const filteredSubjects = subjects.filter(subject => {
                     className="w-full border rounded px-3 py-2"
                     required
                   >
-                    <option value="">Sélectionner un enseignant...</option>
+                    <option value="">{tr("Sélectionner un enseignant...")}</option>
                     {teachers.map((teacher) => (
                       <option key={teacher.id} value={teacher.id}>
                         {teacher.teacher_number} - {teacher.profiles?.first_name} {teacher.profiles?.last_name}
@@ -1789,7 +1790,7 @@ const filteredSubjects = subjects.filter(subject => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">Matière *</label>
+                  <label className="block text-sm font-medium mb-2">{tr("Matière *")}</label>
                   <select
                     value={teacherAssignForm.subjectId}
                     onChange={(e) => setTeacherAssignForm({
@@ -1799,7 +1800,7 @@ const filteredSubjects = subjects.filter(subject => {
                     className="w-full border rounded px-3 py-2"
                     required
                   >
-                    <option value="">Sélectionner une matière...</option>
+                    <option value="">{tr("Sélectionner une matière...")}</option>
                     {subjects.map((subject) => (
                       <option key={subject.id} value={subject.id}>
                         {subject.code} - {subject.name}
@@ -1809,12 +1810,12 @@ const filteredSubjects = subjects.filter(subject => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">Niveau *</label>
+                  <label className="block text-sm font-medium mb-2">{tr("Niveau *")}</label>
                   <LevelSelect
                     levels={levels}
                     value={teacherAssignForm.levelId}
                     onChange={(levelId) => setTeacherAssignForm({ ...teacherAssignForm, levelId })}
-                    ariaLabel="Niveau"
+                    ariaLabel={tr("Niveau")}
                     required
                   />
                 </div>
@@ -1825,14 +1826,14 @@ const filteredSubjects = subjects.filter(subject => {
                     onClick={() => setShowAssignModal(false)}
                     className="px-6 py-2 border rounded hover:bg-gray-100"
                   >
-                    Annuler
+                    {tr("Annuler")}
                   </button>
                   <button
                     type="submit"
                     disabled={loading}
                     className="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
                   >
-                    {loading ? 'Affectation...' : 'Affecter'}
+                    {loading ? tr("Affectation...") : tr("Affecter")}
                   </button>
                 </div>
               </form>
@@ -1844,7 +1845,7 @@ const filteredSubjects = subjects.filter(subject => {
         {activeTab === 'admins' && (
           <div className="bg-white rounded-xl shadow p-6">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">Comptes Admin</h2>
+              <h2 className="text-2xl font-bold">{tr("Comptes Admin")}</h2>
               <button
                 onClick={() => {
                   setModalType('admin');
@@ -1853,26 +1854,26 @@ const filteredSubjects = subjects.filter(subject => {
                 className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-2"
               >
                 <Plus className="w-5 h-5" />
-                Ajouter un admin
+                {tr("Ajouter un admin")}
               </button>
             </div>
 
             {loading ? (
-              <p className="text-center py-8">Chargement...</p>
+              <p className="text-center py-8">{tr("Chargement...")}</p>
             ) : adminAccounts.length === 0 ? (
               <div className="text-center py-12">
                 <Shield className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <p className="text-xl text-gray-500">Aucun compte admin</p>
+                <p className="text-xl text-gray-500">{tr("Aucun compte admin")}</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-100">
                     <tr>
-                      <th className="px-4 py-3 text-left">Nom</th>
-                      <th className="px-4 py-3 text-left">Email</th>
-                      <th className="px-4 py-3 text-left">Rôle</th>
-                      <th className="px-4 py-3 text-left">Actions</th>
+                      <th className="px-4 py-3 text-start">{tr("Nom")}</th>
+                      <th className="px-4 py-3 text-start">{tr("Email")}</th>
+                      <th className="px-4 py-3 text-start">{tr("Rôle")}</th>
+                      <th className="px-4 py-3 text-start">{tr("Actions")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1881,7 +1882,7 @@ const filteredSubjects = subjects.filter(subject => {
                         <td className="px-4 py-3">
                           {account.profiles?.first_name} {account.profiles?.last_name}
                           {account.user_id === user?.id && (
-                            <span className="ml-2 text-xs text-gray-400">(vous)</span>
+                            <span className="ms-2 text-xs text-gray-400">{tr("(vous)")}</span>
                           )}
                         </td>
                         <td className="px-4 py-3">{account.profiles?.email}</td>
@@ -1895,7 +1896,7 @@ const filteredSubjects = subjects.filter(subject => {
                             <button
                               onClick={() => handleRemoveAdminRole(account.id, account.user_id)}
                               className="text-red-600 hover:bg-red-50 p-2 rounded"
-                              title="Retirer ce rôle"
+                              title={tr("Retirer ce rôle")}
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -1914,7 +1915,7 @@ const filteredSubjects = subjects.filter(subject => {
             {activeTab === 'assign-teachers' && (
               <div className="bg-white rounded-xl shadow p-6">
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-bold">Affectation Enseignants → Matières → Niveaux</h2>
+                  <h2 className="text-2xl font-bold">{tr("Affectation Enseignants → Matières → Niveaux")}</h2>
                   {/* Barre de recherche */}
 
                   <button
@@ -1922,29 +1923,29 @@ const filteredSubjects = subjects.filter(subject => {
                     className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-2"
                   >
                     <Plus className="w-5 h-5" />
-                    Affecter un enseignant
+                    {tr("Affecter un enseignant")}
                   </button>                  
                 </div>
                    <div className="mb-4 flex-1 max-w-md mx-4">
                       <div className="relative">
-                        <Search className="w-5 h-5 absolute left-3 top-2.5 text-gray-400" />
+                        <Search className="w-5 h-5 absolute start-3 top-2.5 text-gray-400" />
                         <input
                           type="text"
-                          placeholder="Rechercher enseignant, matière, niveau..."
+                          placeholder={tr("Rechercher enseignant, matière, niveau...")}
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
-                          className="w-full border rounded-lg px-3 py-2 pl-10"
+                          className="w-full border rounded-lg px-3 py-2 ps-10"
                         />
                       </div>
                     </div>
                 {loading ? (
-                  <p className="text-center py-8">Chargement...</p>
+                  <p className="text-center py-8">{tr("Chargement...")}</p>
                 ) : teacherAssignments.length === 0 ? (
                   <div className="text-center py-12">
                     <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                    <p className="text-xl text-gray-500">Aucune affectation</p>
+                    <p className="text-xl text-gray-500">{tr("Aucune affectation")}</p>
                     <p className="text-sm text-gray-400 mt-2">
-                      Cliquez sur "Affecter un enseignant" pour commencer
+                      {tr("Cliquez sur \"Affecter un enseignant\" pour commencer")}
                     </p>
                   </div>
                 ) : (
@@ -1952,11 +1953,11 @@ const filteredSubjects = subjects.filter(subject => {
                     <table className="w-full">
                       <thead className="bg-gray-100">
                         <tr>
-                          <th className="px-4 py-3 text-left">Matricule</th>
-                          <th className="px-4 py-3 text-left">Enseignant</th>
-                          <th className="px-4 py-3 text-left">Matière</th>
-                          <th className="px-4 py-3 text-left">Niveau</th>
-                          <th className="px-4 py-3 text-left">Actions</th>
+                          <th className="px-4 py-3 text-start">{tr("Matricule")}</th>
+                          <th className="px-4 py-3 text-start">{tr("Enseignant")}</th>
+                          <th className="px-4 py-3 text-start">{tr("Matière")}</th>
+                          <th className="px-4 py-3 text-start">{tr("Niveau")}</th>
+                          <th className="px-4 py-3 text-start">{tr("Actions")}</th>
                         </tr>
                       </thead>
                         <tbody>
@@ -2023,9 +2024,9 @@ const filteredSubjects = subjects.filter(subject => {
                                     key={a.id}
                                     onClick={() => handleRemoveTeacherAssignment(a.id)}
                                     className="text-red-600 hover:bg-red-50 p-1 rounded text-xs"
-                                    title={`Retirer ${a.subjects?.name} - ${a.levels?.name}`}
+                                    title={tr("Retirer {0} - {1}", [a.subjects?.name, a.levels?.name])}
                                   >
-                                    <Trash2 className="w-3 h-3 inline mr-1" />
+                                    <Trash2 className="w-3 h-3 inline me-1" />
                                     {a.subjects?.code}
                                   </button>
                                 ))}
@@ -2046,12 +2047,12 @@ const filteredSubjects = subjects.filter(subject => {
           <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-2xl font-bold">
-                {modalType === 'student' && 'Ajouter un étudiant'}
-                {modalType === 'teacher' && 'Ajouter un enseignant'}
-                {modalType === 'subject' && (editingSubject ? 'Modifier la matière' : 'Créer une matière')}
-                {modalType === 'schedule' && (editingSchedule ? 'Modifier le créneau' : 'Ajouter un créneau')}
-                {modalType === 'announcement' && 'Publier une annonce'}
-                {modalType === 'admin' && 'Ajouter un compte admin'}
+                {modalType === 'student' && tr("Ajouter un étudiant")}
+                {modalType === 'teacher' && tr("Ajouter un enseignant")}
+                {modalType === 'subject' && (editingSubject ? tr("Modifier la matière") : tr("Créer une matière"))}
+                {modalType === 'schedule' && (editingSchedule ? tr("Modifier le créneau") : tr("Ajouter un créneau"))}
+                {modalType === 'announcement' && tr("Publier une annonce")}
+                {modalType === 'admin' && tr("Ajouter un compte admin")}
               </h3>
               <button onClick={() => { setShowModal(false); setEditingSchedule(null); }} className="text-3xl">×</button>
             </div>
@@ -2061,7 +2062,7 @@ const filteredSubjects = subjects.filter(subject => {
               <form onSubmit={handleAddStudent} className="space-y-4">
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Prénom *</label>
+                    <label className="block text-sm font-medium mb-2">{tr("Prénom *")}</label>
                     <input
                       type="text"
                       value={studentForm.firstName}
@@ -2071,7 +2072,7 @@ const filteredSubjects = subjects.filter(subject => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Nom *</label>
+                    <label className="block text-sm font-medium mb-2">{tr("Nom *")}</label>
                     <input
                       type="text"
                       value={studentForm.lastName}
@@ -2082,7 +2083,7 @@ const filteredSubjects = subjects.filter(subject => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Email *</label>
+                  <label className="block text-sm font-medium mb-2">{tr("Email *")}</label>
                   <input
                     type="email"
                     value={studentForm.email}
@@ -2093,7 +2094,7 @@ const filteredSubjects = subjects.filter(subject => {
                 </div>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Matricule *</label>
+                    <label className="block text-sm font-medium mb-2">{tr("Matricule *")}</label>
                     <input
                       type="text"
                       value={studentForm.studentNumber}
@@ -2103,7 +2104,7 @@ const filteredSubjects = subjects.filter(subject => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Téléphone</label>
+                    <label className="block text-sm font-medium mb-2">{tr("Téléphone")}</label>
                     <input
                       type="tel"
                       value={studentForm.phone}
@@ -2113,17 +2114,17 @@ const filteredSubjects = subjects.filter(subject => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Niveau d'inscription *</label>
+                  <label className="block text-sm font-medium mb-2">{tr("Niveau d'inscription *")}</label>
                   <LevelSelect
                     levels={levels}
                     value={studentForm.levelId}
                     onChange={(levelId) => setStudentForm({...studentForm, levelId})}
-                    ariaLabel="Niveau d'inscription"
+                    ariaLabel={tr("Niveau d'inscription")}
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Date de naissance</label>
+                  <label className="block text-sm font-medium mb-2">{tr("Date de naissance")}</label>
                   <input
                     type="date"
                     value={studentForm.dateOfBirth}
@@ -2132,7 +2133,7 @@ const filteredSubjects = subjects.filter(subject => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Adresse</label>
+                  <label className="block text-sm font-medium mb-2">{tr("Adresse")}</label>
                   <textarea
                     value={studentForm.address}
                     onChange={(e) => setStudentForm({...studentForm, address: e.target.value})}
@@ -2146,14 +2147,14 @@ const filteredSubjects = subjects.filter(subject => {
                     onClick={() => setShowModal(false)}
                     className="px-6 py-2 border rounded"
                   >
-                    Annuler
+                    {tr("Annuler")}
                   </button>
                   <button
                     type="submit"
                     disabled={loading}
                     className="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
                   >
-                    {loading ? 'Enregistrement...' : 'Enregistrer'}
+                    {loading ? tr("Enregistrement...") : tr("Enregistrer")}
                   </button>
                 </div>
               </form>
@@ -2164,7 +2165,7 @@ const filteredSubjects = subjects.filter(subject => {
               <form onSubmit={handleAddTeacher} className="space-y-4">
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Prénom *</label>
+                    <label className="block text-sm font-medium mb-2">{tr("Prénom *")}</label>
                     <input
                       type="text"
                       value={teacherForm.firstName}
@@ -2174,7 +2175,7 @@ const filteredSubjects = subjects.filter(subject => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Nom *</label>
+                    <label className="block text-sm font-medium mb-2">{tr("Nom *")}</label>
                     <input
                       type="text"
                       value={teacherForm.lastName}
@@ -2185,7 +2186,7 @@ const filteredSubjects = subjects.filter(subject => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Email *</label>
+                  <label className="block text-sm font-medium mb-2">{tr("Email *")}</label>
                   <input
                     type="email"
                     value={teacherForm.email}
@@ -2196,7 +2197,7 @@ const filteredSubjects = subjects.filter(subject => {
                 </div>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Matricule *</label>
+                    <label className="block text-sm font-medium mb-2">{tr("Matricule *")}</label>
                     <input
                       type="text"
                       value={teacherForm.teacherNumber}
@@ -2206,7 +2207,7 @@ const filteredSubjects = subjects.filter(subject => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Téléphone</label>
+                    <label className="block text-sm font-medium mb-2">{tr("Téléphone")}</label>
                     <input
                       type="tel"
                       value={teacherForm.phone}
@@ -2217,7 +2218,7 @@ const filteredSubjects = subjects.filter(subject => {
                 </div>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Spécialité</label>
+                    <label className="block text-sm font-medium mb-2">{tr("Spécialité")}</label>
                     <input
                       type="text"
                       value={teacherForm.specialization}
@@ -2226,7 +2227,7 @@ const filteredSubjects = subjects.filter(subject => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Département</label>
+                    <label className="block text-sm font-medium mb-2">{tr("Département")}</label>
                     <input
                       type="text"
                       value={teacherForm.department}
@@ -2241,14 +2242,14 @@ const filteredSubjects = subjects.filter(subject => {
                     onClick={() => setShowModal(false)}
                     className="px-6 py-2 border rounded"
                   >
-                    Annuler
+                    {tr("Annuler")}
                   </button>
                   <button
                     type="submit"
                     disabled={loading}
                     className="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
                   >
-                    {loading ? 'Enregistrement...' : 'Enregistrer'}
+                    {loading ? tr("Enregistrement...") : tr("Enregistrer")}
                   </button>
                 </div>
               </form>
@@ -2258,30 +2259,30 @@ const filteredSubjects = subjects.filter(subject => {
             {modalType === 'subject' && (
             <form onSubmit={editingSubject ? handleUpdateSubject : handleAddSubject} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2">Nom de la matière *</label>
+                  <label className="block text-sm font-medium mb-2">{tr("Nom de la matière *")}</label>
                   <input
                     type="text"
                     value={subjectForm.name}
                     onChange={(e) => setSubjectForm({...subjectForm, name: e.target.value})}
                     className="w-full border rounded px-3 py-2"
-                    placeholder="Ex: Mathématiques"
+                    placeholder={tr("Ex: Mathématiques")}
                     required
                   />
                 </div>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Code *</label>
+                    <label className="block text-sm font-medium mb-2">{tr("Code *")}</label>
                     <input
                       type="text"
                       value={subjectForm.code}
                       onChange={(e) => setSubjectForm({...subjectForm, code: e.target.value})}
                       className="w-full border rounded px-3 py-2"
-                      placeholder="Ex: MATH101"
+                      placeholder={tr("Ex: MATH101")}
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Coefficient</label>
+                    <label className="block text-sm font-medium mb-2">{tr("Coefficient")}</label>
                     <input
                       type="number"
                       value={subjectForm.coefficient}
@@ -2291,7 +2292,7 @@ const filteredSubjects = subjects.filter(subject => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Niveaux concernés (optionnel)</label>
+                    <label className="block text-sm font-medium mb-2">{tr("Niveaux concernés (optionnel)")}</label>
                     <select
                       multiple
                       value={subjectForm.selectedLevels}
@@ -2299,7 +2300,7 @@ const filteredSubjects = subjects.filter(subject => {
                         const selected = Array.from(e.target.selectedOptions, option => option.value);
                         setSubjectForm({...subjectForm, selectedLevels: selected});
                       }}
-                      aria-label="Niveaux concernés"
+                      aria-label={tr("Niveaux concernés")}
                       className="w-full border rounded px-3 py-2 h-32"
                     >
                       {CYCLES.map(cycle => (
@@ -2311,7 +2312,7 @@ const filteredSubjects = subjects.filter(subject => {
                       ))}
                     </select>
                     <p className="text-xs text-gray-500 mt-1">
-                      Maintenez Ctrl (ou Cmd) pour sélectionner plusieurs niveaux
+                      {tr("Maintenez Ctrl (ou Cmd) pour sélectionner plusieurs niveaux")}
                     </p>
                   </div>
                 </div>
@@ -2321,14 +2322,14 @@ const filteredSubjects = subjects.filter(subject => {
                     onClick={() => setShowModal(false)}
                     className="px-6 py-2 border rounded"
                   >
-                    Annuler
+                    {tr("Annuler")}
                   </button>
                   <button
                     type="submit"
                     disabled={loading}
                     className="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
                   >
-                    {loading ? (editingSubject ? 'Modification...' : 'Création...') : (editingSubject ? 'Modifier' : 'Créer')}
+                    {loading ? (editingSubject ? tr("Modification...") : tr("Création...")) : (editingSubject ? tr("Modifier") : tr("Créer"))}
                   </button>
                 </div>
               </form>
@@ -2339,24 +2340,24 @@ const filteredSubjects = subjects.filter(subject => {
               <form onSubmit={handleAddOrUpdateSchedule} className="space-y-4">
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Niveau *</label>
+                    <label className="block text-sm font-medium mb-2">{tr("Niveau *")}</label>
                     <LevelSelect
                       levels={levels}
                       value={scheduleForm.levelId}
                       onChange={(levelId) => setScheduleForm({...scheduleForm, levelId})}
-                      ariaLabel="Niveau"
+                      ariaLabel={tr("Niveau")}
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Matière *</label>
+                    <label className="block text-sm font-medium mb-2">{tr("Matière *")}</label>
                     <select
                       value={scheduleForm.subjectId}
                       onChange={(e) => setScheduleForm({...scheduleForm, subjectId: e.target.value})}
                       className="w-full border rounded px-3 py-2"
                       required
                     >
-                      <option value="">Sélectionner...</option>
+                      <option value="">{tr("Sélectionner...")}</option>
                      {subjects.filter(subject => {
                           // Si aucun niveau sélectionné, afficher toutes les matières
                           if (!scheduleForm.levelId) return true;
@@ -2372,14 +2373,14 @@ const filteredSubjects = subjects.filter(subject => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Enseignant *</label>
+                  <label className="block text-sm font-medium mb-2">{tr("Enseignant *")}</label>
                   <select
                     value={scheduleForm.teacherId}
                     onChange={(e) => setScheduleForm({...scheduleForm, teacherId: e.target.value})}
                     className="w-full border rounded px-3 py-2"
                     required
                   >
-                    <option value="">Sélectionner...</option>
+                    <option value="">{tr("Sélectionner...")}</option>
                     {teachers.map(teacher => (
                       <option key={teacher.id} value={teacher.id}>
                         {teacher.profiles?.first_name} {teacher.profiles?.last_name}
@@ -2389,23 +2390,23 @@ const filteredSubjects = subjects.filter(subject => {
                 </div>
                 <div className="grid md:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Jour *</label>
+                    <label className="block text-sm font-medium mb-2">{tr("Jour *")}</label>
                     <select
                       value={scheduleForm.dayOfWeek}
                       onChange={(e) => setScheduleForm({...scheduleForm, dayOfWeek: parseInt(e.target.value)})}
                       className="w-full border rounded px-3 py-2"
                       required
                     >
-                      <option value="1">Lundi</option>
-                      <option value="2">Mardi</option>
-                      <option value="3">Mercredi</option>
-                      <option value="4">Jeudi</option>
-                      <option value="5">Vendredi</option>
-                      <option value="6">Samedi</option>
+                      <option value="1">{tr("Lundi")}</option>
+                      <option value="2">{tr("Mardi")}</option>
+                      <option value="3">{tr("Mercredi")}</option>
+                      <option value="4">{tr("Jeudi")}</option>
+                      <option value="5">{tr("Vendredi")}</option>
+                      <option value="6">{tr("Samedi")}</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Heure début *</label>
+                    <label className="block text-sm font-medium mb-2">{tr("Heure début *")}</label>
                     <input
                       type="time"
                       value={scheduleForm.startTime}
@@ -2415,7 +2416,7 @@ const filteredSubjects = subjects.filter(subject => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Heure fin *</label>
+                    <label className="block text-sm font-medium mb-2">{tr("Heure fin *")}</label>
                     <input
                       type="time"
                       value={scheduleForm.endTime}
@@ -2427,17 +2428,17 @@ const filteredSubjects = subjects.filter(subject => {
                 </div>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Salle</label>
+                    <label className="block text-sm font-medium mb-2">{tr("Salle")}</label>
                     <input
                       type="text"
                       value={scheduleForm.room}
                       onChange={(e) => setScheduleForm({...scheduleForm, room: e.target.value})}
                       className="w-full border rounded px-3 py-2"
-                      placeholder="Ex: A101"
+                      placeholder={tr("Ex: A101")}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Année académique *</label>
+                    <label className="block text-sm font-medium mb-2">{tr("Année académique *")}</label>
                     <input
                       type="text"
                       value={scheduleForm.academicYear}
@@ -2453,14 +2454,14 @@ const filteredSubjects = subjects.filter(subject => {
                     onClick={() => { setShowModal(false); setEditingSchedule(null); }}
                     className="px-6 py-2 border rounded"
                   >
-                    Annuler
+                    {tr("Annuler")}
                   </button>
                   <button
                     type="submit"
                     disabled={loading}
                     className="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
                   >
-                    {loading ? 'Enregistrement...' : editingSchedule ? 'Modifier' : 'Créer'}
+                    {loading ? tr("Enregistrement...") : editingSchedule ? tr("Modifier") : tr("Créer")}
                   </button>
                 </div>
               </form>
@@ -2470,58 +2471,58 @@ const filteredSubjects = subjects.filter(subject => {
             {modalType === 'announcement' && (
               <form onSubmit={handleAddAnnouncement} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2">Titre *</label>
+                  <label className="block text-sm font-medium mb-2">{tr("Titre *")}</label>
                   <input
                     type="text"
                     value={announcementForm.title}
                     onChange={(e) => setAnnouncementForm({...announcementForm, title: e.target.value})}
                     className="w-full border rounded px-3 py-2"
-                    placeholder="Titre de l'annonce"
+                    placeholder={tr("Titre de l'annonce")}
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Contenu *</label>
+                  <label className="block text-sm font-medium mb-2">{tr("Contenu *")}</label>
                   <textarea
                     value={announcementForm.content}
                     onChange={(e) => setAnnouncementForm({...announcementForm, content: e.target.value})}
                     className="w-full border rounded px-3 py-2"
                     rows={5}
-                    placeholder="Contenu de l'annonce..."
+                    placeholder={tr("Contenu de l'annonce...")}
                     required
                   />
                 </div>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Destinataires *</label>
+                    <label className="block text-sm font-medium mb-2">{tr("Destinataires *")}</label>
                     <select
                       value={announcementForm.targetAudience}
                       onChange={(e) => setAnnouncementForm({...announcementForm, targetAudience: e.target.value as any})}
                       className="w-full border rounded px-3 py-2"
                       required
                     >
-                      <option value="all">Tous (Étudiants + Enseignants)</option>
-                      <option value="students">Étudiants uniquement</option>
-                      <option value="teachers">Enseignants uniquement</option>
+                      <option value="all">{tr("Tous (Étudiants + Enseignants)")}</option>
+                      <option value="students">{tr("Étudiants uniquement")}</option>
+                      <option value="teachers">{tr("Enseignants uniquement")}</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Priorité *</label>
+                    <label className="block text-sm font-medium mb-2">{tr("Priorité *")}</label>
                     <select
                       value={announcementForm.priority}
                       onChange={(e) => setAnnouncementForm({...announcementForm, priority: e.target.value as any})}
                       className="w-full border rounded px-3 py-2"
                       required
                     >
-                      <option value="low">Basse</option>
-                      <option value="normal">Normale</option>
-                      <option value="high">Élevée</option>
-                      <option value="urgent">Urgente</option>
+                      <option value="low">{tr("Basse")}</option>
+                      <option value="normal">{tr("Normale")}</option>
+                      <option value="high">{tr("Élevée")}</option>
+                      <option value="urgent">{tr("Urgente")}</option>
                     </select>
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Date d'expiration (optionnel)</label>
+                  <label className="block text-sm font-medium mb-2">{tr("Date d'expiration (optionnel)")}</label>
                   <input
                     type="date"
                     value={announcementForm.expiresAt}
@@ -2535,14 +2536,14 @@ const filteredSubjects = subjects.filter(subject => {
                     onClick={() => setShowModal(false)}
                     className="px-6 py-2 border rounded"
                   >
-                    Annuler
+                    {tr("Annuler")}
                   </button>
                   <button
                     type="submit"
                     disabled={loading}
                     className="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
                   >
-                    {loading ? 'Publication...' : 'Publier'}
+                    {loading ? tr("Publication...") : tr("Publier")}
                   </button>
                 </div>
               </form>
@@ -2553,7 +2554,7 @@ const filteredSubjects = subjects.filter(subject => {
               <form onSubmit={handleAddAdmin} className="space-y-4">
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Prénom *</label>
+                    <label className="block text-sm font-medium mb-2">{tr("Prénom *")}</label>
                     <input
                       type="text"
                       value={adminForm.firstName}
@@ -2563,7 +2564,7 @@ const filteredSubjects = subjects.filter(subject => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Nom *</label>
+                    <label className="block text-sm font-medium mb-2">{tr("Nom *")}</label>
                     <input
                       type="text"
                       value={adminForm.lastName}
@@ -2574,7 +2575,7 @@ const filteredSubjects = subjects.filter(subject => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Email *</label>
+                  <label className="block text-sm font-medium mb-2">{tr("Email *")}</label>
                   <input
                     type="email"
                     value={adminForm.email}
@@ -2584,10 +2585,10 @@ const filteredSubjects = subjects.filter(subject => {
                   />
                 </div>
                 <p className="text-sm text-gray-600">
-                  Un mot de passe temporaire sera généré et affiché une seule fois après la création.
+                  {tr("Un mot de passe temporaire sera généré et affiché une seule fois après la création.")}
                 </p>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Rôle *</label>
+                  <label className="block text-sm font-medium mb-2">{tr("Rôle *")}</label>
                   <select
                     value={adminForm.role}
                     onChange={(e) => setAdminForm({...adminForm, role: e.target.value})}
@@ -2605,14 +2606,14 @@ const filteredSubjects = subjects.filter(subject => {
                     onClick={() => setShowModal(false)}
                     className="px-6 py-2 border rounded"
                   >
-                    Annuler
+                    {tr("Annuler")}
                   </button>
                   <button
                     type="submit"
                     disabled={loading}
                     className="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
                   >
-                    {loading ? 'Enregistrement...' : 'Enregistrer'}
+                    {loading ? tr("Enregistrement...") : tr("Enregistrer")}
                   </button>
                 </div>
               </form>
