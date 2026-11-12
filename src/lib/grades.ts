@@ -1,11 +1,71 @@
 import { t, locale } from '../i18n';
-export const GRADE_TYPES: { value: string; label: string }[] = [
-  { value: 'CC1', label: t("CC1 (Contrôle Continu 1)") },
-  { value: 'CC2', label: t("CC2 (Contrôle Continu 2)") },
-  { value: 'CC3', label: t("CC3 (Contrôle Continu 3)") },
-  { value: 'E.Théorique', label: t("Examen Théorique") },
-  { value: 'E.Pratique', label: t("Examen Pratique") },
-];
+import { SchoolCycle } from './levels';
+
+// Les valeurs (« Devoir », « CC1 »…) sont enregistrées telles quelles en base et
+// contrôlées par le déclencheur check_grade_scheme : ne pas les traduire.
+export interface GradeType {
+  value: string;
+  label: string;
+}
+
+// Pré-scolaire et primaire : uniquement des compositions, une par trimestre.
+// Collège et lycée : devoirs (nombre libre), devoir départemental et composition, par trimestre.
+// Supérieur : contrôles continus et examens, sans trimestre.
+export type GradeScheme = 'composition' | 'secondaire' | 'superieur';
+
+const TYPES_BY_SCHEME: Record<GradeScheme, GradeType[]> = {
+  composition: [{ value: 'Composition', label: t("Composition") }],
+  secondaire: [
+    { value: 'Devoir', label: t("Devoir") },
+    { value: 'Devoir départemental', label: t("Devoir départemental") },
+    { value: 'Composition', label: t("Composition") },
+  ],
+  superieur: [
+    { value: 'CC1', label: t("CC1 (Contrôle Continu 1)") },
+    { value: 'CC2', label: t("CC2 (Contrôle Continu 2)") },
+    { value: 'CC3', label: t("CC3 (Contrôle Continu 3)") },
+    { value: 'E.Théorique', label: t("Examen Théorique") },
+    { value: 'E.Pratique', label: t("Examen Pratique") },
+  ],
+};
+
+export const gradeSchemeOf = (cycle?: SchoolCycle | null): GradeScheme =>
+  cycle === 'superieur' ? 'superieur' : cycle === 'college' || cycle === 'lycee' ? 'secondaire' : 'composition';
+
+// Sans cycle connu (étudiant sans niveau), tous les types restent proposés.
+export const gradeTypesFor = (cycle?: SchoolCycle | null): GradeType[] =>
+  cycle
+    ? TYPES_BY_SCHEME[gradeSchemeOf(cycle)]
+    : [...TYPES_BY_SCHEME.secondaire, ...TYPES_BY_SCHEME.superieur];
+
+export const gradeTypeLabel = (value: string): string =>
+  [...TYPES_BY_SCHEME.secondaire, ...TYPES_BY_SCHEME.superieur].find((type) => type.value === value)?.label || value;
+
+export const usesTerms = (cycle?: SchoolCycle | null): boolean => Boolean(cycle) && gradeSchemeOf(cycle) !== 'superieur';
+
+// Une seule note de ce type par élève, matière et trimestre (index unique en base).
+export const SINGLE_PER_TERM = ['Composition', 'Devoir départemental'];
+
+// Notes qui forment la « moyenne de classe » du bulletin.
+export const HOMEWORK_TYPES = ['Devoir', 'Devoir départemental'];
+
+export type Term = 1 | 2 | 3;
+export const TERMS: Term[] = [1, 2, 3];
+
+export const termLabel = (term?: number | null): string =>
+  term === 1 ? t("1er trimestre") : term === 2 ? t("2e trimestre") : term === 3 ? t("3e trimestre") : '-';
+
+// Trimestre en cours selon le calendrier scolaire : septembre-décembre, janvier-mars, avril-août.
+export const currentTerm = (date = new Date()): Term => {
+  const month = date.getMonth() + 1;
+  return month >= 9 ? 1 : month <= 3 ? 2 : 3;
+};
+
+// Avant la migration des trimestres, la base ne connaît pas les colonnes term et academic_year.
+export const isTermsMigrationMissing = (error: { code?: string; message?: string } | null | undefined): boolean =>
+  Boolean(error) && (error?.code === 'PGRST204' || error?.code === '42703') && /term|academic_year/.test(error?.message || '');
+
+export const TERMS_MIGRATION_MESSAGE = "La base de données doit être mise à jour (migration des trimestres) avant d'utiliser cette fonction.";
 
 export interface GradeRow {
   id: string;
@@ -14,6 +74,9 @@ export interface GradeRow {
   grade_value: number;
   grade_type: string;
   coefficient: number;
+  level_id?: string | null;
+  term?: number | null;
+  academic_year?: string | null;
   exam_date?: string | null;
   comment?: string | null;
   subjects?: { name: string; code?: string; coefficient?: number | null } | null;

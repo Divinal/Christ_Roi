@@ -6,8 +6,10 @@ import {
   formatDate,
   formatGrade,
   gradeToneClass,
+  gradeTypeLabel,
   groupBySubject,
   teacherNameOf,
+  termLabel,
 } from '../../lib/grades';
 import { t } from '../../i18n';
 
@@ -56,7 +58,10 @@ const StudentGradesTable: React.FC<StudentGradesTableProps> = ({ grades, onEdit,
             </tr>
             {group.grades.map((grade) => (
               <tr key={grade.id} className="border-t hover:bg-gray-50">
-                <td className="px-3 py-2">{grade.grade_type}</td>
+                <td className="px-3 py-2">
+                  {gradeTypeLabel(grade.grade_type)}
+                  {grade.term ? <span className="block text-xs text-gray-500">{termLabel(grade.term)}</span> : null}
+                </td>
                 <td className={`px-3 py-2 text-center text-base font-bold ${gradeToneClass(grade.grade_value)}`}>
                   {formatGrade(grade.grade_value)}
                 </td>

@@ -7,6 +7,17 @@ import {
 import { supabase } from '../lib/supabaseClient';
 import { Announcement, fetchActiveAnnouncements } from '../lib/announcements';
 import { CURRENT_ACADEMIC_YEAR, Level, SchoolCycle } from '../lib/levels';
+import {
+  SINGLE_PER_TERM,
+  TERMS,
+  TERMS_MIGRATION_MESSAGE,
+  Term,
+  currentTerm,
+  gradeTypesFor,
+  isTermsMigrationMissing,
+  termLabel,
+  usesTerms,
+} from '../lib/grades';
 import { useInbox } from '../lib/messages';
 import { timeSlotOf, timeSlotsOf } from '../lib/schedule';
 import { useHashTab } from '../lib/useHashTab';
@@ -52,6 +63,8 @@ interface StudentGrade {
   grade_value?: number;
   comment?: string;
   saved?: boolean;
+  // Composition ou devoir départemental déjà saisi pour ce trimestre.
+  existing?: boolean;
 }
 
 interface Schedule {
@@ -79,10 +92,17 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
   // États pour la saisie de notes
   const [selectedLevel, setSelectedLevel] = useState<string>('');
   const [selectedSubject, setSelectedSubject] = useState<string>('');
-  const [gradeType, setGradeType] = useState<string>('CC1');
+  const [gradeType, setGradeType] = useState<string>('');
+  const [term, setTerm] = useState<Term>(currentTerm());
   const [coefficient, setCoefficient] = useState<number>(1);
   const [examDate, setExamDate] = useState<string>('');
   const [studentsGrades, setStudentsGrades] = useState<StudentGrade[]>([]);
+
+  // Le cycle du niveau choisi décide des évaluations proposées : un enseignant
+  // du collège ne voit que devoirs et compositions, jamais les CC du supérieur.
+  const selectedCycle = myLevels.find((level) => level.id === selectedLevel)?.cycle;
+  const typeOptions = selectedLevel ? gradeTypesFor(selectedCycle) : [];
+  const selectedTerm: Term | null = usesTerms(selectedCycle) ? term : null;
 
 
   useEffect(() => {
@@ -194,13 +214,33 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
         .eq('level_id', selectedLevel);
 
       if (studentsData) {
+        // Une composition (ou un devoir départemental) par trimestre : celles déjà saisies sont verrouillées.
+        const existing = new Map<string, number>();
+        if (selectedTerm !== null && SINGLE_PER_TERM.includes(gradeType) && studentsData.length) {
+          const { data: existingRows, error: existingError } = await supabase
+            .from('grades')
+            .select('student_id, grade_value')
+            .eq('subject_id', selectedSubject)
+            .eq('grade_type', gradeType)
+            .eq('term', selectedTerm)
+            .eq('academic_year', CURRENT_ACADEMIC_YEAR)
+            .in('student_id', studentsData.map((item: any) => item.id));
+          if (isTermsMigrationMissing(existingError)) {
+            notify(`❌ ${t(TERMS_MIGRATION_MESSAGE)}`);
+            return;
+          }
+          (existingRows || []).forEach((row: any) => existing.set(row.student_id, Number(row.grade_value)));
+        }
+
         const formattedStudents = studentsData.map((item: any) => ({
           student_id: item.id,
           student_number: item.student_number,
           first_name: item.profiles?.first_name || '',
           last_name: item.profiles?.last_name || '',
-          grade_value: undefined,
-          comment: ''
+          grade_value: existing.get(item.id),
+          comment: '',
+          saved: existing.has(item.id),
+          existing: existing.has(item.id),
         }));
         setStudentsGrades(
           formattedStudents.sort((a, b) =>
@@ -236,10 +276,18 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
     level_id: selectedLevel,
     grade_value: student.grade_value,
     grade_type: gradeType,
+    term: selectedTerm,
+    academic_year: CURRENT_ACADEMIC_YEAR,
     coefficient: coefficient,
     exam_date: examDate || null,
     comment: student.comment || null
   });
+
+  const gradeErrorMessage = (error: { code?: string; message: string }): string => {
+    if (isTermsMigrationMissing(error)) return `❌ ${t(TERMS_MIGRATION_MESSAGE)}`;
+    if (error.code === '23505') return t("❌ Cette note existe déjà pour ce trimestre : modifiez-la dans « Notes saisies ».");
+    return `❌ Erreur: ${t(error.message)}`;
+  };
 
   const saveGrade = async (studentId: string) => {
     const student = studentsGrades.find(s => s.student_id === studentId);
@@ -250,7 +298,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
 
     const { error } = await supabase.from('grades').insert(gradeRowFor(student));
     if (error) {
-      notify(`❌ Erreur: ${error.message}`);
+      notify(gradeErrorMessage(error));
       return;
     }
     // Marquée enregistrée : "Enregistrer toutes" ne doit pas la créer une seconde fois.
@@ -282,7 +330,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
       setSelectedLevel('');
       setSelectedSubject('');
     } catch (error: any) {
-      notify(`❌ Erreur: ${error.message}`);
+      notify(gradeErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -405,8 +453,12 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
                     id="grade-level"
                     value={selectedLevel}
                     onChange={(e) => {
-                      setSelectedLevel(e.target.value);
+                      const levelId = e.target.value;
+                      setSelectedLevel(levelId);
                       setSelectedSubject('');
+                      setStudentsGrades([]);
+                      const cycle = myLevels.find((level) => level.id === levelId)?.cycle;
+                      setGradeType(levelId ? gradeTypesFor(cycle)[0].value : '');
                     }}
                     className="w-full border rounded px-3 py-2"
                   >
@@ -424,6 +476,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
                     onChange={(e) => {
                       const subjectId = e.target.value;
                       setSelectedSubject(subjectId);
+                      setStudentsGrades([]);
                       const level = myLevels.find(l => l.id === selectedLevel && l.subject_id === subjectId);
                       setCoefficient(level?.subject_coefficient || 1);
                     }}
@@ -441,19 +494,52 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">{t("Type d'évaluation *")}</label>
+                  <label htmlFor="grade-type" className="block text-sm font-medium mb-2">{t("Type d'évaluation *")}</label>
                   <select
+                    id="grade-type"
                     value={gradeType}
-                    onChange={(e) => setGradeType(e.target.value)}
-                    className="w-full border rounded px-3 py-2"
+                    onChange={(e) => {
+                      setGradeType(e.target.value);
+                      setStudentsGrades([]);
+                    }}
+                    disabled={!selectedLevel}
+                    className="w-full border rounded px-3 py-2 disabled:opacity-50"
                   >
-                    <option value="CC1">{t("CC1 (Contrôle Continu 1)")}</option>
-                    <option value="CC2">{t("CC2 (Contrôle Continu 2)")}</option>
-                    <option value="CC3">{t("CC3 (Contrôle Continu 3)")}</option>
-                    <option value="E.Théorique">{t("Examen Théorique")}</option>
-                    <option value="E.Pratique">{t("Examen Pratique")}</option>
+                    {!selectedLevel && <option value="">{t("Choisissez d'abord un niveau")}</option>}
+                    {typeOptions.map((type) => (
+                      <option key={type.value} value={type.value}>{type.label}</option>
+                    ))}
                   </select>
                 </div>
+
+                {selectedTerm !== null && (
+                  <div>
+                    <label htmlFor="grade-term" className="block text-sm font-medium mb-2">{t("Trimestre *")}</label>
+                    <select
+                      id="grade-term"
+                      value={term}
+                      onChange={(e) => {
+                        setTerm(Number(e.target.value) as Term);
+                        setStudentsGrades([]);
+                      }}
+                      className="w-full border rounded px-3 py-2"
+                    >
+                      {TERMS.map((value) => (
+                        <option key={value} value={value}>{termLabel(value)}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {selectedLevel && (
+                  <p className="md:col-span-4 text-sm text-gray-600" data-testid="grade-type-hint">
+                    {gradeType === 'Devoir'
+                      ? t("Nombre de devoirs libre : leur moyenne forme la « moyenne de classe » du bulletin.")
+                      : SINGLE_PER_TERM.includes(gradeType)
+                        ? t("Une seule note de ce type par élève, par matière et par trimestre.")
+                        : t("Évaluations du supérieur : contrôles continus et examens.")}
+                  </p>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium mb-2">{t("Coefficient (UF) *")}</label>
@@ -468,7 +554,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
                   />
                 </div>
 
-                <div className="md:col-span-2">
+                <div>
                   <label className="block text-sm font-medium mb-2">{t("Date de l'examen")}</label>
                   <input
                     type="date"
@@ -481,7 +567,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
                 <div className="md:col-span-2 flex items-end">
                   <button
                     onClick={loadStudentsForGrading}
-                    disabled={!selectedLevel || !selectedSubject}
+                    disabled={!selectedLevel || !selectedSubject || !gradeType}
                     className="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {t("Charger les étudiants")}
@@ -515,7 +601,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
                                 step="0.25"
                                 value={student.grade_value ?? ''}
                                 onChange={(e) => updateGrade(student.student_id, 'grade_value', e.target.value)}
-                                className="w-24 border rounded px-2 py-1"
+                                disabled={student.saved}
+                                className="w-24 border rounded px-2 py-1 disabled:opacity-60"
                                 placeholder="0-20"
                               />
                             </td>
@@ -524,15 +611,19 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
                                 type="text"
                                 value={student.comment || ''}
                                 onChange={(e) => updateGrade(student.student_id, 'comment', e.target.value)}
-                                className="w-full border rounded px-2 py-1"
-                                placeholder={t("Optionnel")}
+                                disabled={student.saved}
+                                className="w-full border rounded px-2 py-1 disabled:opacity-60"
+                                placeholder={student.existing ? '' : t("Optionnel")}
                               />
                             </td>
                             <td className="px-4 py-3">
                               {student.saved ? (
-                                <span className="text-green-600 flex items-center gap-1">
+                                <span
+                                  className="text-green-600 flex items-center gap-1"
+                                  title={student.existing ? t("Pour la corriger, passez par « Notes saisies ».") : undefined}
+                                >
                                   <CheckCircle2 className="w-4 h-4" />
-                                  {t("Enregistrée")}
+                                  {student.existing ? t("Déjà saisie") : t("Enregistrée")}
                                 </span>
                               ) : (
                                 <button

@@ -1,17 +1,22 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Award, BookOpen, ChevronLeft, ChevronRight, FileText, Hash, Printer, Search, TrendingUp, Users, X,
+  Award, BookOpen, ChevronLeft, ChevronRight, FileText, Hash, Printer, ScrollText, Search, TrendingUp, Users, X,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchAllRows } from '../../lib/fetchAll';
 import { Level } from '../../lib/levels';
 import { StudentOption, fetchStudentOptions, matchesStudent, studentFullName as fullName } from '../../lib/students';
 import {
-  GRADE_TYPES,
   GradeRow,
+  TERMS,
+  TERMS_MIGRATION_MESSAGE,
   effectiveCoefficient,
   formatGrade,
   gradeToneClass,
+  gradeTypesFor,
+  isTermsMigrationMissing,
+  termLabel,
+  usesTerms,
   weightedAverage,
 } from '../../lib/grades';
 import LevelSelect from '../levels/LevelSelect';
@@ -19,6 +24,7 @@ import { confirmDialog, notify } from '../ui/feedback';
 import { EmptyState, Panel, StatTile } from '../ui/primitives';
 import StudentGradesTable from './StudentGradesTable';
 import GradeReportPrint from './GradeReportPrint';
+import ReportCardPrint from './ReportCardPrint';
 import { t } from '../../i18n';
 
 interface OverviewRow {
@@ -31,6 +37,8 @@ interface GradesManagementProps {
   canEdit: boolean;
   // Le relevé imprimable est un document de l'administration et de l'étudiant.
   canPrint?: boolean;
+  // Le bulletin trimestriel est réservé à l'administration.
+  canPrintReportCard?: boolean;
   // Renseigné pour un enseignant : seules ses propres notes sont affichées.
   teacherId?: string;
   initialStudentId?: string;
@@ -38,7 +46,9 @@ interface GradesManagementProps {
 
 const CHUNK_SIZE = 100; // garde l'URL de la requête .in() à une taille raisonnable
 
-const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, canPrint = true, teacherId, initialStudentId }) => {
+const GradesManagement: React.FC<GradesManagementProps> = ({
+  levels, canEdit, canPrint = true, canPrintReportCard = false, teacherId, initialStudentId,
+}) => {
   const [students, setStudents] = useState<StudentOption[]>([]);
   const [loadingStudents, setLoadingStudents] = useState(true);
   const [levelId, setLevelId] = useState('');
@@ -46,6 +56,8 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
   const [search, setSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [subjectFilter, setSubjectFilter] = useState('');
+  const [termFilter, setTermFilter] = useState('');
+  const [reportFor, setReportFor] = useState<string[] | null>(null);
 
   const [grades, setGrades] = useState<GradeRow[]>([]);
   const [loadingGrades, setLoadingGrades] = useState(false);
@@ -53,7 +65,7 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
   const [loadingOverview, setLoadingOverview] = useState(false);
 
   const [editing, setEditing] = useState<GradeRow | null>(null);
-  const [form, setForm] = useState({ gradeValue: '', gradeType: '', examDate: '', comment: '' });
+  const [form, setForm] = useState({ gradeValue: '', gradeType: '', term: '', examDate: '', comment: '' });
   const [saving, setSaving] = useState(false);
   const [printing, setPrinting] = useState(false);
 
@@ -96,6 +108,8 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
   );
   const selectedStudent = allowedStudents.find((student) => student.id === studentId);
   const selectedLevel = levels.find((level) => level.id === levelId);
+  const studentCycle =
+    levels.find((level) => level.id === selectedStudent?.level_id)?.cycle ?? selectedStudent?.levels?.cycle;
 
   const searchResults = useMemo(() => {
     if (!search.trim()) return [];
@@ -123,6 +137,7 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
 
   useEffect(() => {
     setSubjectFilter('');
+    setTermFilter('');
     if (studentId) loadGrades(studentId);
     else {
       gradesRequest.current++;
@@ -186,6 +201,7 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
     setForm({
       gradeValue: String(grade.grade_value),
       gradeType: grade.grade_type,
+      term: grade.term ? String(grade.term) : '',
       examDate: grade.exam_date || '',
       comment: grade.comment || '',
     });
@@ -207,6 +223,8 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
       .update({
         grade_value: value,
         grade_type: form.gradeType,
+        // Une note ancienne sans trimestre le reste tant qu'on n'en choisit pas un.
+        ...(form.term || editing.term ? { term: form.term ? Number(form.term) : null } : {}),
         exam_date: form.examDate || null,
         comment: form.comment.trim() || null,
       })
@@ -214,8 +232,10 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
       .select('id');
     setSaving(false);
 
-    if (error) {
-      notify(`❌ Erreur: ${error.message}`);
+    if (isTermsMigrationMissing(error)) {
+      notify(`❌ ${t(TERMS_MIGRATION_MESSAGE)}`);
+    } else if (error) {
+      notify(`❌ Erreur: ${t(error.message)}`);
     } else if (!data?.length) {
       notify(t("❌ Modification refusée : vous n'avez pas les droits nécessaires."));
     } else {
@@ -249,7 +269,11 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
     return Array.from(names.entries()).sort((a, b) => a[1].localeCompare(b[1], 'fr'));
   }, [grades]);
 
-  const visibleGrades = subjectFilter ? grades.filter((grade) => grade.subject_id === subjectFilter) : grades;
+  const visibleGrades = grades.filter(
+    (grade) =>
+      (!subjectFilter || grade.subject_id === subjectFilter) && (!termFilter || String(grade.term) === termFilter),
+  );
+  const showTerms = usesTerms(studentCycle);
   const generalAverage = weightedAverage(grades);
   const bestGrade = grades.length ? Math.max(...grades.map((grade) => Number(grade.grade_value))) : null;
 
@@ -257,9 +281,12 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
   const previousStudent = position > 0 ? levelStudents[position - 1] : null;
   const nextStudent = position >= 0 && position < levelStudents.length - 1 ? levelStudents[position + 1] : null;
 
-  const typeOptions = editing && !GRADE_TYPES.some((type) => type.value === editing.grade_type)
-    ? [{ value: editing.grade_type, label: editing.grade_type }, ...GRADE_TYPES]
-    : GRADE_TYPES;
+  // Les types proposés sont ceux du cycle de la note ; un ancien type reste affiché tel quel.
+  const editCycle = levels.find((level) => level.id === editing?.level_id)?.cycle ?? studentCycle;
+  const cycleTypes = gradeTypesFor(editCycle);
+  const typeOptions = editing && !cycleTypes.some((type) => type.value === editing.grade_type)
+    ? [{ value: editing.grade_type, label: editing.grade_type }, ...cycleTypes]
+    : cycleTypes;
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -358,6 +385,16 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
         <Panel
           title={t("Notes — {0}", [selectedLevel?.name || ''])}
           description={t("Cliquez sur un étudiant pour ouvrir son tableau de notes.")}
+          actions={
+            canPrintReportCard && usesTerms(selectedLevel?.cycle) && levelStudents.length > 0 ? (
+              <button
+                onClick={() => setReportFor(levelStudents.map((student) => student.id))}
+                className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-gray-100"
+              >
+                <ScrollText className="h-4 w-4" /> {t("Bulletins du niveau")}
+              </button>
+            ) : undefined
+          }
         >
           {levelStudents.length === 0 ? (
             <EmptyState icon={Users} title={t("Aucun étudiant inscrit dans ce niveau")} />
@@ -445,6 +482,14 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
                     </button>
                   </div>
                 )}
+                {canPrintReportCard && showTerms && (
+                  <button
+                    onClick={() => setReportFor([selectedStudent.id])}
+                    className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                  >
+                    <ScrollText className="h-4 w-4" /> {t("Bulletin")}
+                  </button>
+                )}
                 {canPrint && (
                   <button
                     onClick={() => setPrinting(true)}
@@ -463,20 +508,40 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
               </>
             }
           >
-            {subjects.length > 1 && (
-              <div className="mb-4 max-w-xs">
-                <label htmlFor="grades-subject" className="mb-2 block text-sm font-medium">{t("Matière")}</label>
-                <select
-                  id="grades-subject"
-                  value={subjectFilter}
-                  onChange={(event) => setSubjectFilter(event.target.value)}
-                  className="w-full rounded-lg border px-3 py-2"
-                >
-                  <option value="">{t("Toutes les matières")}</option>
-                  {subjects.map(([id, name]) => (
-                    <option key={id} value={id}>{name}</option>
-                  ))}
-                </select>
+            {(subjects.length > 1 || (showTerms && grades.length > 0)) && (
+              <div className="mb-4 grid max-w-xl gap-3 sm:grid-cols-2">
+                {showTerms && (
+                  <div>
+                    <label htmlFor="grades-term" className="mb-2 block text-sm font-medium">{t("Trimestre")}</label>
+                    <select
+                      id="grades-term"
+                      value={termFilter}
+                      onChange={(event) => setTermFilter(event.target.value)}
+                      className="w-full rounded-lg border px-3 py-2"
+                    >
+                      <option value="">{t("Toute l'année")}</option>
+                      {TERMS.map((term) => (
+                        <option key={term} value={term}>{termLabel(term)}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {subjects.length > 1 && (
+                  <div>
+                    <label htmlFor="grades-subject" className="mb-2 block text-sm font-medium">{t("Matière")}</label>
+                    <select
+                      id="grades-subject"
+                      value={subjectFilter}
+                      onChange={(event) => setSubjectFilter(event.target.value)}
+                      className="w-full rounded-lg border px-3 py-2"
+                    >
+                      <option value="">{t("Toutes les matières")}</option>
+                      {subjects.map(([id, name]) => (
+                        <option key={id} value={id}>{name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             )}
 
@@ -539,6 +604,22 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
                   ))}
                 </select>
               </label>
+              {usesTerms(editCycle) && (
+                <label className="block text-sm font-medium md:col-span-2">
+                  {t("Trimestre")}
+                  <select
+                    value={form.term}
+                    onChange={(event) => setForm({ ...form, term: event.target.value })}
+                    required={Boolean(editing.term)}
+                    className="mt-2 w-full rounded-lg border px-3 py-2 font-normal"
+                  >
+                    {!editing.term && <option value="">{t("Non précisé")}</option>}
+                    {TERMS.map((term) => (
+                      <option key={term} value={term}>{termLabel(term)}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <label className="block text-sm font-medium md:col-span-2">
                 {t("Date")}
                 <input
@@ -579,8 +660,18 @@ const GradesManagement: React.FC<GradesManagementProps> = ({ levels, canEdit, ca
           studentName={fullName(selectedStudent)}
           studentNumber={selectedStudent.student_number}
           levelName={selectedStudent.levels?.name}
-          grades={grades}
+          grades={termFilter ? visibleGrades : grades}
+          termText={termFilter ? termLabel(Number(termFilter)) : undefined}
           onClose={() => setPrinting(false)}
+        />
+      )}
+
+      {reportFor && selectedLevel && (
+        <ReportCardPrint
+          level={selectedLevel}
+          levelStudents={levelStudents}
+          printIds={reportFor}
+          onClose={() => setReportFor(null)}
         />
       )}
     </div>

@@ -238,6 +238,109 @@
   text-align: end;
 }
 
+/* ---------- Bulletin de notes (modèle collège-lycée) : une page A4 par élève ---------- */
+.report-card {
+  font-size: 11.5px;
+  line-height: 1.3;
+}
+.report-card + .report-card {
+  break-before: page;
+  margin-top: 32px;
+}
+.rc-head {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 16px;
+  font-size: 10.5px;
+  text-align: center;
+}
+.rc-sep {
+  letter-spacing: 1px;
+}
+.rc-school {
+  margin-top: 2px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.rc-title {
+  display: inline-block;
+  margin-top: 14px;
+  padding: 6px 20px;
+  border: 1px solid #111827;
+  border-radius: 9999px;
+  background: #d1d5db;
+  font-weight: 700;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.rc-motto {
+  margin-top: 4px;
+  font-weight: 700;
+}
+.rc-year {
+  margin-top: 6px;
+}
+.rc-logo {
+  display: block;
+  width: 64px;
+  height: 64px;
+  margin: 6px auto 0;
+  object-fit: contain;
+}
+.rc-identity {
+  display: grid;
+  gap: 4px;
+  margin-top: 14px;
+}
+.rc-identity p:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 28px;
+}
+.print-doc .rc-table th,
+.print-doc .rc-table td {
+  padding: 4px 6px;
+  text-align: center;
+  vertical-align: middle;
+}
+.print-doc .rc-table th:first-child,
+.print-doc .rc-table td:first-child {
+  text-align: start;
+}
+.print-doc .rc-table .rc-teacher {
+  min-width: 7rem;
+}
+.print-doc .rc-total td {
+  font-weight: 700;
+}
+.rc-foot {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-top: 16px;
+}
+.rc-foot p {
+  margin: 3px 0;
+}
+.rc-parent {
+  margin-top: 20px !important;
+  font-weight: 700;
+}
+.rc-head-sign {
+  text-align: center;
+}
+.rc-observation {
+  min-height: 32px;
+  font-style: italic;
+}
+.rc-head-title {
+  margin-top: 10px !important;
+}
+.rc-head-name {
+  margin-top: 36px !important;
+  font-weight: 700;
+}
+
 @media screen {
   #print-root {
     display: none;

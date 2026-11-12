@@ -1069,7 +1069,7 @@ const filteredSubjects = subjects.filter(subject => {
 
         {/* NOTES */}
         {activeTab === 'grades' && (
-          <GradesManagement levels={levels} canEdit initialStudentId={gradesStudentId || undefined} />
+          <GradesManagement levels={levels} canEdit canPrintReportCard initialStudentId={gradesStudentId || undefined} />
         )}
 
         {/* SUIVI DES ÉTUDIANTS */}

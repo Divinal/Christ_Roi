@@ -28,6 +28,21 @@ export const siteConfig = {
     phone: '+242 06 000 00 00',
   },
   copyrightOwner: 'Université Connect',
+  // En-tête officiel du bulletin de notes (imprimé tel quel, sans traduction).
+  reportCard: {
+    authorityLines: [
+      "MINISTÈRE DE L'ENSEIGNEMENT PRÉSCOLAIRE, PRIMAIRE, SECONDAIRE ET DE L'ALPHABÉTISATION",
+      "DIRECTION DÉPARTEMENTALE DE L'ENSEIGNEMENT PRÉSCOLAIRE, PRIMAIRE, SECONDAIRE ET DE L'ALPHABÉTISATION DE BRAZZAVILLE",
+      "INSPECTION DES COLLÈGES D'ENSEIGNEMENT GÉNÉRAL DE BRAZZAVILLE II",
+    ],
+    country: 'RÉPUBLIQUE DU CONGO',
+    countryMotto: 'Unité – Travail – Progrès',
+    schoolMotto: 'Éducation – Travail – Progrès',
+    address: 'Votre adresse ici avec quartier',
+    city: 'Brazzaville',
+    // Nom imprimé sous « Le chef d'établissement » (laisser vide pour signer à la main).
+    headName: '',
+  },
 };
 
 export type SiteConfig = typeof siteConfig;

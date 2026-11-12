@@ -6,8 +6,10 @@ import {
   effectiveCoefficient,
   formatDate,
   formatGrade,
+  gradeTypeLabel,
   groupBySubject,
   teacherNameOf,
+  termLabel,
   weightedAverage,
 } from '../../lib/grades';
 import { t, locale } from '../../i18n';
@@ -17,6 +19,8 @@ interface GradeReportPrintProps {
   studentNumber: string;
   levelName?: string;
   grades: GradeRow[];
+  // Relevé d'un seul trimestre : son nom apparaît dans l'en-tête.
+  termText?: string;
   onClose: () => void;
 }
 
@@ -25,6 +29,7 @@ const GradeReportPrint: React.FC<GradeReportPrintProps> = ({
   studentNumber,
   levelName,
   grades,
+  termText,
   onClose,
 }) => (
   <PrintPreview title={t("Relevé de notes — {0}", [studentName])} onClose={onClose}>
@@ -35,6 +40,7 @@ const GradeReportPrint: React.FC<GradeReportPrintProps> = ({
         [t("Matricule"), studentNumber],
         [t("Niveau"), levelName || t("Non inscrit")],
         [t("Année scolaire"), CURRENT_ACADEMIC_YEAR],
+        ...(termText ? [[t("Trimestre"), termText] as [string, string]] : []),
         [t("Édité le"), new Date().toLocaleDateString(locale())],
       ]}
     />
@@ -54,7 +60,10 @@ const GradeReportPrint: React.FC<GradeReportPrintProps> = ({
           {group.grades.map((grade, index) => (
             <tr key={grade.id}>
               {index === 0 && <td rowSpan={group.grades.length + 1}>{group.name}</td>}
-              <td>{grade.grade_type}</td>
+              <td>
+                {gradeTypeLabel(grade.grade_type)}
+                {grade.term && !termText ? ` — ${termLabel(grade.term)}` : ''}
+              </td>
               <td>{formatGrade(grade.grade_value)}</td>
               <td>{effectiveCoefficient(grade)}</td>
               <td>{formatDate(grade.exam_date)}</td>

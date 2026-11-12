@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { Announcement, PRIORITY_CLASSES, PRIORITY_LABELS, fetchActiveAnnouncements } from '../lib/announcements';
-import { GradeRow, formatGrade, gradeToneClass, weightedAverage } from '../lib/grades';
+import { GradeRow, TERMS, formatGrade, gradeToneClass, termLabel, usesTerms, weightedAverage } from '../lib/grades';
 import { CURRENT_ACADEMIC_YEAR, cycleLabel, SchoolCycle } from '../lib/levels';
 import { useInbox } from '../lib/messages';
 import { timeSlotOf, timeSlotsOf } from '../lib/schedule';
@@ -91,6 +91,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout, onC
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [printing, setPrinting] = useState<boolean>(false);
+  const [termFilter, setTermFilter] = useState<string>('');
   const { messages, unreadCount, loading: loadingMessages } = useInbox(user?.id, 'students', activeTab === 'messages');
 
   useEffect(() => {
@@ -162,6 +163,9 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout, onC
   };
 
   const average = weightedAverage(grades);
+  // Un relevé par trimestre : le filtre s'applique au tableau comme à l'impression.
+  const showTerms = usesTerms(studentData?.levels?.cycle);
+  const termGrades = termFilter ? grades.filter((grade) => String(grade.term) === termFilter) : grades;
 
   const dayNames = [t("Lundi"), t("Mardi"), t("Mercredi"), t("Jeudi"), t("Vendredi"), t("Samedi")];
 
@@ -288,19 +292,34 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout, onC
             title={t("Mes notes")}
             description={t("Moyenne générale : {0} / 20", [formatGrade(average)])}
             actions={
-              <button
-                onClick={() => setPrinting(true)}
-                disabled={grades.length === 0}
-                className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <Printer className="h-4 w-4" /> {t("Imprimer mon relevé")}
-              </button>
+              <>
+                {showTerms && grades.length > 0 && (
+                  <select
+                    value={termFilter}
+                    onChange={(event) => setTermFilter(event.target.value)}
+                    aria-label={t("Trimestre")}
+                    className="rounded-lg border px-3 py-2 text-sm"
+                  >
+                    <option value="">{t("Toute l'année")}</option>
+                    {TERMS.map((term) => (
+                      <option key={term} value={term}>{termLabel(term)}</option>
+                    ))}
+                  </select>
+                )}
+                <button
+                  onClick={() => setPrinting(true)}
+                  disabled={termGrades.length === 0}
+                  className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Printer className="h-4 w-4" /> {t("Imprimer mon relevé")}
+                </button>
+              </>
             }
           >
-            {grades.length === 0 ? (
+            {termGrades.length === 0 ? (
               <EmptyState icon={FileText} title={t("Aucune note disponible")} hint={t("Vos notes apparaîtront ici dès que vos enseignants les auront saisies.")} />
             ) : (
-              <StudentGradesTable grades={grades} />
+              <StudentGradesTable grades={termGrades} />
             )}
           </Panel>
         )}
@@ -309,7 +328,8 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, onLogout, onC
             studentName={`${user?.first_name || ''} ${user?.last_name || ''}`.trim()}
             studentNumber={studentData.student_number}
             levelName={studentData.levels?.name}
-            grades={grades}
+            grades={termGrades}
+            termText={termFilter ? termLabel(Number(termFilter)) : undefined}
             onClose={() => setPrinting(false)}
           />
         )}
