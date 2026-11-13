@@ -7,9 +7,12 @@ export const PUBLIC_PATHS: Record<PublicPage, string> = {
   home: '/',
   contact: '/contact',
   privacy: '/confidentialite',
+  // Suivi du jeton du lien : /inscription/<jeton>.
+  register: '/inscription',
 };
 
 export const pathToPublicPage = (pathname: string): PublicPage => {
+  if (pathname.startsWith(`${PUBLIC_PATHS.register}/`)) return 'register';
   const match = (Object.entries(PUBLIC_PATHS) as [PublicPage, string][]).find(
     ([, path]) => path === pathname
   );

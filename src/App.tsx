@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useState, useEffect } from 'react';
 import { supabase } from './lib/supabaseClient';
 import { siteConfig } from './config/site.config';
 import { PUBLIC_PATHS, pathToPublicPage } from './lib/publicRoutes';
+import { tokenFromPath } from './lib/registration';
 import HomePage from './pages/HomePage';
 import ContactPage from './pages/ContactPage';
 import PrivacyPage from './pages/PrivacyPage';
@@ -16,6 +17,7 @@ import { t } from './i18n';
 const StudentDashboard = lazy(() => import('./pages/StudentDashboard'));
 const TeacherDashboard = lazy(() => import('./pages/TeacherDashboard'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const RegisterPage = lazy(() => import('./pages/RegisterPage'));
 
 type DashboardPage = 'student-dashboard' | 'teacher-dashboard' | 'admin-dashboard';
 type Page = PublicPage | DashboardPage;
@@ -33,6 +35,25 @@ const PAGE_SEO: Record<PublicPage, { title: string; description: string }> = {
     title: t("Politique de confidentialité — {0}", [siteConfig.schoolName]),
     description: t("Politique de confidentialité de {0}.", [siteConfig.schoolName]),
   },
+  register: {
+    title: t("Inscription — {0}", [siteConfig.schoolName]),
+    description: t("Créez votre compte {0} avec le lien reçu de l'administration.", [siteConfig.schoolName]),
+  },
+};
+
+// Une page d'inscription porte un jeton personnel : elle ne doit pas être indexée.
+const setRobots = (content: string | null) => {
+  let tag = document.querySelector('meta[name="robots"]');
+  if (!content) {
+    tag?.remove();
+    return;
+  }
+  if (!tag) {
+    tag = document.createElement('meta');
+    tag.setAttribute('name', 'robots');
+    document.head.appendChild(tag);
+  }
+  tag.setAttribute('content', content);
 };
 
 const DASHBOARD_OF_ROLE: Record<string, DashboardPage> = {
@@ -112,6 +133,7 @@ const App: React.FC = () => {
     } else {
       document.title = t("Mon espace — {0}", [siteConfig.schoolName]);
     }
+    setRobots(currentPage === 'register' ? 'noindex, nofollow' : null);
   }, [currentPage]);
 
   const checkUser = async () => {
@@ -162,13 +184,16 @@ const App: React.FC = () => {
       setUser((previous) =>
         previous && JSON.stringify(previous) === JSON.stringify(next) ? previous : next,
       );
-      setCurrentPage(DASHBOARD_OF_ROLE[roleData.role] || 'home');
+      // Une session ouverte (ex. l'admin qui teste son lien) ne fait pas quitter la page d'inscription.
+      setCurrentPage((page) => (page === 'register' ? page : DASHBOARD_OF_ROLE[roleData.role] || 'home'));
     } catch (error) {
       console.error('Error fetching user data:', error);
     }
   };
 
   const handleLogin = (loggedInUser: User) => {
+    // Connexion depuis la page d'inscription : l'adresse du lien ne doit pas rester affichée.
+    if (pathToPublicPage(window.location.pathname) === 'register') window.history.replaceState(null, '', '/');
     setUser(loggedInUser);
     setShowLoginModal(false);
     setCurrentPage(DASHBOARD_OF_ROLE[loggedInUser.role] || 'home');
@@ -218,6 +243,15 @@ const App: React.FC = () => {
       )}
       {currentPage === 'privacy' && (
         <PrivacyPage onNavigate={handleNavigate} onLoginClick={handleLoginClick} />
+      )}
+      {currentPage === 'register' && (
+        <Suspense fallback={<Spinner />}>
+          <RegisterPage
+            token={tokenFromPath(window.location.pathname)}
+            onNavigate={handleNavigate}
+            onLoginClick={handleLoginClick}
+          />
+        </Suspense>
       )}
       {dashboardProps && (
         <Suspense fallback={<Spinner />}>

@@ -14,11 +14,13 @@ export const callAdminUsers = async <T = Record<string, any>>(
   if (!error) return data as T;
 
   if (error instanceof FunctionsHttpError) {
+    // Un message du serveur passe en premier : « Lien d'inscription introuvable » est aussi un 404.
+    const body = await error.context.json().catch(() => null);
+    if (body?.error) throw new Error(t(body.error));
     if (error.context.status === 404) {
       throw new Error(t("Le service de gestion des comptes n'est pas encore déployé sur le serveur."));
     }
-    const body = await error.context.json().catch(() => null);
-    throw new Error(body?.error ? t(body.error) : t("Le serveur a refusé cette action."));
+    throw new Error(t("Le serveur a refusé cette action."));
   }
   if (error instanceof FunctionsFetchError || error instanceof FunctionsRelayError) {
     throw new Error(t("Service de gestion des comptes injoignable. Vérifiez votre connexion et réessayez."));

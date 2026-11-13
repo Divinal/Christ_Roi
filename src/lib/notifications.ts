@@ -4,7 +4,7 @@ import { notify } from '../components/ui/feedback';
 import { t, locale } from '../i18n';
 
 export type NotificationType =
-  | 'message' | 'payment' | 'payslip' | 'grade' | 'exam' | 'announcement' | 'schedule' | 'followup';
+  | 'message' | 'payment' | 'payslip' | 'grade' | 'exam' | 'announcement' | 'schedule' | 'followup' | 'registration';
 
 export interface AppNotification {
   id: string;

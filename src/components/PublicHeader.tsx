@@ -5,7 +5,8 @@ import { PUBLIC_PATHS } from '../lib/publicRoutes';
 import { t } from '../i18n';
 import LanguageSwitcher from './ui/LanguageSwitcher';
 
-export type PublicPage = 'home' | 'contact' | 'privacy';
+// « register » : page d'inscription ouverte depuis un lien envoyé par l'administration.
+export type PublicPage = 'home' | 'contact' | 'privacy' | 'register';
 
 interface PublicHeaderProps {
   currentPage: PublicPage;

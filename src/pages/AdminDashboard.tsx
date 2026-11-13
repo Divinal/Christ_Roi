@@ -19,6 +19,8 @@ import LevelSelect from '../components/levels/LevelSelect';
 import LevelsManagement from '../components/levels/LevelsManagement';
 import StudentListPrint from '../components/levels/StudentListPrint';
 import TeacherDetail, { TeacherRecord, TeacherTab } from '../components/teachers/TeacherDetail';
+import RegistrationLinksPanel from '../components/registration/RegistrationLinksPanel';
+import { RegistrationRole } from '../lib/registration';
 import { Announcement, PRIORITY_CLASSES, PRIORITY_LABELS } from '../lib/announcements';
 import { CURRENT_ACADEMIC_YEAR, CYCLES, Level, SchoolCycle, fetchLevels } from '../lib/levels';
 import { timeSlotOf, timeSlotsOf } from '../lib/schedule';
@@ -175,6 +177,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onChang
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
   const [gradesStudentId, setGradesStudentId] = useState<string>('');
   const [printLevelId, setPrintLevelId] = useState<string>('');
+  const [registrationRole, setRegistrationRole] = useState<RegistrationRole | null>(null);
   const [messageRecipient, setMessageRecipient] = useState<MessageRecipientTarget | null>(null);
 
   const [teacherAssignForm, setTeacherAssignForm] = useState({
@@ -249,10 +252,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onChang
     setShowModal(true);
   };
 
-  const showCredentials = (title: string, email: string, password: string) => {
+  const showCredentials = (title: string, email: string, password: string, number?: string) => {
+    const credentials = tr("Email de connexion : {0}\n\nMot de passe temporaire à lui transmettre. Il ne sera plus affiché, et devra être changé à la première connexion :", [email]);
     infoDialog({
       title,
-      message: tr("Email de connexion : {0}\n\nMot de passe temporaire à lui transmettre. Il ne sera plus affiché, et devra être changé à la première connexion :", [email]),
+      message: number ? `${tr("Matricule attribué : {0}", [number])}\n${credentials}` : credentials,
       secret: password,
     });
   };
@@ -476,7 +480,7 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
       setLoading(true);
       try {
         const email = studentForm.email.trim();
-        const { temporary_password } = await callAdminUsers<{ temporary_password: string }>('create_student', {
+        const { temporary_password, student_number } = await callAdminUsers<{ temporary_password: string; student_number?: string }>('create_student', {
           email,
           first_name: studentForm.firstName,
           last_name: studentForm.lastName,
@@ -489,7 +493,7 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
         setShowModal(false);
         resetStudentForm();
         await loadStudents();
-        showCredentials(tr("Étudiant créé"), email, temporary_password);
+        showCredentials(tr("Étudiant créé"), email, temporary_password, student_number);
       } catch (error: any) {
         notify(`❌ ${error.message}`);
       } finally {
@@ -502,7 +506,7 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
       setLoading(true);
       try {
         const email = teacherForm.email.trim();
-        const { temporary_password } = await callAdminUsers<{ temporary_password: string }>('create_teacher', {
+        const { temporary_password, teacher_number } = await callAdminUsers<{ temporary_password: string; teacher_number?: string }>('create_teacher', {
           email,
           first_name: teacherForm.firstName,
           last_name: teacherForm.lastName,
@@ -514,7 +518,7 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
         setShowModal(false);
         resetTeacherForm();
         await loadTeachers();
-        showCredentials(tr("Enseignant créé"), email, temporary_password);
+        showCredentials(tr("Enseignant créé"), email, temporary_password, teacher_number);
       } catch (error: any) {
         notify(`❌ ${error.message}`);
       } finally {
@@ -1109,6 +1113,13 @@ const filteredSubjects = subjects.filter(subject => {
                 {tr("Imprimer la liste")}
               </button>
               <button
+                onClick={() => setRegistrationRole('student')}
+                className="border px-3 py-2 md:px-4 rounded-lg hover:bg-gray-100 flex items-center gap-2 text-sm md:text-base justify-center"
+              >
+                <Link2 className="w-4 h-4 md:w-5 md:h-5" />
+                {tr("Lien d'inscription")}
+              </button>
+              <button
                 onClick={() => openQuickAdd('student')}
                 className="bg-indigo-600 text-white px-3 py-2 md:px-4 rounded-lg hover:bg-indigo-700 flex items-center gap-2 text-sm md:text-base justify-center"
               >
@@ -1336,13 +1347,22 @@ const filteredSubjects = subjects.filter(subject => {
           <div className="bg-white rounded-xl shadow p-4 md:p-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
               <h2 className="text-xl md:text-2xl font-bold">{tr("Enseignants (")}{filteredTeachers.length})</h2>
-              <button
-                onClick={() => openQuickAdd('teacher')}
-                className="bg-indigo-600 text-white px-3 py-2 md:px-4 rounded-lg hover:bg-indigo-700 flex items-center gap-2 text-sm md:text-base w-full sm:w-auto justify-center"
-              >
-                <Plus className="w-4 h-4 md:w-5 md:h-5" />
-                {tr("Ajouter")}
-              </button>
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <button
+                  onClick={() => setRegistrationRole('teacher')}
+                  className="border px-3 py-2 md:px-4 rounded-lg hover:bg-gray-100 flex items-center gap-2 text-sm md:text-base justify-center"
+                >
+                  <Link2 className="w-4 h-4 md:w-5 md:h-5" />
+                  {tr("Lien d'inscription")}
+                </button>
+                <button
+                  onClick={() => openQuickAdd('teacher')}
+                  className="bg-indigo-600 text-white px-3 py-2 md:px-4 rounded-lg hover:bg-indigo-700 flex items-center gap-2 text-sm md:text-base justify-center"
+                >
+                  <Plus className="w-4 h-4 md:w-5 md:h-5" />
+                  {tr("Ajouter")}
+                </button>
+              </div>
             </div>
 
             {/* FILTRES ET RECHERCHE */}
@@ -2094,14 +2114,16 @@ const filteredSubjects = subjects.filter(subject => {
                 </div>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">{tr("Matricule *")}</label>
+                    <label htmlFor="student-number" className="block text-sm font-medium mb-2">{tr("Matricule")}</label>
                     <input
+                      id="student-number"
                       type="text"
                       value={studentForm.studentNumber}
                       onChange={(e) => setStudentForm({...studentForm, studentNumber: e.target.value})}
+                      placeholder={tr("Automatique")}
                       className="w-full border rounded px-3 py-2"
-                      required
                     />
+                    <p className="mt-1 text-xs text-gray-500">{tr("Laissez vide : le système l'attribue selon le niveau (ex. 6E-26-0001).")}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-2">{tr("Téléphone")}</label>
@@ -2197,14 +2219,16 @@ const filteredSubjects = subjects.filter(subject => {
                 </div>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">{tr("Matricule *")}</label>
+                    <label htmlFor="teacher-number" className="block text-sm font-medium mb-2">{tr("Matricule")}</label>
                     <input
+                      id="teacher-number"
                       type="text"
                       value={teacherForm.teacherNumber}
                       onChange={(e) => setTeacherForm({...teacherForm, teacherNumber: e.target.value})}
+                      placeholder={tr("Automatique")}
                       className="w-full border rounded px-3 py-2"
-                      required
                     />
+                    <p className="mt-1 text-xs text-gray-500">{tr("Laissez vide : le système l'attribue (ex. ENS-26-0001).")}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-2">{tr("Téléphone")}</label>
@@ -2625,6 +2649,10 @@ const filteredSubjects = subjects.filter(subject => {
 
       {levelToPrint && (
         <StudentListPrint level={levelToPrint} students={students} onClose={() => setPrintLevelId('')} />
+      )}
+
+      {registrationRole && (
+        <RegistrationLinksPanel role={registrationRole} onClose={() => setRegistrationRole(null)} />
       )}
     </AppShell>
   );
