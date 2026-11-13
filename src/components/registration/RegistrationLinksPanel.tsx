@@ -13,6 +13,7 @@ import {
   setRegistrationLinkActive,
 } from '../../lib/registration';
 import { formatDate } from '../../lib/grades';
+import { CYCLES, SchoolCycle, cycleLabel } from '../../lib/levels';
 import { notify } from '../ui/feedback';
 import { t } from '../../i18n';
 
@@ -59,6 +60,8 @@ const RegistrationLinksPanel: React.FC<RegistrationLinksPanelProps> = ({ role, o
   const [notActivated, setNotActivated] = useState(false);
   const [saving, setSaving] = useState(false);
   const [label, setLabel] = useState('');
+  // Lien étudiant : réservé au cycle choisi (obligatoire).
+  const [cycle, setCycle] = useState<SchoolCycle | ''>('');
   const [validity, setValidity] = useState('30');
   const [maxUses, setMaxUses] = useState('');
   const [createdId, setCreatedId] = useState('');
@@ -81,6 +84,10 @@ const RegistrationLinksPanel: React.FC<RegistrationLinksPanelProps> = ({ role, o
 
   const create = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (role === 'student' && !cycle) {
+      notify(t("⚠️ Choisissez le cycle concerné par ce lien."));
+      return;
+    }
     const limit = maxUses.trim() ? parseInt(maxUses, 10) : null;
     if (limit !== null && (Number.isNaN(limit) || limit < 1)) {
       notify(t("⚠️ Le nombre maximal d'inscriptions doit être au moins 1."));
@@ -91,6 +98,7 @@ const RegistrationLinksPanel: React.FC<RegistrationLinksPanelProps> = ({ role, o
       const link = await createRegistrationLink({
         role,
         label: label.trim() || null,
+        cycle: role === 'student' ? (cycle as SchoolCycle) : null,
         maxUses: limit,
         validityDays: validity ? Number(validity) : null,
       });
@@ -151,6 +159,23 @@ const RegistrationLinksPanel: React.FC<RegistrationLinksPanelProps> = ({ role, o
           ) : (
             <>
               <form onSubmit={create} className="grid gap-3 rounded-lg border p-4 md:grid-cols-4">
+                {role === 'student' && (
+                  <label className="block text-sm font-medium md:col-span-2">
+                    {t("Cycle concerné *")}
+                    <select
+                      required
+                      value={cycle}
+                      onChange={(event) => setCycle(event.target.value as SchoolCycle | '')}
+                      className="mt-1 w-full rounded-lg border px-3 py-2 font-normal"
+                      data-testid="registration-cycle"
+                    >
+                      <option value="">{t("Choisir un cycle...")}</option>
+                      {CYCLES.map((item) => (
+                        <option key={item.id} value={item.id}>{item.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
                 <label className="block text-sm font-medium md:col-span-2">
                   {t("Libellé (facultatif)")}
                   <input
@@ -184,7 +209,7 @@ const RegistrationLinksPanel: React.FC<RegistrationLinksPanelProps> = ({ role, o
                     className="mt-1 w-full rounded-lg border px-3 py-2 font-normal"
                   />
                 </label>
-                <div className="flex justify-end md:col-span-4">
+                <div className={`flex items-end justify-end ${role === 'student' ? 'md:col-span-2' : 'md:col-span-4'}`}>
                   <button
                     type="submit"
                     disabled={saving}
@@ -213,9 +238,16 @@ const RegistrationLinksPanel: React.FC<RegistrationLinksPanelProps> = ({ role, o
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="font-semibold">{link.label || t("Lien sans titre")}</p>
-                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[status].className}`}>
-                            {STATUS_STYLES[status].label}
-                          </span>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {link.role === 'student' && (
+                              <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700" data-testid="registration-link-cycle">
+                                {link.cycle ? cycleLabel(link.cycle) : t("Tous les cycles")}
+                              </span>
+                            )}
+                            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[status].className}`}>
+                              {STATUS_STYLES[status].label}
+                            </span>
+                          </div>
                         </div>
                         <p className="mt-1 text-xs text-gray-600">
                           {link.max_uses !== null

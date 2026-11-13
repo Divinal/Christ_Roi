@@ -319,6 +319,8 @@ const findLevel = async (admin: any, levelId: string) => {
 interface SelfService {
   // Mot de passe choisi par la personne qui s'inscrit.
   password: string;
+  // Cycle imposé par le lien (étudiants).
+  cycle?: string | null;
 }
 
 const createStudent = async (admin: any, body: any, selfService?: SelfService) => {
@@ -329,7 +331,10 @@ const createStudent = async (admin: any, body: any, selfService?: SelfService) =
   const lastName = requiredText(body.last_name, 'nom');
   const levelId = selfService ? requiredText(body.level_id, 'niveau') : optionalText(body.level_id);
   const level = levelId ? await findLevel(admin, levelId) : null;
-  const prefix = `${level ? levelCode(level.name) : 'ETU'}-${schoolYearCode()}`;
+  if (selfService?.cycle && level?.cycle !== selfService.cycle) {
+    throw new HttpError(400, 'Ce niveau ne fait pas partie du cycle prévu par ce lien.');
+  }
+  const prefix =`${level ? levelCode(level.name) : 'ETU'}-${schoolYearCode()}`;
   const password = selfService?.password ?? generateTemporaryPassword();
   let studentNumber = '';
 
@@ -388,13 +393,16 @@ interface RegistrationLink {
   id: string;
   role: 'student' | 'teacher';
   label: string | null;
+  // Lien étudiant réservé à un cycle ; absent ou nul : tous les niveaux.
+  cycle?: string | null;
   max_uses: number | null;
   use_count: number;
   expires_at: string | null;
   is_active: boolean;
 }
 
-const LINK_COLUMNS = 'id, role, label, max_uses, use_count, expires_at, is_active';
+// Toutes les colonnes : le lien reste lisible même avant la migration qui ajoute « cycle ».
+const LINK_COLUMNS = '*';
 const MIN_PASSWORD_LENGTH = 8;
 
 // Table absente : la migration des liens d'inscription n'est pas encore appliquée.
@@ -459,12 +467,15 @@ const registrationInfo = async (admin: any, body: any) => {
   if (link.role === 'teacher') {
     return { role: link.role, label: link.label, expires_at: link.expires_at, number_prefix: `ENS-${year}` };
   }
-  const { data, error } = await admin.from('levels').select('id, name, cycle, position').order('position', { ascending: true });
+  let query = admin.from('levels').select('id, name, cycle, position');
+  if (link.cycle) query = query.eq('cycle', link.cycle);
+  const { data, error } = await query.order('position', { ascending: true });
   if (error) throw error;
   return {
     role: link.role,
     label: link.label,
     expires_at: link.expires_at,
+    cycle: link.cycle ?? null,
     levels: (data || []).map((level: { id: string; name: string; cycle: string; position: number }) => ({
       ...level,
       number_prefix: `${levelCode(level.name)}-${year}`,
@@ -484,7 +495,7 @@ const register = async (admin: any, body: any) => {
   let number: string;
   try {
     number = link.role === 'student'
-      ? (await createStudent(admin, body, { password })).student_number
+      ? (await createStudent(admin, body, { password, cycle: link.cycle ?? null })).student_number
       : (await createTeacher(admin, body, { password })).teacher_number;
   } catch (error) {
     await releaseLink(admin, link.id);

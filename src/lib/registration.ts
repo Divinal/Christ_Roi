@@ -12,6 +12,8 @@ export interface RegistrationLink {
   token: string;
   role: RegistrationRole;
   label: string | null;
+  // Lien étudiant réservé à un cycle ; nul : tous les niveaux (anciens liens).
+  cycle?: SchoolCycle | null;
   max_uses: number | null;
   use_count: number;
   expires_at: string | null;
@@ -46,9 +48,10 @@ export class RegistrationNotActivatedError extends Error {}
 const isMissingTable = (error: { code?: string } | null) => error?.code === 'PGRST205' || error?.code === '42P01';
 
 export const fetchRegistrationLinks = async (role: RegistrationRole): Promise<RegistrationLink[]> => {
+  // Toutes les colonnes : la liste s'affiche aussi avant la migration qui ajoute « cycle ».
   const { data, error } = await supabase
     .from('registration_links')
-    .select('id, token, role, label, max_uses, use_count, expires_at, is_active, created_at')
+    .select('*')
     .eq('role', role)
     .order('created_at', { ascending: false });
   if (isMissingTable(error)) throw new RegistrationNotActivatedError();
@@ -59,16 +62,28 @@ export const fetchRegistrationLinks = async (role: RegistrationRole): Promise<Re
 export const createRegistrationLink = async (link: {
   role: RegistrationRole;
   label: string | null;
+  cycle?: SchoolCycle | null;
   maxUses: number | null;
   validityDays: number | null;
 }): Promise<RegistrationLink> => {
   const expiresAt = link.validityDays ? new Date(Date.now() + link.validityDays * 86400000).toISOString() : null;
   const { data, error } = await supabase
     .from('registration_links')
-    .insert({ token: generateToken(), role: link.role, label: link.label, max_uses: link.maxUses, expires_at: expiresAt })
-    .select('id, token, role, label, max_uses, use_count, expires_at, is_active, created_at')
+    .insert({
+      token: generateToken(),
+      role: link.role,
+      label: link.label,
+      max_uses: link.maxUses,
+      expires_at: expiresAt,
+      ...(link.cycle ? { cycle: link.cycle } : {}),
+    })
+    .select('*')
     .single();
   if (isMissingTable(error)) throw new RegistrationNotActivatedError();
+  // Colonne « cycle » absente : la migration correspondante n'est pas encore appliquée.
+  if (error && (error.code === 'PGRST204' || error.code === '42703') && /cycle/.test(error.message || '')) {
+    throw new Error(t("La base de données doit être mise à jour (cycle des liens d'inscription) avant de créer ce lien."));
+  }
   if (error) throw error;
   return data as RegistrationLink;
 };
@@ -93,6 +108,7 @@ export interface RegistrationInfo {
   role: RegistrationRole;
   label: string | null;
   expires_at: string | null;
+  cycle?: SchoolCycle | null;
   levels?: RegistrationLevel[];
   number_prefix?: string;
 }

@@ -6,6 +6,7 @@ import LevelSelect from '../components/levels/LevelSelect';
 import { siteConfig } from '../config/site.config';
 import { RegistrationInfo, fetchRegistrationInfo, submitRegistration } from '../lib/registration';
 import { formatDate } from '../lib/grades';
+import { cycleLabel } from '../lib/levels';
 import { t } from '../i18n';
 
 interface RegisterPageProps {
@@ -137,6 +138,11 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ token, onNavigate, onLoginC
                 <UserPlus className="mx-auto h-10 w-10 text-indigo-600" />
                 <h1 className="mt-2 text-2xl font-bold text-gray-900">{title}</h1>
                 <p className="mt-1 text-gray-600">{t(siteConfig.schoolName)}</p>
+                {info.cycle && (
+                  <p className="mt-2 inline-block rounded-full bg-indigo-100 px-3 py-0.5 text-sm font-medium text-indigo-700" data-testid="register-cycle">
+                    {t("Cycle : {0}", [cycleLabel(info.cycle)])}
+                  </p>
+                )}
                 {info.label && <p className="mt-1 text-sm font-medium text-indigo-700">{info.label}</p>}
                 {info.expires_at && (
                   <p className="mt-1 text-xs text-gray-500">{t("Lien valable jusqu'au {0}", [formatDate(info.expires_at)])}</p>
@@ -169,6 +175,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ token, onNavigate, onLoginC
                     <LevelSelect
                       id="register-level"
                       levels={info.levels || []}
+                      cycle={info.cycle || 'all'}
                       value={form.level_id}
                       onChange={(levelId) => setForm({ ...form, level_id: levelId })}
                       required
