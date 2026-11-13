@@ -208,7 +208,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ token, onNavigate, onLoginC
 
               <div className="rounded-lg bg-indigo-50 p-3 text-sm text-indigo-900" data-testid="register-number-preview">
                 {numberPrefix
-                  ? t("Votre matricule sera attribué automatiquement : {0}-…", [numberPrefix])
+                  ? t("Votre matricule sera attribué automatiquement : {0}…", [numberPrefix])
                   : t("Choisissez votre niveau : votre matricule sera attribué automatiquement selon ce niveau.")}
               </div>
 

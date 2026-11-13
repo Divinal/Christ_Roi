@@ -2123,7 +2123,7 @@ const filteredSubjects = subjects.filter(subject => {
                       placeholder={tr("Automatique")}
                       className="w-full border rounded px-3 py-2"
                     />
-                    <p className="mt-1 text-xs text-gray-500">{tr("Laissez vide : le système l'attribue selon le niveau (ex. 6E-26-0001).")}</p>
+                    <p className="mt-1 text-xs text-gray-500">{tr("Laissez vide : le système l'attribue selon le niveau (ex. CR-6E260001).")}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-2">{tr("Téléphone")}</label>
@@ -2228,7 +2228,7 @@ const filteredSubjects = subjects.filter(subject => {
                       placeholder={tr("Automatique")}
                       className="w-full border rounded px-3 py-2"
                     />
-                    <p className="mt-1 text-xs text-gray-500">{tr("Laissez vide : le système l'attribue (ex. ENS-26-0001).")}</p>
+                    <p className="mt-1 text-xs text-gray-500">{tr("Laissez vide : le système l'attribue (ex. CR-ENS260001).")}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-2">{tr("Téléphone")}</label>

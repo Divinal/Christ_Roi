@@ -17,5 +17,6 @@ Deno.serve((req) => {
   const admin = createClient(Deno.env.get('SUPABASE_URL') ?? '', secretKey(), {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  return handleRequest(req, admin);
+  // SCHOOL_CODE : deux lettres de l'établissement en tête des matricules (CR par défaut).
+  return handleRequest(req, admin, Deno.env.get('SCHOOL_CODE'));
 });

@@ -117,7 +117,16 @@ const authErrorMessage = (error: { code?: string; message?: string }): string =>
 
 // `admin` est un client Supabase initialisé avec une clé secrète : il
 // contourne le RLS. Le contrôle des droits repose donc entièrement sur ce code.
-export const handleRequest = async (req: Request, admin: any): Promise<Response> => {
+// Deux lettres de l'établissement en tête du matricule (CR = Christ Roi).
+export const DEFAULT_SCHOOL_CODE = 'CR';
+
+export const normalizeSchoolCode = (value?: string | null): string => {
+  const letters = (value || '').normalize('NFD').replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 2);
+  return letters.length === 2 ? letters : DEFAULT_SCHOOL_CODE;
+};
+
+export const handleRequest = async (req: Request, admin: any, schoolCode?: string | null): Promise<Response> => {
+  const school = normalizeSchoolCode(schoolCode);
   if (req.method === 'OPTIONS') return new Response('ok', { headers: preflightHeaders(req) });
   if (req.method !== 'POST') return json({ error: 'Méthode non autorisée.' }, 405);
 
@@ -130,7 +139,7 @@ export const handleRequest = async (req: Request, admin: any): Promise<Response>
     }
 
     if (PUBLIC_ACTIONS.has(body?.action)) {
-      return json(body.action === 'register' ? await register(admin, body) : await registrationInfo(admin, body));
+      return json(body.action === 'register' ? await register(admin, body, school) : await registrationInfo(admin, body, school));
     }
 
     const token = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
@@ -153,9 +162,9 @@ export const handleRequest = async (req: Request, admin: any): Promise<Response>
 
     switch (action) {
       case 'create_student':
-        return json(await createStudent(admin, body));
+        return json(await createStudent(admin, body, school));
       case 'create_teacher':
-        return json(await createTeacher(admin, body));
+        return json(await createTeacher(admin, body, school));
       case 'create_admin':
         return json(await createAdmin(admin, body));
       case 'delete_student':
@@ -234,8 +243,8 @@ const insertOrFail = async (admin: any, table: string, row: Record<string, unkno
 };
 
 // ---------- Matricules générés par le système ----------
-// Étudiant : code du niveau, année de rentrée, numéro d'ordre (6E-26-0001).
-// Enseignant : ENS-26-0001.
+// Lettres de l'établissement, un seul tiret, puis niveau + année de rentrée +
+// numéro sur 4 chiffres : CR-6E260001. Enseignant : CR-ENS260001.
 
 const SPECIAL_LEVEL_WORDS: Record<string, string> = { SECONDE: '2ND', PREMIERE: '1RE', TERMINALE: 'TLE' };
 
@@ -270,19 +279,29 @@ export const levelCode = (name: string): string => {
 export const schoolYearCode = (now = new Date()): string =>
   String(now.getMonth() + 1 >= 8 ? now.getFullYear() : now.getFullYear() - 1).slice(-2);
 
+// Début commun d'une série : CR-6E26 (le numéro sur 4 chiffres suit directement).
+export const matriculePrefix = (school: string, code: string, now = new Date()): string =>
+  `${school}-${code}${schoolYearCode(now)}`;
+
 const MATRICULE_ATTEMPTS = 5;
+const NUMBER_DIGITS = 4;
 
 const nextNumber = async (admin: any, table: string, column: string, prefix: string): Promise<string> => {
+  // « _ » = exactement un caractère : seuls les matricules de cette série, numéro sur 4 positions.
   const { data, error } = await admin
     .from(table)
     .select(column)
-    .like(column, `${prefix}-%`)
+    .like(column, `${prefix}${'_'.repeat(NUMBER_DIGITS)}`)
     .order(column, { ascending: false })
     .limit(1);
   if (error) throw error;
   const last: string | undefined = data?.[0]?.[column];
-  const next = last ? (parseInt(last.slice(prefix.length + 1), 10) || 0) + 1 : 1;
-  return `${prefix}-${String(next).padStart(4, '0')}`;
+  const lastNumber = last && /^\d+$/.test(last.slice(prefix.length)) ? parseInt(last.slice(prefix.length), 10) : 0;
+  const next = lastNumber + 1;
+  if (next >= 10 ** NUMBER_DIGITS) {
+    throw new HttpError(409, 'La série de matricules de ce niveau est complète pour cette année.');
+  }
+  return `${prefix}${String(next).padStart(NUMBER_DIGITS, '0')}`;
 };
 
 // Matricule saisi : utilisé tel quel. Sinon le suivant de la série ; deux
@@ -323,7 +342,7 @@ interface SelfService {
   cycle?: string | null;
 }
 
-const createStudent = async (admin: any, body: any, selfService?: SelfService) => {
+const createStudent = async (admin: any, body: any, school: string, selfService?: SelfService) => {
   const email = requiredEmail(body.email);
   const givenNumber = selfService ? null : optionalText(body.student_number);
   const phone = optionalText(body.phone);
@@ -334,7 +353,7 @@ const createStudent = async (admin: any, body: any, selfService?: SelfService) =
   if (selfService?.cycle && level?.cycle !== selfService.cycle) {
     throw new HttpError(400, 'Ce niveau ne fait pas partie du cycle prévu par ce lien.');
   }
-  const prefix =`${level ? levelCode(level.name) : 'ETU'}-${schoolYearCode()}`;
+  const levelPart = level ? levelCode(level.name) : 'ETU';
   const password = selfService?.password ?? generateTemporaryPassword();
   let studentNumber = '';
 
@@ -349,7 +368,7 @@ const createStudent = async (admin: any, body: any, selfService?: SelfService) =
         address: optionalText(body.address),
         parent_phone: phone,
         status: 'active',
-      }, givenNumber, prefix);
+      }, givenNumber, matriculePrefix(school, levelPart));
     },
   );
   return {
@@ -359,7 +378,7 @@ const createStudent = async (admin: any, body: any, selfService?: SelfService) =
   };
 };
 
-const createTeacher = async (admin: any, body: any, selfService?: SelfService) => {
+const createTeacher = async (admin: any, body: any, school: string, selfService?: SelfService) => {
   const email = requiredEmail(body.email);
   const givenNumber = selfService ? null : optionalText(body.teacher_number);
   const phone = optionalText(body.phone);
@@ -377,7 +396,7 @@ const createTeacher = async (admin: any, body: any, selfService?: SelfService) =
         phone,
         specialization: optionalText(body.specialization),
         department: optionalText(body.department),
-      }, givenNumber, `ENS-${schoolYearCode()}`);
+      }, givenNumber, matriculePrefix(school, 'ENS'));
     },
   );
   return {
@@ -461,11 +480,10 @@ const releaseLink = async (admin: any, linkId: string) => {
   }
 };
 
-const registrationInfo = async (admin: any, body: any) => {
+const registrationInfo = async (admin: any, body: any, school: string) => {
   const link = await loadLink(admin, body.token);
-  const year = schoolYearCode();
   if (link.role === 'teacher') {
-    return { role: link.role, label: link.label, expires_at: link.expires_at, number_prefix: `ENS-${year}` };
+    return { role: link.role, label: link.label, expires_at: link.expires_at, number_prefix: matriculePrefix(school, 'ENS') };
   }
   let query = admin.from('levels').select('id, name, cycle, position');
   if (link.cycle) query = query.eq('cycle', link.cycle);
@@ -478,12 +496,12 @@ const registrationInfo = async (admin: any, body: any) => {
     cycle: link.cycle ?? null,
     levels: (data || []).map((level: { id: string; name: string; cycle: string; position: number }) => ({
       ...level,
-      number_prefix: `${levelCode(level.name)}-${year}`,
+      number_prefix: matriculePrefix(school, levelCode(level.name)),
     })),
   };
 };
 
-const register = async (admin: any, body: any) => {
+const register = async (admin: any, body: any, school: string) => {
   const token = typeof body.token === 'string' ? body.token.trim() : '';
   const link = await loadLink(admin, token);
   const password = typeof body.password === 'string' ? body.password : '';
@@ -495,8 +513,8 @@ const register = async (admin: any, body: any) => {
   let number: string;
   try {
     number = link.role === 'student'
-      ? (await createStudent(admin, body, { password, cycle: link.cycle ?? null })).student_number
-      : (await createTeacher(admin, body, { password })).teacher_number;
+      ? (await createStudent(admin, body, school, { password, cycle: link.cycle ?? null })).student_number
+      : (await createTeacher(admin, body, school, { password })).teacher_number;
   } catch (error) {
     await releaseLink(admin, link.id);
     throw error;
