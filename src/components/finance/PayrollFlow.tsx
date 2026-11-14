@@ -140,7 +140,7 @@ const PayrollFlow: React.FC<PayrollFlowProps> = ({ teachers, academicYear, onTea
       </form>
 
       {selectedTeacher && (
-        <PayslipHistoryTable key={refreshKey} teacherId={selectedTeacher} academicYear={academicYear} showTeacherName={false} />
+        <PayslipHistoryTable key={refreshKey} teacherId={selectedTeacher} academicYear={academicYear} showTeacherName={false} canDelete />
       )}
 
       {justPrinted && <PayslipPrintable payslip={justPrinted} onClose={() => setJustPrinted(null)} />}

@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import {
   Bell, BookOpen, Calendar, CheckCircle2, ClipboardCheck, ClipboardList, DollarSign, FileText, Home,
-  MessageSquare, Save
+  MessageSquare, Save, Trash2
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { Announcement, fetchActiveAnnouncements } from '../lib/announcements';
@@ -29,6 +29,7 @@ import StudentFollowUp from '../components/followup/StudentFollowUp';
 import GradesManagement from '../components/grades/GradesManagement';
 import MessageInbox from '../components/messages/MessageInbox';
 import PayslipHistoryTable from '../components/finance/PayslipHistoryTable';
+import TrashBin from '../components/trash/TrashBin';
 import { t } from '../i18n';
 
 interface User {
@@ -77,7 +78,7 @@ interface Schedule {
   room?: string;
 }
 
-const TABS = ['dashboard', 'grades', 'my-grades', 'followup', 'schedule', 'announcements', 'messages', 'payslips'];
+const TABS = ['dashboard', 'grades', 'my-grades', 'followup', 'schedule', 'announcements', 'messages', 'payslips', 'trash'];
 
 const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onChangePassword }) => {
   const [activeTab, setActiveTab] = useHashTab(TABS, 'dashboard');
@@ -355,7 +356,13 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
         { id: 'messages', label: t("Messages"), icon: MessageSquare, badge: unreadCount },
       ],
     },
-    { label: t("Mon compte"), items: [{ id: 'payslips', label: t("Bulletins de paie"), icon: DollarSign }] },
+    {
+      label: t("Mon compte"),
+      items: [
+        { id: 'payslips', label: t("Bulletins de paie"), icon: DollarSign },
+        { id: 'trash', label: t("Corbeille"), icon: Trash2 },
+      ],
+    },
   ];
 
   // Niveaux affectés, sans doublon si plusieurs matières sur un même niveau.
@@ -740,6 +747,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user, onLogout, onC
         )}
 
         {/* BULLETINS DE PAIE */}
+        {activeTab === 'trash' && <TrashBin isStaff={false} />}
+
         {activeTab === 'payslips' && (
           <div className="bg-white rounded-xl shadow p-6">
             <h2 className="text-2xl font-bold mb-6">{t("Mes Bulletins de Paie")}</h2>

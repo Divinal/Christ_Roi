@@ -513,7 +513,7 @@ const TeacherDetail: React.FC<TeacherDetailProps> = ({
       )}
 
       {activeTab === 'payslips' && (
-        <PayslipHistoryTable teacherId={teacher.id} academicYear={CURRENT_ACADEMIC_YEAR} showTeacherName={false} />
+        <PayslipHistoryTable teacherId={teacher.id} academicYear={CURRENT_ACADEMIC_YEAR} showTeacherName={false} canDelete />
       )}
     </div>
   );

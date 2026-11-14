@@ -20,6 +20,8 @@ import LevelsManagement from '../components/levels/LevelsManagement';
 import StudentListPrint from '../components/levels/StudentListPrint';
 import TeacherDetail, { TeacherRecord, TeacherTab } from '../components/teachers/TeacherDetail';
 import RegistrationLinksPanel from '../components/registration/RegistrationLinksPanel';
+import TrashBin from '../components/trash/TrashBin';
+import { trashMember } from '../lib/trash';
 import { RegistrationRole } from '../lib/registration';
 import { Announcement, PRIORITY_CLASSES, PRIORITY_LABELS } from '../lib/announcements';
 import { CURRENT_ACADEMIC_YEAR, CYCLES, Level, SchoolCycle, fetchLevels } from '../lib/levels';
@@ -87,10 +89,10 @@ interface ScheduleDetailed extends Schedule {
 // Onglets visibles selon le rôle connecté (la vraie barrière reste les
 // policies RLS côté base ; ceci n'est qu'un filtrage d'affichage)
 const ROLE_TABS: Record<string, string[]> = {
-  admin: ['dashboard', 'students', 'teachers', 'levels', 'subjects', 'schedules', 'announcements', 'messages', 'assign-teachers', 'grades', 'followup', 'finance', 'admins'],
-  academic_admin: ['dashboard', 'students', 'teachers', 'levels', 'subjects', 'schedules', 'announcements', 'messages', 'assign-teachers', 'grades', 'followup'],
-  finance_admin: ['dashboard', 'students', 'teachers', 'levels', 'messages', 'finance'],
-  admin_secretaire: ['dashboard', 'students', 'teachers', 'levels', 'subjects', 'schedules', 'messages', 'assign-teachers', 'followup'],
+  admin: ['dashboard', 'students', 'teachers', 'levels', 'subjects', 'schedules', 'announcements', 'messages', 'assign-teachers', 'grades', 'followup', 'finance', 'admins', 'trash'],
+  academic_admin: ['dashboard', 'students', 'teachers', 'levels', 'subjects', 'schedules', 'announcements', 'messages', 'assign-teachers', 'grades', 'followup', 'trash'],
+  finance_admin: ['dashboard', 'students', 'teachers', 'levels', 'messages', 'finance', 'trash'],
+  admin_secretaire: ['dashboard', 'students', 'teachers', 'levels', 'subjects', 'schedules', 'messages', 'assign-teachers', 'followup', 'trash'],
 };
 // Une seule navigation pour tous les rôles admin : chacun n'en voit que ce que
 // ROLE_TABS lui autorise.
@@ -129,6 +131,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: 'finance', label: tr("Finances"), icon: DollarSign },
       { id: 'admins', label: tr("Comptes admin"), icon: Shield },
+      { id: 'trash', label: tr("Corbeille"), icon: Trash2 },
     ],
   },
 ];
@@ -765,21 +768,14 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
   const handleDeleteStudent = async (student: Student) => {
     const name = fullNameOf(student) || student.student_number;
     const confirmed = await confirmDialog(
-      tr("⚠️ Supprimer définitivement {0} ?\n\nSeront supprimés : son compte de connexion, ses notes, ses rapports de suivi et ses paiements de scolarité, qui sortiront des totaux financiers.", [name]),
+      tr("⚠️ Mettre {0} à la corbeille ?\n\nSa fiche, ses notes, ses rapports de suivi et ses paiements de scolarité y restent 30 jours, et son compte de connexion est bloqué. Vous pouvez tout restaurer depuis la Corbeille.", [name]),
       { title: tr("Supprimer l'étudiant"), confirmLabel: tr("Supprimer") },
     );
     if (!confirmed) return;
 
     try {
-      const { login_deleted, reason } = await callAdminUsers<{ login_deleted: boolean; reason?: string }>(
-        'delete_student',
-        { student_id: student.id },
-      );
-      if (login_deleted || reason === 'other_roles') {
-        notify(tr("✅ Étudiant supprimé"));
-      } else {
-        notify(tr("⚠️ La fiche est supprimée, mais pas le compte de connexion. Réessayez ou contactez le support."));
-      }
+      await trashMember('student', student.id);
+      notify(tr("✅ Étudiant mis à la corbeille : restaurable pendant 30 jours."));
       loadStudents();
     } catch (error: any) {
       notify(`❌ ${error.message}`);
@@ -798,21 +794,14 @@ const handleRemoveTeacherAssignment = async (assignmentId: string) => {
       ? tr("\n- ses {0} bulletin(s) de paie, qui sortiront aussi du suivi financier", [payslipCount])
       : '';
     const confirmed = await confirmDialog(
-      tr("⚠️ Supprimer définitivement {0} ?\n\nSeront supprimés :\n- son compte de connexion\n- ses affectations{1}\n\nSes notes et créneaux sont conservés, sans enseignant.", [name, payslipWarning]),
+      tr("⚠️ Mettre {0} à la corbeille ?\n\nY iront pour 30 jours :\n- sa fiche (son compte de connexion est bloqué)\n- ses affectations{1}\n\nSes notes et créneaux restent en place ; s'il est restauré, ils lui sont rendus.", [name, payslipWarning]),
       { title: tr("Supprimer l'enseignant"), confirmLabel: tr("Supprimer") },
     );
     if (!confirmed) return;
 
     try {
-      const { login_deleted, reason } = await callAdminUsers<{ login_deleted: boolean; reason?: string }>(
-        'delete_teacher',
-        { teacher_id: teacher.id },
-      );
-      if (login_deleted || reason === 'other_roles') {
-        notify(tr("✅ Enseignant supprimé"));
-      } else {
-        notify(tr("⚠️ La fiche est supprimée, mais pas le compte de connexion. Réessayez ou contactez le support."));
-      }
+      await trashMember('teacher', teacher.id);
+      notify(tr("✅ Enseignant mis à la corbeille : restaurable pendant 30 jours."));
       setViewingTeacher(null);
       loadTeachers();
       loadTeacherAssignments();
@@ -2650,6 +2639,8 @@ const filteredSubjects = subjects.filter(subject => {
       {levelToPrint && (
         <StudentListPrint level={levelToPrint} students={students} onClose={() => setPrintLevelId('')} />
       )}
+
+      {activeTab === 'trash' && <TrashBin isStaff onRestored={loadAllData} />}
 
       {registrationRole && (
         <RegistrationLinksPanel role={registrationRole} onClose={() => setRegistrationRole(null)} />

@@ -1,21 +1,25 @@
 import React, { useEffect, useState } from 'react';
-import { Printer } from 'lucide-react';
+import { Printer, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { monthLabel, TeacherPayslip } from './financeTypes';
 import { formatFCFA } from './financeUtils';
 import PayslipPrintable from './PayslipPrintable';
+import { confirmDialog, notify } from '../ui/feedback';
 import { t, locale } from '../../i18n';
 
 interface PayslipHistoryTableProps {
   teacherId: string;
   academicYear: string;
   showTeacherName?: boolean;
+  // Administration : un bulletin peut être supprimé (annulé, il va à la corbeille).
+  canDelete?: boolean;
 }
 
 const PayslipHistoryTable: React.FC<PayslipHistoryTableProps> = ({
   teacherId,
   academicYear,
   showTeacherName = true,
+  canDelete = false,
 }) => {
   const [payslips, setPayslips] = useState<TeacherPayslip[]>([]);
   const [loading, setLoading] = useState(false);
@@ -38,6 +42,29 @@ const PayslipHistoryTable: React.FC<PayslipHistoryTableProps> = ({
     if (error) console.error('Erreur chargement bulletins de paie:', error);
     else setPayslips(data || []);
     setLoading(false);
+  };
+
+  // Comme un paiement de scolarité : annulé (voided_at) plutôt qu'effacé, il quitte
+  // les totaux et va à la corbeille, d'où il peut être restauré pendant 30 jours.
+  const handleDelete = async (payslip: TeacherPayslip) => {
+    const label = t("{0} — bulletin {1}", [formatFCFA(payslip.gross_amount), payslip.payslip_number]);
+    if (!await confirmDialog(t("⚠️ Supprimer ce bulletin de paie ?\n\n{0}\n\nIl sera retiré des totaux et placé dans la corbeille pendant 30 jours.", [label]))) return;
+
+    const { data, error } = await supabase
+      .from('teacher_payslips')
+      .update({ voided_at: new Date().toISOString(), void_reason: "Supprimé par l'administration" })
+      .eq('id', payslip.id)
+      .select('id');
+    if (error) {
+      notify(`❌ Erreur: ${error.message}`);
+      return;
+    }
+    if (!data?.length) {
+      notify(t("❌ Suppression refusée : vous n'avez pas les droits nécessaires."));
+      return;
+    }
+    notify(t("✅ Bulletin de paie mis à la corbeille"));
+    await loadPayslips();
   };
 
   const totalPaid = payslips.reduce((sum, p) => sum + Number(p.gross_amount), 0);
@@ -81,6 +108,16 @@ const PayslipHistoryTable: React.FC<PayslipHistoryTableProps> = ({
                   <button onClick={() => setPrinting(p)} className="text-blue-600 hover:bg-blue-50 p-1 rounded" title={t("Réimprimer")}>
                     <Printer className="w-4 h-4" />
                   </button>
+                  {canDelete && (
+                    <button
+                      onClick={() => handleDelete(p)}
+                      className="text-red-600 hover:bg-red-50 p-1 rounded"
+                      title={t("Supprimer")}
+                      aria-label={t("Supprimer le bulletin {0}", [p.payslip_number])}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
