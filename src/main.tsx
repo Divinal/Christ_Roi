@@ -20,3 +20,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <App/>
   </React.StrictMode>,
 )
+
+// Après une première visite, l'application s'ouvre même si le DNS du Wi-Fi ne
+// trouve plus le site (voir public/sw.js). Production uniquement.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+  });
+}
